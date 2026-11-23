@@ -30,6 +30,7 @@ RIFT Taxi is a standalone, offline-decision, destination-first RIFT navigation a
 - **Control and observations are separate channels.** `SendInput` insertion is not verified movement. Cached native coordinates are not fresh pose.
 - **Continuous steering** targets a path arc or corridor, not a strict next waypoint. Project motion onto path progress, look ahead and turn while W is down. Point types: optional, guide, mandatory passage, hard stop, final destination.
 - **Non-negotiable:** binding to current client and actor, canceled input release, fail closed on stale/contradictory telemetry, bounded time, explicit STOP and independent key-up recovery. Do not replace these controls with a generic time-delay loop.
+- NPC/service destinations stay **curated and travel-only**: Sanctum Porticulum Master, personal bank, healer, auctioneer, mailbox (auction collection), and selected storyline NPCs. Auction retrieval uses mailboxes, **not** an invented separate collection NPC; no mail UI automation in the initial scope. Do not delay M1–M3 continuous steering for NPC catalogs.
 - No network/API requirement in execution. GUI optional for early milestones; CLI must be scriptable and replayable.
 - If future changes demand privileges, system configuration, game memory writes, or intrusive instrumentation, make the impact explicit before acting. The initial product uses read-only observation and controlled standard game input.
 - Do not over-engineer planners before clear-ground smooth motion passes. Measure end-to-end latency; optimize the actual bottleneck.

@@ -44,7 +44,8 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 
 ### M4 — Local destination planning from verified world packages [P1]
 - Define/version package loader for RiftWorld WorldPatch/Detour-derived evidence; include hashes, transforms, clearance and zone/build scope.
-- Local route query + corridor/trajectory generation, preserving mandatory passages, elevations and hard stops. Prune guidance points only within proven free space.
+- Local route query + corridor/trajectory generation, preserving mandatory passages, elevations and hard stops.
+- Introduce a small **curated service-destination registry** (Sanctum Porticulum Master, personal banker, healer, auctioneer, separate **mailbox for auction collection**, selected main-story quest NPCs); verify reachable approach points. Do **not** build a general NPC search system or assume that collecting auction items uses an NPC. Prune guidance points only within proven free space.
 - Test a second independent destination route without RR2/RiftWorld/Workbridge installed or active.
 **Exit:** Select destination, plan and follow a scoped Detour-backed corridor from local package with fresh final-arrival evidence; invalid/stale packages fail clearly. Candidate routes not falsely promoted to cleared routes.
 
@@ -68,7 +69,7 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 
 ## Intentional sequencing
 
-- **Not first:** polished Taxi GUI, map editor, NPC research takeover, another world exporter, generalized microservice framework, full Silverwood travel, or reimplementing old RR2 controller behavior.
+- **Not first:** polished Taxi GUI, map editor, general NPC research takeover, another world exporter, generalized microservice framework, full Silverwood travel, or reimplementing old RR2 controller behavior.
 - **Independent optional research:** observe NPC trajectories as a *benchmark*, not a claim that Taxi can call internal NPC AI.
 - **Failure feedback:** a failed multi-bend physical run takes priority over feature expansion; fix the measured control problem before expanding to new world zones.
 - **Git:** small meaningful commits, source provenance for imported algorithms, no generated captures or sensitive local configs in commits. GitHub remote is optional and separate.

@@ -42,7 +42,8 @@ Classify loss of progress, stale data, controller drift, blocked passage and rou
 ## Constraints and non-goals
 
 - Windows live client; direct player observation and input, not native NPC authority.
-- No initial promise of arbitrary-zone travel, crossing disconnected navmesh islands, dynamic crowds, swimming, jumping, flying, mounts, combat, service use or porticulum interactions. Research/add only after a measured baseline.
+- No initial promise of arbitrary-zone travel, crossing disconnected navmesh islands, dynamic crowds, swimming, jumping, flying, mounts, combat, service interactions or porticulum interactions. Research/add only after a measured baseline.
+- Curated service destinations (Porticulum Master, personal bank, healer, auctioneer, **mailbox for auction collection**, selected story quest NPCs) are **travel-only** features introduced after smooth multi-bend running. RIFT auction purchases and proceeds use in-game **mailboxes**, not a presumed separate auction-collection NPC. See [limited NPC/service scope](NPC_DESTINATIONS.md).
 - No AI/cloud required at runtime; optional AI-assisted development ends at code/asset creation.
 - No reading RR2 or RiftWorld from sibling paths at runtime, and no dependency on their background services.
 - No general HKX reverse-engineering, world extraction, or duplicate Detour mesh builder inside Taxi.

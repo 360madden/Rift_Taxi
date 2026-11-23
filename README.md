@@ -23,6 +23,7 @@ Select a destination, press **Go**, and let the **local application** guide the 
 - **Python-first** application, command-line core and later PySide6 desktop UI.
 - A small bundled native Windows component may be adopted *only if measurements establish a need* for reliable input delivery, read-only game observation, or key-release behavior.
 - Local, versioned world/navigation packages imported from RiftWorld research, never a live service dependency.
+- Small, curated **travel-only** destinations for key NPCs and services; auction collection uses a **mailbox**, separately from auctioneers and personal bankers.
 - Read-only, process/build-bound pose and actor facing; finite, observable movement input with independent release and STOP.
 - Offline deterministic replay and benchmarks developed **before** wide-area live runs.
 
@@ -48,6 +49,7 @@ Detailed dependencies, tests, and gates: [Development roadmap](docs/ROADMAP.md).
 - [Benchmarks and acceptance criteria](docs/VALIDATION.md)
 - [RR2/RiftWorld research reuse inventory](docs/RESEARCH_IMPORTS.md)
 - [Durable decisions](docs/DECISIONS.md)
+- [Limited NPC and service destinations](docs/NPC_DESTINATIONS.md)
 - [Developer instructions](AGENTS.md)
 
 ## Local repository

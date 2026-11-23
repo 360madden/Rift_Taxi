@@ -15,5 +15,6 @@
 | D011 | No new HKX/collision reconstruction framework | RiftWorld already owns research; Taxi owns consumption and navigation | Explicit ownership change |
 | D012 | Git author `360madden <360madden@gmail.com>`, repo-local | Match existing verified LEGION author settings | Explicit user change |
 | D013 | Planning/bootstrap does not imply game input or GitHub remote | Separate initial setup from runtime tests and publication | Later explicit instruction |
+| D014 | NPC and service destinations stay small and curated: Sanctum Porticulum Master, personal bank, healer, auctioneer, separate auction-collection **mailbox**, and selected main-story quest NPCs | Useful destinations without becoming a broad NPC directory; official RIFT auction delivery occurs through mail | Explicit user expansion and verified evidence |
 
 Decisions are requirements until revised. A new result that challenges one should document evidence and a proposed replacement rather than silently changing direction.
