@@ -1,6 +1,8 @@
 # Development roadmap — from bootstrap to autonomous taxi
 **Planning baseline: 2026-11-23.** M0 documentation/bootstrap is complete; M1 is partially implemented offline. M2–M6 remain planned. No estimates substitute for milestone evidence.
 
+**Standing development policy (user directive, November 23):** [AI-first autonomous execution](AUTONOMY_POLICY.md). The AI should perform the available machine, UI, game observation, test and GitHub work itself; ask for manual intervention only when truly unavoidable. This does not waive exact-session control/release qualification or convert unverified candidates into success.
+
 ## Product success hierarchy
 
 1. **Reliable end-to-end destination arrival** through an admissible route.

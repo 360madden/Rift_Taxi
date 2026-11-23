@@ -13,7 +13,7 @@
 
 *A standalone, destination-driven navigation project for the RIFT MMORPG.*
 
-[**Explore the roadmap**](docs/ROADMAP.md) · [**See what works**](#-current-state) · [**Run the offline tools**](#-try-the-offline-tools) · [**Documentation**](#-documentation)
+[**Explore the roadmap**](docs/ROADMAP.md) · [**See what works**](#-current-state) · [**AI-first development policy**](docs/AUTONOMY_POLICY.md) · [**Run the offline tools**](#-try-the-offline-tools) · [**Documentation**](#-documentation)
 
 </div>
 
@@ -36,6 +36,8 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | 🧭 Evidence-backed routes | 🛑 Reliable STOP | 📦 Standalone by design |
 |:---|:---|:---|
 | Respect verified corridors, mandatory passages, build/zone provenance and unknown obstacles. | Treat input release, stale observations and session changes as explicit control conditions. | Reuse sister-project research without depending on those projects at runtime. |
+
+**Development workflow:** [AI-first autonomous execution](docs/AUTONOMY_POLICY.md) is the default. The AI should carry out coding, investigation, Windows/game inspection, evidence collection, testing and GitHub synchronization with minimal user intervention while preserving accurate live-game qualification.
 
 ## 📍 Current state
 

@@ -7,6 +7,18 @@ RIFT Taxi is a standalone, offline-decision, destination-first RIFT navigation a
 
 **No live capability claim without an actual, bounded, fresh live-game receipt.** A simulated trajectory, packet of input, or static map route is not a completed journey.
 
+## Autonomous execution policy (user directive — 2026-11-23)
+
+**Default: AI executes the work end-to-end with the least possible user intervention.** The user explicitly prefers that ChatGPT perform as much automation as its connected tools can accomplish instead of sending instructions back for the user to execute. Treat this as a durable Rift_Taxi development requirement across handoffs and future sessions.
+
+- Take initiative: inspect the correct machine and repository, research existing source evidence, plan the smallest useful milestone, write and review Taxi-owned code, run tests, inspect/deploy permitted artifacts, gather live read-only evidence, document, commit, push and verify GitHub. Do not stop after producing a plan or ask the user to run commands we can run ourselves.
+- For in-game M1 research, prefer AI-operated, reproducible session/desktop inspection and evidence capture. When an actual bounded game action becomes necessary, automate its setup, execution, STOP/release and post-action readback **only after** verifying the exact physical game state, same-process/actor/zone binding, input ownership and independent release. Preserve original receipts and clearly mark what is and is not verified.
+- If a tool/API fails or access is unclear, investigate automated alternatives, validate machine binding, and repair root causes before asking for manual steps. Do not invent agent/subagent capabilities, silently bypass the input safety boundary or mark an unperformed manual action as observed.
+- Ask the user **only when essential**: required human-only authentication/permission, unavailable physical observation that cannot be automated, an irreversible/destructive choice, or material risk/consent outside established project scope. Otherwise decide from documented project goals and proceed.
+- Give succinct timestamped progress and grounded SITREPs; make validated commits/pushes instead of promising background work. Preserve read-only sibling policies and do not modify unrelated user settings, installed addons or repositories merely to speed up an experiment.
+
+This policy governs the **development workflow**, not the delivered Taxi runtime: the finished app must navigate locally without AI or connected tooling. See [the autonomous execution handoff](docs/AUTONOMY_POLICY.md).
+
 ## Ownership boundaries
 
 - RIFT Taxi **owns** its runtime, navigation logic, packaging, pose/acquisition and input components. Python-first; a narrowly scoped bundled native helper is allowed after timing evidence.

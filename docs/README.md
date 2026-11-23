@@ -6,6 +6,7 @@
 
 | Question | Document | Why |
 |---|---|---|
+| How should the AI conduct the development autonomously? | [AI-first execution policy](AUTONOMY_POLICY.md) | User directive: minimize manual interventions, deliver tests/commits and automated evidence |
 | What is Taxi supposed to do? | [Product requirements](PRODUCT_SPEC.md) | Final destination first, continuous W+steering, guide/hard-stop semantics |
 | How will the standalone app work? | [Architecture](ARCHITECTURE.md) | Local controller, world packages, pose/input, recovery, deployment |
 | What does each sister repo provide? | [Research reuse index](RESEARCH_IMPORTS.md) | Source pinning, confidence levels and no runtime coupling |
