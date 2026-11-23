@@ -1,6 +1,6 @@
 # M1 offline implementation and handoff — 2026-11-23
 
-**Host:** LEGION. **Repository:** C:\work\Rift_Taxi. **Status:** M1 **in progress**, not complete. The offline Python CLI, original RR2 trace importer and synthetic geometric steering preview are implemented. There is **no Taxi native pose reader, no game actuator and no tested Taxi live movement**.
+**Host:** LEGION. **Repository:** C:\work\Rift_Taxi. **Status:** M1 **in progress**, not complete. The offline Python CLI, original RR2 importer, synthetic geometric steering preview and driver-neutral W/A/D + watchdog STOP gate are implemented. There is **no Taxi native pose reader, no Windows game actuator and no tested Taxi live movement**.
 
 ## Implemented
 
@@ -10,8 +10,9 @@
 | Offline analysis/compare | `rift_taxi/replay.py` | `taxi.replay-metrics/1`, `taxi.replay-comparison/1`; forward duty, forward releases, estimated guide releases, W+turn overlap, final XZ |
 | RR2 original import | `rift_taxi/import_rr2.py` | Copies original native-continuous-move JSONL into an independent local evidence bundle; retains process/build/player and original bytes |
 | Synthetic steering preview | `rift_taxi/steering.py` | Geometric Pure Pursuit lookahead and along-route progress, positive/negative yaw *intents* only, no RIFT key mapping or corridor clearance |
+| Driver-neutral held-input and STOP | `rift_taxi/control.py` | Exact-session/actor gate, freshness, W+A/D transition ordering, latched STOP, watchdog lease and fault-ledger; **no OS or RIFT input**. See [control boundary](M1_CONTROL_BOUNDARY.md). |
 | CLI | `rift_taxi/cli.py` | `doctor`, `replay`, `compare`, `import-rr2`, `preview-steering`; standard library at runtime, no sibling imports/network/game input |
-| Regression suite | `tests/test_*.py` | 34 offline tests passing on Python 3.14.10 / LEGION |
+| Regression suite | `tests/test_*.py` | **63/63** offline tests passing on Python 3.14 / LEGION; **29** new input-gate fault/continuity tests |
 
 ## Run commands — PowerShell 7
 
@@ -57,10 +58,12 @@ An initially truncated tool file-read led to a truncated `contracts.py` during a
 
 The first historical loader checked raw-source SHA but not whether the normalized pose/key events matched it. A tampering regression led to a new **source-to-trace normalization check**: altering the normalized poses while retaining a matching raw SHA now causes rejection.
 
+The new W/A/D control tests initially expected stale command rejection even when the independently running watchdog had already latched `pose-expired`; the tests were corrected to accept the earlier watchdog STOP. Another review hardened immutable pose XYZ, bounded key-set input, and advancing source timestamps; new regressions cover these conditions. [Full driver-neutral scope](M1_CONTROL_BOUNDARY.md).
+
 ## What's next
 
 1. **M1 remains open:** implement Taxi-owned current-build native actor XYZ/facing reader, independently qualified yaw source, identity/process-start/freshness and source-time measurements.
-2. Implement a separate Taxi-owned input adapter with one key owner, finite W/A/D control, STOP, independent release and post-release game readback. No game input was attempted in this milestone.
+2. Connect the now-tested driver-neutral W/A/D and STOP gate to a separately supervised native Windows input backend, cross-process ownership and independent post-release game readback. **No game input was attempted in this milestone.**
 3. Complete M1 with a bounded authorized physical test, including real measured yaw/turn response and end-to-end latency.
 4. For M2/M3, add real closed-loop motion simulation and Stanley comparison, then test sustained W and gradual turns physically. **M3 requires zero unnecessary guide stops**.
 

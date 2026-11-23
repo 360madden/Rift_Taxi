@@ -1,5 +1,5 @@
 # Development roadmap — from bootstrap to autonomous taxi
-**Planning baseline: 2026-11-23.** All milestones **PLANNED** unless explicitly noted. Repo/bootstrap is separate from implementation. No estimates substitute for milestone evidence.
+**Planning baseline: 2026-11-23.** M0 documentation/bootstrap is complete; M1 is partially implemented offline. M2–M6 remain planned. No estimates substitute for milestone evidence.
 
 ## Product success hierarchy
 
@@ -23,7 +23,7 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 **Exit:** documentation coherent, Git initial commit, no runtime dependencies silently introduced.
 
 ### M1 — Standalone pose, input and trace/replay substrate [P0]
-**Progress (Nov 23):** Offline CLI, strict `taxi.motion-trace/1`, source-hashed RR2 JSONL import, synthetic stop/go vs continuous metrics, and synthetic Pure Pursuit intent preview are implemented (**34/34 tests**). **Native live XYZ/yaw reader, key actuator and physical acceptance remain open.** [Implementation and original-source evidence](M1_IMPLEMENTATION.md).
+**Progress (Nov 23):** Offline CLI, strict `taxi.motion-trace/1`, source-hashed RR2 import, stop/go metrics, synthetic Pure Pursuit preview, and **driver-neutral W/A/D state + watchdog STOP gate** are implemented (**63/63 offline tests**). **Native XYZ/yaw reader, Windows input backend, independent release proof, and physical acceptance remain open.** [M1 implementation](M1_IMPLEMENTATION.md) · [Control-boundary tests and limitations](M1_CONTROL_BOUNDARY.md).
 - Implement `taxi replay` reading deterministic observation/input/route traces; publish first benchmark JSON. First inspect original Legion pose/facing plus key-down/up source receipts for **same-clock or explicitly calibrated cross-clock timestamps**; never synthesize omitted fields while labeling them historical.
 - Implement Taxi-owned exact-process/build/player/zone pose and actor-facing acquisition, initially on verified Windows RIFT build.
 - Implement independently releasable bounded W/A/D state control with STOP; capture actual timing and fresh post-action movement evidence.
@@ -65,7 +65,7 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 
 ## Next three concrete tasks (do these first)
 
-1. **Complete M1 live boundaries.** The implemented motion trace, synthetic fixtures and offline CLI are done; next pin RR2 native actor-facing source, implement Taxi-owned fresh XYZ/yaw and safe W/A/D held-input/STOP on a verified target. Detailed `PoseSample`/`ControlFrame`/`JourneyReceipt` runtime contracts still need implementation.
+1. **Complete M1 live boundaries.** The trace/CLI and driver-neutral W/A/D/STOP watchdog gate are offline-tested. Next pin and qualify current RR2 native actor-facing evidence, create a Taxi-owned fresh XYZ/yaw reader, implement a bounded independent Windows backend with external release supervision, and obtain physical readback. The serialized `taxi.pose/1`, `taxi.control-event/1` and `taxi.journey/1` live receipts remain unimplemented.
 2. **Source-verified movement model.** One RR2 build-1179 original JSONL receipt with 72 timed poses and 14 key-send events is imported and hash-validated. Expand to multiple same-epoch sources, independently qualify actor yaw and actual game response, and measure turn/coast/latency before claiming calibrated physical motion. The 15-point bridge route remains a **staged** historical composite.
 3. **Closed-loop steering comparison.** A synthetic Pure Pursuit lookahead intent preview exists, but does not simulate physics or actuate A/D. Build a source-calibrated closed-loop simulator and Stanley-style comparator, record path/corridor error and true forward-key duty, then qualify a controller with bounded physical tests.
 
