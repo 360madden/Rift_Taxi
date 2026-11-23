@@ -11,6 +11,7 @@ RIFT Taxi is a standalone, offline-decision, destination-first RIFT navigation a
 
 - RIFT Taxi **owns** its runtime, navigation logic, packaging, pose/acquisition and input components. Python-first; a narrowly scoped bundled native helper is allowed after timing evidence.
 - RR2 (`C:\work\riftreader2`) and RiftWorld (`C:\work\RiftWorld`) are **read-only references** during Taxi work. Never change, rebuild in-place, or alter their running services as an incidental Taxi task.
+- Telara Fly (`C:\work\telarafly`) is **permanently read-only**, including Git, builds, running its source checkout, generated caches and metadata. Only RiftWorld's existing **separately owned** TelaraHook performs source research. No direct importer or runtime dependency on Telara Fly is allowed.
 - No runtime imports of sibling repositories, path-dependent executables, Git worktrees, Workbridge, ChatGPT, cloud AI or a remote decision service. Existing source can inform a selective, attributed, reviewed Taxi-owned adaptation.
 - RiftWorld produces source-backed map/collision/route research; Taxi consumes **versioned local packages** and owns runtime route acceptance and following. Do not duplicate HKX decoding or terrain reconstruction.
 - Preserve source SHA, game build, zone, transform, clearance and confidence metadata when importing evidence. A candidate route is not proven traversable merely because a pathfinder returned it.
@@ -36,4 +37,4 @@ RIFT Taxi is a standalone, offline-decision, destination-first RIFT navigation a
 - Do not over-engineer planners before clear-ground smooth motion passes. Measure end-to-end latency; optimize the actual bottleneck.
 - Document actual failures and corrections, not just successful screenshots.
 
-Read `docs/PRODUCT_SPEC.md`, `docs/ROADMAP.md` and `docs/VALIDATION.md` before implementing navigation behavior.
+Read `docs/PRODUCT_SPEC.md`, `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`, `docs/INTEGRATION_CONTRACTS.md` and `docs/VALIDATION.md` before implementing navigation behavior. For provenance and evidence limitations consult `docs/RESEARCH_IMPORTS.md` and the individual RR2/RiftWorld/Telara Fly handoffs; distinguish existing upstream schema names from **proposed, unimplemented Taxi contracts**.

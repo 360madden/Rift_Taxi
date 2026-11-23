@@ -16,5 +16,7 @@
 | D012 | Git author `360madden <360madden@gmail.com>`, repo-local | Match existing verified LEGION author settings | Explicit user change |
 | D013 | Planning/bootstrap does not imply game input or GitHub remote | Separate initial setup from runtime tests and publication | Later explicit instruction |
 | D014 | NPC and service destinations stay small and curated: Sanctum Porticulum Master, personal bank, healer, auctioneer, separate auction-collection **mailbox**, and selected main-story quest NPCs | Useful destinations without becoming a broad NPC directory; official RIFT auction delivery occurs through mail | Explicit user expansion and verified evidence |
+| D015 | Maintain source-pinned read-only RR2/RiftWorld references and **permanently read-only Telara Fly**; Taxi only imports validated, locally packaged data and selectively reviewed implementation techniques | Prevent duplicated world research, source mutation, hidden runtime coupling and coordinate mistakes | Explicit change of project ownership |
+| D016 | A complete Detour path or composite staged movement route is never by itself clearance or one continuous successful Taxi trip | Nov 23 bridge includes an unmodeled banner pole; prior RR2 arrivals include steering stops | Only independently verified continuous live receipt and corridor coverage |
 
 Decisions are requirements until revised. A new result that challenges one should document evidence and a proposed replacement rather than silently changing direction.

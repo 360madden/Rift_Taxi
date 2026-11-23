@@ -60,6 +60,16 @@ Compare travel speed/trip time only on the **same route, build, mount/run mode a
 
 Retain under ignored `artifacts/<run-id>/`: immutable `route.json`, `source-manifest.json`, `telemetry.jsonl`, `input-events.jsonl`, `metrics.json`, optional camera/video evidence. A concise tracked validation note references exact hashes/build/host/date and classifies **simulation**, **offline historical replay**, or **live physical acceptance**. Never store credentials or private session tokens in Git.
 
+## Sister-repository regression evidence
+
+- **RR2**: replay the build-1179 physical Watch pillar forward/return routes (0.127 / 0.220 horizontal error), but explicitly count their corner settlements and any forward-input releases. Do not call precise arrival continuous steering.
+- **RiftWorld Watch**: reproduce the scoped mapped face-90 obstruction/Detour clearance and confirm that map evidence does not silently describe unmodeled collision as absent.
+- **November 23 Guardian bridge**: a staged 15-point Watch-to-Tavril route, **not** one uninterrupted accepted run. Its banner pole was absent from the assembled map. A Taxi controller must not classify it as safely clear without coverage evidence or claim full-run acceptance from the composite.
+- **Telara Fly provenance**: test a deliberate Unity OBJ **Z-negation** mix-up against a RiftWorld original-source XYZ bundle. The import should reject mismatched coordinate/landmark evidence, not flip it silently.
+- **Standalone**: verify the final packaged runtime has zero imports/file reads/process launches from RR2, RiftWorld, Telara Fly or Workbridge, and never attempts a cloud AI call during a journey.
+
+**Source details and original hashes:** [RR2](RR2_HANDOFF.md), [RiftWorld](RIFTWORLD_HANDOFF.md), [Telara Fly](TELARA_FLY_REFERENCE.md), [import contracts](INTEGRATION_CONTRACTS.md).
+
 ## Immediate reproducible baseline
 
 Before adding a full UI, establish a deterministic 3-bend course with optional guides and one separate hard-stop variant. Demonstrate that a stop-turn-run controller fails the smoothness gate despite good final accuracy; new steering must clear both the smoothness gate and the same final-arrival gate.

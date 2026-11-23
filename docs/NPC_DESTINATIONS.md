@@ -25,7 +25,7 @@ Provide a small set of practical **travel-to-NPC or service-object** destination
 
 **Personal-bank location lead:** CADRIFT's historical guide places a Sanctum banker in the crafting area near `/setwaypoint 7393 2998` and mentions additional bankers near the pub. This is a discovery lead only: current NPC presence, height/room, interaction range and route clearance need physical confirmation.
 
-**Other service leads:** A historical Sanctum walkthrough describes merchants/auctioneers, bankers, and a healer in Thontic's Row near the fountain and pavilions. These labels are not qualified current player coordinates.
+**Other service leads:** A historical Sanctum walkthrough describes merchants/auctioneers, bankers, and a healer in Thontic's Row near the fountain and pavilions. These labels are not qualified current player coordinates. **New RiftWorld November 23 bridge handoff** confirms a Quicksilver Medic beside the **Watch temple** at the start but **does not** identify a healer in Sanctum's city-side area; the bridge journey ended at Tavril Plaza. The catalog must distinguish those areas and withhold an unverified city healer arrival.
 
 ## Definition of travel to an NPC or service object
 
@@ -61,7 +61,7 @@ NPC or service-object coordinates may lie behind a counter, across an obstructio
 - Gamigo official RIFT Using In-Game Mail (auction purchases and sale proceeds use mailboxes): https://support.gamigo.com/en/support/solutions/articles/201000105465-rift-using-in-game-mail
 - Gamigo official RIFT Guild Bank Overview: https://support.gamigo.com/en/support/solutions/articles/201000105433-rift-guild-bank-overview
 - Historical Sanctum walkthrough: https://www.alteredgamer.com/rift/111534-planes-of-telara-navigating-sanctum/
-- RiftWorld's Sanctum Watch NPC catalog and RR2's nearby unit readers are useful **reference patterns**, not the Sanctum castle NPC's confirmed current coordinates.
+- RiftWorld's Sanctum Watch NPC catalog and RR2's nearby unit readers are useful **reference patterns**, not the Sanctum castle NPC's confirmed current coordinates. Source handoffs: [RiftWorld](RIFTWORLD_HANDOFF.md), [RR2](RR2_HANDOFF.md); the November 23 source is `RiftWorld/HANDOFF-2026-11-23-SANCTUM-BRIDGE.md`.
 
 ## Acceptance tests for each curated destination
 

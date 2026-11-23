@@ -16,14 +16,14 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 `M0 → M1 → M2 → M3 → M4 → M5 → M6`. Implement narrow vertical slices and run replay in parallel with live-scope investigation. Do not postpone a working multi-bend controller until every zone is mapped.
 
 ### M0 — Repository, requirements and evidence baseline
-**Status: bootstrap/docs created; implementation not started.**
+**Status:** Bootstrap and expanded source/architecture documents completed. **Not yet implemented:** trace-contract fixtures, replay CLI, native reader or application.
 - Git main, scoped author, README/AGENTS, specs, architecture and validation plan.
-- Identify exact reusable RR2 native pose/facing and input behavior and RiftWorld route export contracts, with upstream commits/file hashes.
-- Define minimal typed trace fixtures and clear source attribution; do not copy entire upstream applications.
+- Identify exact reusable RR2 native pose/facing and input behavior and RiftWorld route export contracts, with upstream commits/file hashes. **Completed as a read-only source audit** in [research index](RESEARCH_IMPORTS.md), [RR2 handoff](RR2_HANDOFF.md), [RiftWorld handoff](RIFTWORLD_HANDOFF.md) and [Telara Fly reference](TELARA_FLY_REFERENCE.md). Recheck hashes and actual raw receipts at implementation time.
+- Define minimal typed trace fixtures and clear source attribution; do not copy entire upstream applications. Existing upstream formats and **proposed Taxi** contract fields are separated in [integration contracts](INTEGRATION_CONTRACTS.md). Actual fixtures remain M1 work.
 **Exit:** documentation coherent, Git initial commit, no runtime dependencies silently introduced.
 
 ### M1 — Standalone pose, input and trace/replay substrate [P0]
-- Implement `taxi replay` reading deterministic observation/input/route traces; publish first benchmark JSON.
+- Implement `taxi replay` reading deterministic observation/input/route traces; publish first benchmark JSON. First inspect original Legion pose/facing plus key-down/up source receipts for **same-clock or explicitly calibrated cross-clock timestamps**; never synthesize omitted fields while labeling them historical.
 - Implement Taxi-owned exact-process/build/player/zone pose and actor-facing acquisition, initially on verified Windows RIFT build.
 - Implement independently releasable bounded W/A/D state control with STOP; capture actual timing and fresh post-action movement evidence.
 - Measure acquisition and actuation latency, update frequency, stale/frozen source behavior and restart rebind.
@@ -43,15 +43,16 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 **Exit:** On a preverified clear-ground physical course with **≥3 bends**, zero unnecessary stops at guides; W is active for **≥95% of movement-eligible time**; steering actions overlap forward travel; final arrival independently confirmed; no STOP/release failure or dangerous oscillation. If target fails, publish measured trace and fix the cause; do not declare success from unit tests.
 
 ### M4 — Local destination planning from verified world packages [P1]
-- Define/version package loader for RiftWorld WorldPatch/Detour-derived evidence; include hashes, transforms, clearance and zone/build scope.
+- Define/version package loader for RiftWorld WorldPatch/Detour-derived evidence; include hashes, transforms, clearance and zone/build scope. Start with a pre-exported scoped corridor and original source manifests; a raw Detour binary requires independently qualified local runtime-reader compatibility.
 - Local route query + corridor/trajectory generation, preserving mandatory passages, elevations and hard stops.
-- Introduce a small **curated service-destination registry** (Sanctum Porticulum Master, personal banker, healer, auctioneer, separate **mailbox for auction collection**, selected main-story quest NPCs); verify reachable approach points. Do **not** build a general NPC search system or assume that collecting auction items uses an NPC. Prune guidance points only within proven free space.
+- Prune guide points only when the smoothed trajectory remains within verified free space.
+- Introduce a small **curated service-destination registry** (Sanctum Porticulum Master, personal banker, healer, auctioneer, separate **mailbox for auction collection**, selected main-story quest NPCs); verify reachable approach points. Do **not** build a general NPC search system or assume that collecting auction items uses an NPC.
 - Test a second independent destination route without RR2/RiftWorld/Workbridge installed or active.
 **Exit:** Select destination, plan and follow a scoped Detour-backed corridor from local package with fresh final-arrival evidence; invalid/stale packages fail clearly. Candidate routes not falsely promoted to cleared routes.
 
 ### M5 — Robust local recovery and constrained avoidance [P1]
 - Detect stopped progress, lateral drift, lost pose, narrow bends and blockage with distinct counters.
-- Bound correction/replan attempts; choose a verified alternate corridor when available; keep destination primary.
+- Bound correction/replan attempts; choose a verified alternate corridor when available; keep destination primary. Include the **November 23 missing banner pole** as a negative world-coverage case; do not assume render-visible corridor means collision-free.
 - Add dynamic avoidance only when independently located obstacle data are timely enough.
 **Exit:** Seeded replay cases and physical bounded cases show appropriate recovery versus blocked outcomes; never loop indefinitely at an obstacle or silently bypass hard stops.
 
@@ -64,7 +65,7 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 ## Next three concrete tasks (do these first)
 
 1. **Trace contracts and replay CLI.** Add minimal Python package, unit test harness, versioned `PoseSample`/`NavigationRoute`/`ControlFrame`/`JourneyReceipt` and a fixture reproducing one RR2 stop/turn movement profile.
-2. **Evidence-aware movement model.** From retained exact-build LEGION native facing/XYZ and key receipts, measure speed, turn response and coast; identify unqualified intervals. No automatic gameplay input needed for this step.
+2. **Evidence-aware movement model.** Inspect retained build-1179 LEGION native facing/XYZ, real W/A/D timing and Watch pillar + Guardian bridge receipts; measure speed, turn response and coast only where same-epoch evidence supports it. The 15-point bridge route is a **staged** historical composite, not a Taxi continuous success. No game input needed for offline intake.
 3. **Two steering algorithms, same course.** Run continuous W+steer Pure Pursuit versus Stanley-style tracking in replay. Record path error, forward duty, guide pauses, turn alternations and final stop error, then choose the simplest passing candidate for a specifically authorized physical test.
 
 ## Intentional sequencing

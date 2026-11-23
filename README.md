@@ -1,7 +1,7 @@
 # RIFT Taxi 🚕
 **Standalone, destination-driven navigation for RIFT MMORPG**
 
-> **Project status — 2026-11-23:** Planning and Git bootstrap only. No RIFT Taxi navigation executable, live input, successful journey, or packaged distribution is claimed.
+> **Project status — 2026-11-23:** Git initialized; architecture, source-repository handoffs and integration contracts documented. **No Taxi navigation executable, live input, successful journey or packaged distribution is claimed.**
 
 ## Product goal
 
@@ -47,7 +47,10 @@ Detailed dependencies, tests, and gates: [Development roadmap](docs/ROADMAP.md).
 - [Standalone architecture and control design](docs/ARCHITECTURE.md)
 - [Development roadmap and milestones](docs/ROADMAP.md)
 - [Benchmarks and acceptance criteria](docs/VALIDATION.md)
-- [RR2/RiftWorld research reuse inventory](docs/RESEARCH_IMPORTS.md)
+- [Documentation hub and reading order](docs/README.md)
+- [RR2/RiftWorld/Telara Fly research reuse inventory](docs/RESEARCH_IMPORTS.md)
+- [RR2 source handoff](docs/RR2_HANDOFF.md) · [RiftWorld source handoff](docs/RIFTWORLD_HANDOFF.md) · [Telara Fly read-only inventory](docs/TELARA_FLY_REFERENCE.md)
+- [Versioned integration contract design](docs/INTEGRATION_CONTRACTS.md)
 - [Durable decisions](docs/DECISIONS.md)
 - [Limited NPC and service destinations](docs/NPC_DESTINATIONS.md)
 - [Developer instructions](AGENTS.md)
@@ -58,4 +61,4 @@ Repository: `C:\work\Rift_Taxi` on **LEGION**, branch `main`, Git author `360mad
 
 ## First implementation task
 
-Build a minimal **trace-replay CLI** with typed, time-stamped pose/facing, route, and input-event contracts. Reproduce a known stop-turn-run failure offline; then implement and compare a running/steering controller against that trace. Do not begin with a large GUI or a duplicate geometry extractor.
+Build a minimal **trace-replay CLI** with typed, time-stamped pose/facing, route, and input-event contracts. Reproduce a known stop-turn-run failure offline using genuinely time-aligned original RR2 observations when available; do **not** invent missing yaw or key timing. Then implement and compare a running/steering controller against the same trace. The November 23 15-point Guardian bridge route is a staged-travel reference, not an already accepted uninterrupted journey. Do not begin with a large GUI or a duplicate geometry extractor.
