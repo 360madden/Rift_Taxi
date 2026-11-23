@@ -16,6 +16,7 @@ from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .native_capture import capture_native_candidate, CandidateCaptureRefused
 from .native_burst import capture_native_burst
+from .native_pair import compare_native_candidates, NativePairError
 from .facing_signature import compare_facing_phases, FacingSignatureError
 from .native_candidate import NativeCandidateUnavailable
 from .native_memory import NativeReadUnavailable
@@ -92,6 +93,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="also capture same-owner position-secondary and actor matrix raw bits; never qualified heading")
     candidate.add_argument("--include-refresh-guard-candidate", action="store_true",
         help="co-sampled cache refresh guard bytes; no writer-execution/freshness proof")
+    candidate.add_argument("--include-actor-translation-candidate", action="store_true",
+        help="same-owner secondary XYZ + actor offsets/render world translation; not live pose proof")
     burst = commands.add_parser("inspect-native-burst",
         help="2..8 fully pinned read-only candidate captures for manual change analysis; no input")
     burst.add_argument("--pid", required=True, type=int)
@@ -110,6 +113,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     burst.add_argument("--include-refresh-guard-candidate", action="store_true",
         help="also compare sampled cached XYZ refresh guard bytes; not writer/freshness proof")
     burst.add_argument("--out", required=True, help="new JSON file; no overwrite")
+    pair = commands.add_parser("compare-native-candidates",
+        help="offline only: SHA-pinned same-process/owner XYZ/yaw/matrix/actor comparison")
+    pair.add_argument("--before", required=True, help="original first one-shot JSON receipt")
+    pair.add_argument("--after", required=True, help="original later one-shot JSON receipt")
+    pair.add_argument("--out", help="write JSON to a NEW file; never overwrite")
     phases = commands.add_parser("compare-facing-phases",
         help="offline only: compare five manually labeled matrix-enabled candidate bursts")
     for phase in ("baseline", "camera-only", "turn-left", "turn-right", "forward"):
@@ -138,6 +146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 max_capture_s=args.max_capture_seconds,
                 include_matrix_candidate=args.include_matrix_candidate,
                 include_refresh_guard_candidate=args.include_refresh_guard_candidate,
+                include_actor_translation_candidate=args.include_actor_translation_candidate,
             )
             _write_or_print(report, args.out)
         elif args.command == "inspect-native-burst":
@@ -150,6 +159,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 include_matrix_candidate=args.include_matrix_candidate,
                 include_refresh_guard_candidate=args.include_refresh_guard_candidate,
             )
+            _write_or_print(report, args.out)
+        elif args.command == "compare-native-candidates":
+            report = compare_native_candidates(args.before, args.after)
             _write_or_print(report, args.out)
         elif args.command == "compare-facing-phases":
             report = compare_facing_phases(
@@ -169,13 +181,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "nativeCandidateCaptureAvailable": True,
                 "nativeCandidateBurstAvailable": True,
                 "offlineFacingPhaseComparisonAvailable": True,
+                "offlineNativeCandidatePairComparisonAvailable": True,
                 "nativeCandidateQualifiedForMovement": False,
                 "siblingRepositoryRequired": False,
             }, None)
         return 0
     except (TraceError, ValueError, OSError, IdentityUnavailable,
             NativeReadUnavailable, NativeCandidateUnavailable, CandidateCaptureRefused,
-            FacingSignatureError) as error:
+            FacingSignatureError, NativePairError) as error:
         print(f"rift-taxi: {error}", file=sys.stderr)
         return 2
 

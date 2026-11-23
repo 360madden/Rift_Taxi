@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from rift_taxi.native_capture import CandidateCaptureRefused, capture_native_candidate
-from rift_taxi.native_candidate import PositionFacingCandidate, MatrixCopyCandidate, RefreshGuardCandidate, NativeCandidateUnavailable
+from rift_taxi.native_candidate import PositionFacingCandidate, MatrixCopyCandidate, RefreshGuardCandidate, ActorWorldTranslationCandidate, NativeCandidateUnavailable
 from rift_taxi.win32_identity import DesktopCandidate
 from rift_taxi.cli import main
 
@@ -38,6 +38,12 @@ class CaptureFixture:
         )
         self.guard = RefreshGuardCandidate("0", "0x0000000000000000", 0,
                             "both-known-top-level-routes-ineligible-candidate")
+        self.actor_world = ActorWorldTranslationCandidate(
+            (1., 2., 3.), (2., 2., 3.),
+            (1., 0., 0.), (0., 0., 0.), (2., 2., 3.),
+            0., 0., 0, "normal-render-translation-candidate",
+            (2., 2., 3.), 0.
+        )
         self.inspects = 0
         self.opened = 0
         self.closed = 0
@@ -71,6 +77,7 @@ class CaptureFixture:
         return replace(self.result,
             matrix_copy_candidate=self.matrix if kwargs.get("include_matrix_candidate") is True else None,
             refresh_guard_candidate=self.guard if kwargs.get("include_refresh_guard_candidate") is True else None,
+            actor_translation_candidate=self.actor_world if kwargs.get("include_actor_translation_candidate") is True else None,
         )
 
     def capture(self, **kwargs: object) -> dict:
@@ -268,6 +275,47 @@ class ReadOnlyCaptureTests(unittest.TestCase):
                 self.assertEqual(main(argv), 0)
                 self.assertTrue(capture.call_args.kwargs["include_refresh_guard_candidate"])
             self.assertEqual(json.loads(output.read_text())["refreshGuardEvidence"]["refreshFlagRaw"], 0)
+
+    def test_actor_translation_opt_in_stays_unqualified(self) -> None:
+        without = self.fixture.capture()
+        self.assertIsNone(without["actorTranslationEvidence"])
+        self.fixture = CaptureFixture()  # each synthetic bracket has its own clock bounds
+        report = self.fixture.capture(include_actor_translation_candidate=True)
+        actor = report["actorTranslationEvidence"]
+        self.assertEqual(actor["positionSecondaryXyz"], [1., 2., 3.])
+        self.assertEqual(actor["actorStoredWorldTranslationCandidate"], [2., 2., 3.])
+        self.assertEqual(actor["reconstructedActorWorldTranslationCandidate"], [2., 2., 3.])
+        self.assertEqual(actor["normalRenderWorldTranslationCandidate"], [2., 2., 3.])
+        self.assertEqual(actor["reconstructionMaxAbsDelta"], 0.)
+        self.assertFalse(actor["independentlyFresh"])
+        self.assertFalse(actor["authoritativePlayerPosition"])
+        self.assertFalse(report["evidence"]["passivePositionFreshnessQualified"])
+        self.assertTrue(report["evidence"]["actorTranslationEvidenceRequested"])
+
+    def test_actor_translation_missing_and_false_freshness_claim_refused(self) -> None:
+        self.fixture.actor_world = None
+        with self.assertRaisesRegex(CandidateCaptureRefused, "actor-translation evidence missing"):
+            self.fixture.capture(include_actor_translation_candidate=True)
+        self.fixture = CaptureFixture()
+        self.fixture.actor_world = replace(self.fixture.actor_world, independently_fresh=True)
+        with self.assertRaisesRegex(CandidateCaptureRefused, "cannot be verified"):
+            self.fixture.capture(include_actor_translation_candidate=True)
+
+    def test_actor_translation_cli_flag_forwarded(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "actor-world.json"
+            argv = [
+                "inspect-native-candidate", "--pid", "7", "--start-ticks",
+                str(self.fixture.windows[0].start_utc_ticks),
+                "--exe-path", EXE, "--sha256", SHA, "--hwnd", "9999",
+                "--host", "LEGION", "--out", str(output),
+                "--include-actor-translation-candidate",
+            ]
+            fake = self.fixture.capture(include_actor_translation_candidate=True)
+            with patch("rift_taxi.cli.capture_native_candidate", return_value=fake) as capture:
+                self.assertEqual(main(argv), 0)
+                self.assertTrue(capture.call_args.kwargs["include_actor_translation_candidate"])
+            self.assertFalse(json.loads(output.read_text())["actorTranslationEvidence"]["independentlyFresh"])
 
     def test_cli_doctor_still_does_not_auto_select_game(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()) as output:

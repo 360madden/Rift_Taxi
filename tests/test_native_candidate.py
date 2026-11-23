@@ -31,6 +31,7 @@ class MemoryFixture:
         self.components = 0x20060000
         self.component = 0x20070000
         self.actor = 0x20080000
+        self.renderer = 0x20090000
         self.count = 8
         self.key = key
         self.pin = ProcessPin(24, 638_000_000_000_000_000, r"C:\RIFT\RIFT.exe", build)
@@ -59,13 +60,21 @@ class MemoryFixture:
         c = struct.unpack("<f", struct.pack("<f", math.cos(math.pi / 6)))[0]
         s = struct.unpack("<f", struct.pack("<f", math.sin(math.pi / 6)))[0]
         self.matrix = struct.pack("<9f", c, 0., -s, 0., 1., 0., s, 0., c)
-        actor_payload = bytearray(0x3BC)
+        actor_payload = bytearray(0x77C)
         actor_payload[0x398:0x3BC] = self.matrix
+        struct.pack_into("<fff", actor_payload, 0x3BC, 14.5, 2.75, -10.25)
+        struct.pack_into("<fff", actor_payload, 0x4F8, 1.5, 0., -2.0)
+        struct.pack_into("<fff", actor_payload, 0x770, .5, -.25, 1.0)
+        struct.pack_into("<Q", actor_payload, 0x410, self.renderer)
         self.put(self.actor, actor_payload)
+        renderer_bytes = bytearray(0xD0)
+        struct.pack_into("<fff", renderer_bytes, 0xC4, 14.5, 2.75, -10.25)
+        self.put(self.renderer, renderer_bytes)
         payload = bytearray(0x110)
         struct.pack_into("<Q", payload, 0, self.base + vptr_rva)
         struct.pack_into("<Q", payload, 0x10, self.entity)
         struct.pack_into("<fff", payload, 0x48, 12.5, 3.0, -9.25)
+        struct.pack_into("<fff", payload, 0x88, 12.5, 3.0, -9.25)
         payload[0x94:0xB8] = self.matrix
         self.put(self.component, payload)
         self.put(self.system + 0x360, struct.pack("<Q", key))
@@ -156,6 +165,87 @@ class DecoderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "refresh_guard"):
             decode_current_build_candidate(
                 fixture, include_refresh_guard_candidate=1
+            )
+
+    def test_optional_actor_world_translation_reconstructs_same_owner(self) -> None:
+        for build in (OLD, NEW):
+            with self.subTest(build=build[:8]):
+                fixture = MemoryFixture(build)
+                ordinary = decode_current_build_candidate(fixture)
+                self.assertIsNone(ordinary.actor_translation_candidate)
+                sample = decode_current_build_candidate(
+                    fixture, include_actor_translation_candidate=True
+                )
+                translation = sample.actor_translation_candidate
+                self.assertEqual(translation.secondary_cache_xyz, (12.5, 3., -9.25))
+                self.assertEqual(translation.actor_stored_xyz, (14.5, 2.75, -10.25))
+                self.assertEqual(translation.reconstructed_actor_xyz, (14.5, 2.75, -10.25))
+                self.assertEqual(translation.reconstruction_max_abs_delta, 0.)
+                self.assertEqual(translation.primary_secondary_max_abs_delta, 0.)
+                self.assertEqual(translation.actor_flags, 0)
+                self.assertEqual(translation.render_xyz, (14.5, 2.75, -10.25))
+                self.assertEqual(translation.render_status, "normal-render-translation-candidate")
+                self.assertFalse(translation.independently_fresh)
+                self.assertFalse(translation.authoritative_player_position)
+
+    def test_actor_translation_relation_mismatch_is_candidate_only(self) -> None:
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.actor + 0x3BC, struct.pack("<f", 50.))
+        value = decode_current_build_candidate(
+            fixture, include_actor_translation_candidate=True
+        ).actor_translation_candidate
+        self.assertGreater(value.reconstruction_max_abs_delta, 30.)
+        self.assertFalse(value.authoritative_player_position)
+
+    def test_actor_translation_alternate_branch_not_followed(self) -> None:
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.actor + 0x1C0, struct.pack("<I", 1))
+        fixture.overwrite(fixture.actor + 0x410, struct.pack("<Q", 0xFFFFFFFFFFFFFFFF))
+        value = decode_current_build_candidate(
+            fixture, include_actor_translation_candidate=True
+        ).actor_translation_candidate
+        self.assertEqual(value.render_status, "alternate-render-reference-not-followed")
+        self.assertIsNone(value.render_xyz)
+
+    def test_actor_translation_normal_null_renderer_is_optional(self) -> None:
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.actor + 0x410, b"\0" * 8)
+        value = decode_current_build_candidate(
+            fixture, include_actor_translation_candidate=True
+        ).actor_translation_candidate
+        self.assertEqual(value.render_status, "normal-render-pointer-absent")
+        self.assertIsNone(value.actor_render_max_abs_delta)
+
+    def test_actor_translation_nonfinite_and_bad_renderer_refused(self) -> None:
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.actor + 0x4F8, struct.pack("<f", float("nan")))
+        with self.assertRaisesRegex(NativeCandidateUnavailable, "nonfinite"):
+            decode_current_build_candidate(fixture, include_actor_translation_candidate=True)
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.actor + 0x410, struct.pack("<Q", 999))
+        with self.assertRaisesRegex(NativeCandidateUnavailable, "pointer"):
+            decode_current_build_candidate(fixture, include_actor_translation_candidate=True)
+
+    def test_actor_translation_source_change_during_capture_refused(self) -> None:
+        fixture = MemoryFixture()
+        original = fixture.read_exact
+        mutated = False
+        def read_changing(address: int, length: int) -> bytes:
+            nonlocal mutated
+            data = original(address, length)
+            if address == fixture.actor + 0x770 and not mutated:
+                mutated = True
+                fixture.overwrite(fixture.actor + 0x4F8, struct.pack("<f", 7.))
+            return data
+        fixture.read_exact = read_changing
+        with self.assertRaisesRegex(NativeCandidateUnavailable, "changed during capture"):
+            decode_current_build_candidate(fixture, include_actor_translation_candidate=True)
+
+    def test_actor_translation_option_requires_bool(self) -> None:
+        fixture = MemoryFixture()
+        with self.assertRaisesRegex(ValueError, "include_actor_translation"):
+            decode_current_build_candidate(
+                fixture, include_actor_translation_candidate=1
             )
 
     def test_opt_in_same_owner_matrix_bits_and_planar_angle(self) -> None:

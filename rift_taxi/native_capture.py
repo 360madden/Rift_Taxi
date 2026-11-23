@@ -39,6 +39,7 @@ def capture_native_candidate(
     max_capture_s: float = 3.0,
     include_matrix_candidate: bool = False,
     include_refresh_guard_candidate: bool = False,
+    include_actor_translation_candidate: bool = False,
     inspect: Callable = inspect_desktop,
     open_session: Callable = ReadOnlyNativeSession.open,
     decode: Callable = decode_current_build_candidate,
@@ -53,6 +54,8 @@ def capture_native_candidate(
         raise ValueError("include_matrix_candidate must be bool")
     if type(include_refresh_guard_candidate) is not bool:
         raise ValueError("include_refresh_guard_candidate must be bool")
+    if type(include_actor_translation_candidate) is not bool:
+        raise ValueError("include_actor_translation_candidate must be bool")
     if type(start_utc_ticks) is not int or start_utc_ticks <= 0:
         raise ValueError("explicit positive process start UTC ticks are required")
     if type(window_handle) is not int or window_handle <= 0:
@@ -86,6 +89,8 @@ def capture_native_candidate(
             decode_options["include_matrix_candidate"] = True
         if include_refresh_guard_candidate:
             decode_options["include_refresh_guard_candidate"] = True
+        if include_actor_translation_candidate:
+            decode_options["include_actor_translation_candidate"] = True
         raw: PositionFacingCandidate = decode(session, **decode_options)
     final: DesktopCandidate = inspect(pid, **options)
 
@@ -144,6 +149,35 @@ def capture_native_candidate(
             "apiGetterMayRefreshCache": True,
         }
 
+    actor_position = raw.actor_translation_candidate
+    if include_actor_translation_candidate and actor_position is None:
+        raise CandidateCaptureRefused("requested actor-translation evidence missing")
+    if actor_position is not None and (
+        actor_position.independently_fresh or actor_position.authoritative_player_position
+    ):
+        raise CandidateCaptureRefused("model translation cannot be verified live player position")
+    actor_translation_evidence = None
+    if actor_position is not None:
+        actor_translation_evidence = {
+            "positionSecondaryXyz": list(actor_position.secondary_cache_xyz),
+            "actorStoredWorldTranslationCandidate": list(actor_position.actor_stored_xyz),
+            "offsetAt04F8": list(actor_position.offset_4f8_xyz),
+            "offsetAt0770": list(actor_position.offset_770_xyz),
+            "reconstructedActorWorldTranslationCandidate": list(
+                actor_position.reconstructed_actor_xyz
+            ),
+            "reconstructionMaxAbsDelta": actor_position.reconstruction_max_abs_delta,
+            "primarySecondaryMaxAbsDelta": actor_position.primary_secondary_max_abs_delta,
+            "actorFlagsRaw": actor_position.actor_flags,
+            "renderBranchStatus": actor_position.render_status,
+            "normalRenderWorldTranslationCandidate": (
+                list(actor_position.render_xyz) if actor_position.render_xyz is not None else None
+            ),
+            "actorRenderMaxAbsDelta": actor_position.actor_render_max_abs_delta,
+            "independentlyFresh": False,
+            "authoritativePlayerPosition": False,
+        }
+
     # Output is structured metadata, never a LivePose. No game response is inferred.
     return {
         "schema": "taxi.native-candidate/1",
@@ -151,6 +185,7 @@ def capture_native_candidate(
         "qualification": raw.qualification,
         "matrixEvidence": matrix_evidence,
         "refreshGuardEvidence": guard_evidence,
+        "actorTranslationEvidence": actor_translation_evidence,
         "runtimeDependencies": "python-stdlib-only",
         "process": {
             "host": first.host,
@@ -173,6 +208,7 @@ def capture_native_candidate(
             "actorHeadingQualified": False,
             "matrixEvidenceRequested": include_matrix_candidate,
             "refreshGuardEvidenceRequested": include_refresh_guard_candidate,
+            "actorTranslationEvidenceRequested": include_actor_translation_candidate,
             "passivePositionFreshnessQualified": False,
             "liveInGameResponseVerified": False,
             "inputSent": False,

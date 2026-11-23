@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-200%20passing-27ae80?style=for-the-badge)](docs/M1_RELEASE_SUPERVISOR.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-221%20passing-27ae80?style=for-the-badge)](docs/M1_ACTOR_TRANSLATION_CHANGED_STATE_LEGION_2026-11-23.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,7 +40,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, 9/9 raw actor/position matrix bits and a 4-sample stationary burst). A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **200 regression tests passed on Nov 23**. Actor-heading semantics, passive XYZ freshness, real game-consumed input/release, end-to-end crash recovery, journeys and packaging remain **unverified or incomplete**.
+> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, matching actor/position matrix bits, and an actor-world translation reconstruction). Two original captures also show **changed XYZ and orientation values in the same process/owner epoch**, without a synchronized action timeline. A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **221 regression tests passed on Nov 23**. Actor-heading semantics, passive XYZ freshness, real game-consumed input/release, end-to-end crash recovery, journeys and packaging remain **unverified or incomplete**.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -54,6 +54,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Read-only multi-sample candidate burst | ✅ Four live stationary candidates captured | [Original source-hashed evidence](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md); static readings cannot prove freshness |
 | Optional same-owner position/actor matrix comparison | ✅ 9/9 live raw bits matched | [Matrix diagnostic](docs/M1_MATRIX_CANDIDATE.md); still not verified body yaw |
 | Native XYZ cache-refresh guard diagnostics | ✅ Live one-shot + 4-sample burst | [LEGION refresh-guard evidence](docs/M1_LIVE_XYZ_REFRESH_GUARDS_LEGION_2026-11-23.md); both known guard routes ineligible, other writers unknown |
+| Same-owner actor translation + two-capture comparison | ✅ Live candidate + offline evidence analysis | [Changed-state study](docs/M1_ACTOR_TRANSLATION_CHANGED_STATE_LEGION_2026-11-23.md); model transforms may share cached XYZ |
 | Matrix-enabled bursts + five-phase offline comparison | ✅ Synthetic-tested | [Facing signature](docs/M1_FACING_SIGNATURE.md); source-hashed comparisons without action/heading claims |
 | Taxi-owned fresh XYZ and actor-facing reader | 🔧 Next | Process/build/actor binding and observation freshness |
 | Native Windows W/A/D scan-code backend | ✅ Implemented, fake-sender tested | [M1 Windows input](docs/M1_WIN32_INPUT.md); no physical key injected |
@@ -143,7 +144,7 @@ python -B -m rift_taxi preview-steering samples\synthetic_continuous.json
 python -B -m unittest discover -s tests -v
 ```
 
-The **opt-in, read-only** `inspect-native-candidate` and `inspect-native-burst` subcommands require exact PID, process creation ticks, executable path/hash, window handle and host. Both commands support `--include-matrix-candidate` and `--include-refresh-guard-candidate`: the burst compares 2–8 XYZ/yaw observations, optional matrices and source-pinned cached-XYZ refresh guards. Guard eligibility never establishes writer execution or passive freshness. `compare-facing-phases` analyzes five complete, separately labeled matrix bursts **offline**. The native commands also offer `--start-delay-seconds` (0–15) to switch focus back to RIFT before reading, and refuse occupied output paths before capture. **No analysis establishes true game movement, passive freshness or qualified body heading.** None of the commands auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
+The **opt-in, read-only** `inspect-native-candidate` and `inspect-native-burst` subcommands require exact PID, process creation ticks, executable path/hash, window handle and host. Both commands support `--include-matrix-candidate` and `--include-refresh-guard-candidate`: the burst compares 2–8 XYZ/yaw observations, optional matrices and source-pinned cached-XYZ refresh guards. Guard eligibility never establishes writer execution or passive freshness. The one-shot command also supports `--include-actor-translation-candidate` to reconstruct the source-pinned model-world translation; it is **not** an independent position provider. `compare-native-candidates` compares two exact-source, same-session saved one-shot reports **offline**. `compare-facing-phases` analyzes five complete, separately labeled matrix bursts **offline**. The native commands also offer `--start-delay-seconds` (0–15) to switch focus back to RIFT before reading, and refuse occupied output paths before capture. **No analysis establishes true game movement, passive freshness or qualified body heading.** None of the commands auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
 
 The historical RR2 import includes a **72-position / 14-key-event** original-source receipt. Its source and limitations are explained in [M1 implementation](docs/M1_IMPLEMENTATION.md); it does **not** establish a Taxi-owned live journey.
 
@@ -163,6 +164,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [📐 M1 facing signature](docs/M1_FACING_SIGNATURE.md) | Optional matrix bursts and five-phase source-verified offline comparison |
 | [🧪 First live native capture](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md) | Source-hashed physical XYZ/yaw and 9/9 matrix evidence; explicit limitations |
 | [🔬 XYZ cache-refresh guards](docs/M1_LIVE_XYZ_REFRESH_GUARDS_LEGION_2026-11-23.md) | Live branch input diagnostics, source hashes and why API/native agreement can be circular |
+| [🧩 Actor-world translation and changed-state](docs/M1_ACTOR_TRANSLATION_CHANGED_STATE_LEGION_2026-11-23.md) | Physical actor translation, same-epoch XYZ/yaw differences and source-hashed offline pair proof |
 | [⌨️ Win32 input backend](docs/M1_WIN32_INPUT.md) | Standard scan-code W/A/D adapter and explicit arming |
 | [🛟 External release supervisor](docs/M1_RELEASE_SUPERVISOR.md) | Separate-process lease, mutex and dry-run failure/release tests; not physical release proof |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |

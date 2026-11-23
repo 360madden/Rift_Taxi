@@ -70,6 +70,25 @@ class RefreshGuardCandidate:
 
 
 @dataclass(frozen=True)
+class ActorWorldTranslationCandidate:
+    """Same-owner model transforms; not an independently fresh player pose."""
+
+    secondary_cache_xyz: tuple[float, float, float]
+    actor_stored_xyz: tuple[float, float, float]
+    offset_4f8_xyz: tuple[float, float, float]
+    offset_770_xyz: tuple[float, float, float]
+    reconstructed_actor_xyz: tuple[float, float, float]
+    reconstruction_max_abs_delta: float
+    primary_secondary_max_abs_delta: float
+    actor_flags: int
+    render_status: str
+    render_xyz: tuple[float, float, float] | None = None
+    actor_render_max_abs_delta: float | None = None
+    independently_fresh: bool = False
+    authoritative_player_position: bool = False
+
+
+@dataclass(frozen=True)
 class PositionFacingCandidate:
     process_id: int
     process_start_utc_ticks: int
@@ -84,6 +103,7 @@ class PositionFacingCandidate:
     passive_position_freshness_qualified: bool = False
     matrix_copy_candidate: MatrixCopyCandidate | None = None
     refresh_guard_candidate: RefreshGuardCandidate | None = None
+    actor_translation_candidate: ActorWorldTranslationCandidate | None = None
 
 
 def _matrix_descriptor(raw: bytes) -> tuple[tuple[int, ...], float | None, str]:
@@ -147,6 +167,7 @@ def decode_current_build_candidate(
     clock: Callable[[], float] = time.monotonic,
     include_matrix_candidate: bool = False,
     include_refresh_guard_candidate: bool = False,
+    include_actor_translation_candidate: bool = False,
 ) -> PositionFacingCandidate:
     """Read an exact-known-build owner/XYZ/yaw candidate without game actions.
 
@@ -157,6 +178,8 @@ def decode_current_build_candidate(
         raise ValueError("include_matrix_candidate must be bool")
     if type(include_refresh_guard_candidate) is not bool:
         raise ValueError("include_refresh_guard_candidate must be bool")
+    if type(include_actor_translation_candidate) is not bool:
+        raise ValueError("include_actor_translation_candidate must be bool")
     if not isinstance(source.pin, ProcessPin) or not isinstance(source.module, MainModule):
         raise NativeCandidateUnavailable("pinned process and module identity required")
     pin = source.pin
@@ -169,7 +192,7 @@ def decode_current_build_candidate(
     manager_rva, system_rva, position_selector_rva, position_vptr_rva, actor_selector_rva = layout
     if size <= max(manager_rva + 8, system_rva + 8, position_selector_rva + 4,
                    position_vptr_rva + 8,
-                   (actor_selector_rva + 4 if include_matrix_candidate else 0)):
+                   (actor_selector_rva + 4 if (include_matrix_candidate or include_actor_translation_candidate) else 0)):
         raise NativeCandidateUnavailable("module too small for exact-build addresses")
 
     anchors: list[tuple[int, bytes]] = []
@@ -264,27 +287,70 @@ def decode_current_build_candidate(
         )
 
     matrix_copy = None
-    if include_matrix_candidate:
-        # RR2 CurrentBuildActorPoseCandidateReader resolves the actor component
-        # from the SAME self entity, with a separate exact-build selector.
+    translation = None
+    if include_matrix_candidate or include_actor_translation_candidate:
+        # Resolve the same player's actor component through its dynamic selector.
         actor_selector = struct.unpack("<i", read(base + actor_selector_rva, 4))[0]
         if not 0 <= actor_selector < 0x60:
             raise NativeCandidateUnavailable("invalid native actor component selector")
         actor_slot = entity_bytes[0x18 + actor_selector]
         if actor_slot == 0xFF:
             raise NativeCandidateUnavailable("self entity lacks actor component")
-        actor = get_ptr(table + actor_slot * 8, length=0x3BC)
+        actor = get_ptr(table + actor_slot * 8,
+                        length=0x77C if include_actor_translation_candidate else 0x3BC)
         if actor == component:
             raise NativeCandidateUnavailable("actor/position components unexpectedly alias")
-        # Position +0x94 and actor +0x398 contain separately sourced 3x3 matrices.
-        # A bitwise match is a copy/alias candidate, not proof of player body yaw.
-        position_bits, position_angle, position_status = _matrix_descriptor(
-            payload[0x94:0xB8])
-        actor_bits, actor_angle, actor_status = _matrix_descriptor(
-            read(actor + 0x398, 36))
-        matrix_copy = MatrixCopyCandidate(
-            position_bits, actor_bits, position_bits == actor_bits,
-            position_angle, actor_angle, position_status, actor_status)
+        actor_pose_raw = read(actor + 0x398, 0x30 if include_actor_translation_candidate else 36)
+        if include_matrix_candidate:
+            position_bits, position_angle, position_status = _matrix_descriptor(
+                payload[0x94:0xB8])
+            actor_bits, actor_angle, actor_status = _matrix_descriptor(actor_pose_raw[:36])
+            matrix_copy = MatrixCopyCandidate(
+                position_bits, actor_bits, position_bits == actor_bits,
+                position_angle, actor_angle, position_status, actor_status)
+
+        if include_actor_translation_candidate:
+            # Source-pinned RR2 0x687320 writer: actor stored XYZ is assembled
+            # from secondary position and two actor offsets. This is not
+            # independent freshness or a verified player-world position.
+            def vector(raw: bytes) -> tuple[float, float, float]:
+                if len(raw) != 12:
+                    raise NativeCandidateUnavailable("actor translation vector incomplete")
+                values = struct.unpack("<fff", raw)
+                if not all(math.isfinite(v) for v in values):
+                    raise NativeCandidateUnavailable("actor translation vector nonfinite")
+                return values
+
+            secondary = vector(payload[0x88:0x94])
+            stored = vector(actor_pose_raw[0x24:0x30])
+            offset_first = vector(read(actor + 0x4F8, 12))
+            offset_second = vector(read(actor + 0x770, 12))
+            reconstructed = tuple(
+                float(a) + float(b) + float(c)
+                for a, b, c in zip(secondary, offset_first, offset_second)
+            )
+            if not all(math.isfinite(v) for v in reconstructed):
+                raise NativeCandidateUnavailable("reconstructed actor XYZ nonfinite")
+            reconstruction_error = max(abs(a - b) for a, b in zip(stored, reconstructed))
+            primary_secondary_error = max(abs(a - b) for a, b in zip(xyz, secondary))
+            flags = struct.unpack("<I", read(actor + 0x1C0, 4))[0]
+            render = None
+            render_error = None
+            status = "alternate-render-reference-not-followed"
+            if flags & 1 == 0:
+                render_pointer = _u64(read(actor + 0x410, 8))
+                if render_pointer:
+                    renderer = _pointer(render_pointer, 0xD0)
+                    render_raw = read(renderer + 0xA0, 0x30)
+                    render = vector(render_raw[0x24:0x30])
+                    render_error = max(abs(a - b) for a, b in zip(stored, render))
+                    status = "normal-render-translation-candidate"
+                else:
+                    status = "normal-render-pointer-absent"
+            translation = ActorWorldTranslationCandidate(
+                secondary, stored, offset_first, offset_second,
+                reconstructed, reconstruction_error, primary_secondary_error,
+                flags, status, render, render_error)
 
     # A changing pose or owner is refused rather than silently coalesced.
     for address, original in anchors:
@@ -297,5 +363,5 @@ def decode_current_build_candidate(
     return PositionFacingCandidate(
         pin.pid, pin.start_utc_ticks, build_sha, key,
         xyz, yaw_rad, bearing, observed, matrix_copy_candidate=matrix_copy,
-        refresh_guard_candidate=guard,
+        refresh_guard_candidate=guard, actor_translation_candidate=translation,
     )
