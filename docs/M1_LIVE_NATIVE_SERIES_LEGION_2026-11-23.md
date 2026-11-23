@@ -88,4 +88,6 @@ The new sampler was tested with an injected fake Windows process/window API, a s
 
 The standalone Taxi runtime remains Python standard-library only. No RR2, RiftWorld or Telara Fly repository or runtime service was modified. Original live raw JSON evidence stays in the ignored `artifacts/` folder.
 
+**Later extension:** `--observe-manual-keys` now provides opt-in, read-only W/A/D snapshots before/after each native read; a third physical series captured 48 polls/key with no downs observed. See [M1 passive keyboard observation](M1_READONLY_MANUAL_KEY_OBSERVATION_LEGION_2026-11-23.md). This does not establish actual game input or replace an independently observed action receipt.
+
 **Next experiment:** With independent game observation and manual action receipts (or otherwise separately qualified input), run a bounded same-session series through **settled → action → settled** phases. Explicitly record any Lua API getter calls that can refresh XYZ; compare camera-only changes against character turns and observed displacement. Do not promote the yaw or position candidate to an authenticated `LivePose` without that proof.

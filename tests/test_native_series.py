@@ -195,6 +195,94 @@ class SeriesTests(unittest.TestCase):
         self.assertEqual(self.harness.opens, 1)
         self.assertEqual(self.harness.inspections, 2)
 
+    def test_manual_keys_are_not_read_without_explicit_opt_in(self):
+        def fail_on_use():
+            raise AssertionError("keyboard factory must not run")
+        report = self.harness.run(keyboard_factory=fail_on_use)
+        self.assertFalse(report["manualWindowsKeyObservationRequested"])
+        self.assertIsNone(report["manualWindowsKeyObservation"])
+        self.assertNotIn("manualWindowsKeyStates", report["observations"][0])
+
+    def test_manual_windows_key_snapshots_correlate_without_claiming_consumption(self):
+        states = [
+            {"W": False, "A": False, "D": False},
+            {"W": False, "A": False, "D": False},
+            {"W": True, "A": False, "D": False},
+            {"W": True, "A": False, "D": False},
+            {"W": True, "A": False, "D": False},
+            {"W": False, "A": False, "D": False},
+            {"W": False, "A": False, "D": False},
+            {"W": False, "A": False, "D": False},
+        ]
+        counter = [0]
+        def key_reader():
+            class PassiveFake:
+                def snapshot(self_inner):
+                    index = counter[0]
+                    counter[0] += 1
+                    self.harness.clock.time += .001
+                    return states[index]
+            return PassiveFake()
+        report = self.harness.run(
+            observe_manual_keys=True, keyboard_factory=key_reader,
+        )
+        self.assertEqual(counter[0], 8)
+        self.assertTrue(report["manualWindowsKeyObservationRequested"])
+        summary = report["manualWindowsKeyObservation"]
+        self.assertEqual(summary["pollsPerKey"], 8)
+        self.assertEqual(summary["observedDownPollsByKey"], {"W": 3, "A": 0, "D": 0})
+        self.assertEqual(summary["nativeReadBracketsWithChangingKeys"], 1)
+        edges = summary["sampledStateTransitionWindows"]
+        self.assertEqual(len(edges), 2)
+        self.assertEqual([(e["fromDown"], e["toDown"]) for e in edges],
+                         [(False, True), (True, False)])
+        self.assertEqual(edges[0]["previousSampleIndex"], 1)
+        self.assertEqual(edges[0]["currentSampleIndex"], 2)
+        self.assertEqual(edges[1]["previousSampleIndex"], 3)
+        self.assertEqual(edges[1]["currentSampleIndex"], 3)
+        self.assertFalse(summary["operatorActionVerified"])
+        self.assertFalse(summary["gameInputConsumptionVerified"])
+        self.assertFalse(summary["inputInjectedByTaxi"])
+        self.assertFalse(report["qualifications"]["externalActionReceiptsProvided"])
+        self.assertFalse(report["qualifications"]["gameInputSent"])
+
+    def test_manual_key_snapshot_failure_closes_native_session(self):
+        class InvalidKeyboard:
+            def snapshot(self):
+                return {"W": False, "A": False, "D": 0}
+        with self.assertRaisesRegex(SeriesUnavailable, "key polling unavailable"):
+            self.harness.run(
+                observe_manual_keys=True, keyboard_factory=InvalidKeyboard,
+            )
+        self.assertEqual(self.harness.session.closed, 1)
+        self.assertEqual(self.harness.inspections, 1)
+
+    def test_too_slow_manual_key_poll_is_rejected(self):
+        class SlowFake:
+            def snapshot(self_inner):
+                self.harness.clock.time += .5
+                return {"W": False, "A": False, "D": False}
+        with self.assertRaisesRegex(SeriesUnavailable, "snapshot exceeded 50 ms"):
+            self.harness.run(
+                observe_manual_keys=True, keyboard_factory=SlowFake,
+            )
+        self.assertEqual(self.harness.session.closed, 1)
+
+    def test_cli_manual_key_flag_forwarded_without_injection(self):
+        report = self.harness.run()
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "manual-keys.json"
+            argv = [
+                "observe-native-series", "--pid", str(PID),
+                "--start-ticks", str(TICKS), "--exe-path", PATH,
+                "--sha256", SHA, "--hwnd", str(HWND), "--host", "LEGION",
+                "--samples", "4", "--observe-manual-keys", "--out", str(target),
+            ]
+            with patch("rift_taxi.cli.observe_native_series", return_value=report) as observer:
+                self.assertEqual(main(argv), 0)
+                self.assertTrue(observer.call_args.kwargs["observe_manual_keys"])
+            self.assertFalse(json.loads(target.read_text())["qualifications"]["gameInputSent"])
+
     def test_three_optional_diagnostics_are_explicit_and_candidate_only(self):
         result = self.harness.run(
             include_matrix_candidate=True,
@@ -307,6 +395,7 @@ class SeriesTests(unittest.TestCase):
             ("max_total_s", 1.), ("max_total_s", float("nan")),
             ("include_matrix_candidate", 1),
             ("include_refresh_guard_candidate", "true"),
+            ("observe_manual_keys", 1),
             ("pid", 0), ("start_utc_ticks", 0), ("window_handle", True),
             ("executable_path", "rift_x64.exe"),
             ("executable_sha256", "not-a-hash"), ("host", " "),
@@ -342,6 +431,7 @@ class SeriesTests(unittest.TestCase):
             self.assertEqual(main(["doctor"]), 0)
         doc = json.loads(output.getvalue())
         self.assertTrue(doc["nativeCandidateSeriesAvailable"])
+        self.assertTrue(doc["readOnlyManualKeyObservationAvailable"])
         self.assertTrue(doc["nativeReadOnlyCandidateReaderImplemented"])
         self.assertFalse(doc["nativeReaderImplemented"])  # qualified live pose not yet
         self.assertFalse(doc["nativeCandidateQualifiedForMovement"])

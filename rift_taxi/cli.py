@@ -138,6 +138,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     series.add_argument("--include-matrix-candidate", action="store_true")
     series.add_argument("--include-refresh-guard-candidate", action="store_true")
     series.add_argument("--include-actor-translation-candidate", action="store_true")
+    series.add_argument("--observe-manual-keys", action="store_true",
+        help="read-only W/A/D high-bit polling while RIFT is foreground; no input sent")
     series.add_argument("--out", required=True, help="new JSON report; never overwrite")
     pair = commands.add_parser("compare-native-candidates",
         help="offline only: SHA-pinned same-process/owner XYZ/yaw/matrix/actor comparison")
@@ -206,6 +208,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 include_matrix_candidate=args.include_matrix_candidate,
                 include_refresh_guard_candidate=args.include_refresh_guard_candidate,
                 include_actor_translation_candidate=args.include_actor_translation_candidate,
+                observe_manual_keys=args.observe_manual_keys,
             )
             _write_or_print(report, args.out)
         elif args.command == "compare-native-candidates":
@@ -231,6 +234,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "nativeCandidateCaptureAvailable": True,
                 "nativeCandidateBurstAvailable": True,
                 "nativeCandidateSeriesAvailable": True,
+                "readOnlyManualKeyObservationAvailable": True,
                 "offlineFacingPhaseComparisonAvailable": True,
                 "offlineNativeCandidatePairComparisonAvailable": True,
                 "offlineMotionTimingAvailable": True,

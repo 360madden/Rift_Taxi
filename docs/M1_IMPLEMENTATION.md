@@ -1,6 +1,6 @@
 # M1 offline implementation and handoff — 2026-11-23
 
-> **Historical M1 baseline (63 tests).** This document preserves the original offline implementation state. Later Taxi-owned live read-only native evidence, the separate supervised-input prototype, and the source-aware RR2 motion timing analyzer are documented in the [current roadmap](ROADMAP.md) and [movement-timing/Telemetry audit](M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md). The current regression total is **249**, not 63. The historical statements below should not be interpreted as current capability claims.
+> **Historical M1 baseline (63 tests).** This document preserves the original offline implementation state. Later Taxi-owned live read-only native evidence, the separate supervised-input prototype, and the source-aware RR2 motion timing analyzer are documented in the [current roadmap](ROADMAP.md) and [movement-timing/Telemetry audit](M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md). The current regression total is **261**, not 63. The historical statements below should not be interpreted as current capability claims.
 
 **Host:** LEGION. **Repository:** C:\work\Rift_Taxi. **Status:** M1 **in progress**, not complete. The offline Python CLI, original RR2 importer, synthetic geometric steering preview and driver-neutral W/A/D + watchdog STOP gate are implemented. There is **no Taxi native pose reader, no Windows game actuator and no tested Taxi live movement**.
 

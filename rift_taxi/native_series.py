@@ -19,6 +19,10 @@ from typing import Callable, Protocol
 from .native_candidate import PositionFacingCandidate, decode_current_build_candidate
 from .native_capture import CandidateCaptureRefused
 from .native_memory import ProcessPin, MainModule, ReadOnlyNativeSession
+from .key_observation import (
+    KeyObservationUnavailable, KeySnapshotSource, Win32KeySnapshot,
+    validate_key_snapshot,
+)
 from .win32_identity import (
     DesktopCandidate, DesktopProbeApi, ProcessInfo, Win32DesktopProbe, inspect_desktop,
 )
@@ -147,6 +151,70 @@ def _row(raw: PositionFacingCandidate, index: int, *,
     return record
 
 
+
+def _poll_keys(keyboard: KeySnapshotSource, clock: Callable[[], float]) -> dict:
+    started = _valid_clock(clock())
+    try:
+        states = validate_key_snapshot(keyboard.snapshot())
+    except (KeyObservationUnavailable, OSError) as error:
+        raise SeriesUnavailable("read-only W/A/D key polling unavailable") from error
+    ended = _valid_clock(clock())
+    # A slow or paused keyboard probe breaks the timing interpretation.
+    if not 0 <= ended - started <= 0.05:
+        raise SeriesUnavailable("read-only W/A/D key snapshot exceeded 50 ms budget")
+    return {"keys": states, "atMonotonicSeconds": ended}
+
+
+def summarize_key_snapshots(rows: list[dict]) -> dict:
+    """Summarize *sampled* OS key bits, never inferred key-send or game events."""
+    names = ("W", "A", "D")
+    down_counts = {name: 0 for name in names}
+    transitions: list[dict] = []
+    previous: dict | None = None
+    unstable = 0
+    for row in rows:
+        state = row["manualWindowsKeyStates"]
+        if not state["unchangedDuringNativeRead"]:
+            unstable += 1
+        for phase in ("beforeNativeRead", "afterNativeRead"):
+            snapshot = state[phase]
+            now = snapshot["atMonotonicSeconds"]
+            for key in names:
+                current_down = snapshot["keys"][key]
+                down_counts[key] += int(current_down)
+                if previous is not None and previous["keys"][key] != current_down:
+                    transitions.append({
+                        "key": key,
+                        "previousSampleIndex": previous["sampleIndex"],
+                        "currentSampleIndex": row["index"],
+                        "previousPollPhase": previous["phase"],
+                        "currentPollPhase": phase,
+                        "fromDown": previous["keys"][key],
+                        "toDown": current_down,
+                        "earliestObservedBoundaryMonotonicSeconds": previous["time"],
+                        "latestObservedBoundaryMonotonicSeconds": now,
+                        "transitionInstantVerified": False,
+                        "gameInputConsumptionVerified": False,
+                    })
+            previous = {
+                "keys": snapshot["keys"], "time": now,
+                "phase": phase, "sampleIndex": row["index"],
+            }
+    return {
+        "samples": len(rows),
+        "pollsPerKey": 2 * len(rows),
+        "observedDownPollsByKey": down_counts,
+        "nativeReadBracketsWithChangingKeys": unstable,
+        "sampledStateTransitionWindows": transitions,
+        "continuousKeyStateTracking": False,
+        "shortPressesCanBeMissed": True,
+        "source": "Win32 GetAsyncKeyState high-bit read-only polling",
+        "operatorActionVerified": False,
+        "gameInputConsumptionVerified": False,
+        "inputInjectedByTaxi": False,
+    }
+
+
 def observe_native_series(
     *, pid: int, start_utc_ticks: int, executable_path: str,
     executable_sha256: str, window_handle: int, host: str,
@@ -154,9 +222,11 @@ def observe_native_series(
     include_matrix_candidate: bool = True,
     include_refresh_guard_candidate: bool = True,
     include_actor_translation_candidate: bool = False,
+    observe_manual_keys: bool = False,
     inspect: Callable = inspect_desktop,
     api_factory: Callable[[], FastProbe] = Win32DesktopProbe,
     open_session: Callable = ReadOnlyNativeSession.open,
+    keyboard_factory: Callable[[], KeySnapshotSource] = Win32KeySnapshot,
     decode: Callable = decode_current_build_candidate,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
@@ -175,7 +245,8 @@ def observe_native_series(
         raise ValueError("max_total_s must be finite, 2..60 seconds")
     if any(type(b) is not bool for b in (include_matrix_candidate,
                                         include_refresh_guard_candidate,
-                                        include_actor_translation_candidate)):
+                                        include_actor_translation_candidate,
+                                        observe_manual_keys)):
         raise ValueError("optional native field switches must be boolean")
     if (type(pid) is not int or pid <= 0
             or type(start_utc_ticks) is not int or start_utc_ticks <= 0
@@ -187,7 +258,8 @@ def observe_native_series(
         raise ValueError("trusted executable SHA-256 must contain 64 hex characters")
     if not isinstance(host, str) or not host.strip() or host != host.strip():
         raise ValueError("exact nonempty machine name required")
-    if not all(callable(fn) for fn in (inspect, api_factory, open_session, decode, clock, sleep)):
+    if not all(callable(fn) for fn in (inspect, api_factory, open_session,
+                                      keyboard_factory, decode, clock, sleep)):
         raise ValueError("native observation callbacks must be callable")
 
     entered = _valid_clock(clock())
@@ -206,6 +278,7 @@ def observe_native_series(
 
     pin = ProcessPin(pid, start_utc_ticks, executable_path, executable_sha256)
     api = api_factory()
+    keyboard = keyboard_factory() if observe_manual_keys else None
     rows: list[dict] = []
     previous_owner: str | None = None
     previous_sample_time: float | None = None
@@ -239,6 +312,9 @@ def observe_native_series(
                 raise SeriesUnavailable("series exceeded total observation budget")
             _fast_pin(api, host=host, pid=pid, ticks=start_utc_ticks,
                       path=executable_path, hwnd=window_handle)
+            before_keys = None
+            if keyboard is not None:
+                before_keys = _poll_keys(keyboard, clock)
             raw = decode(session, clock=clock, **opts)
             if (not isinstance(raw, PositionFacingCandidate)
                     or raw.process_id != pid
@@ -246,6 +322,9 @@ def observe_native_series(
                     or not isinstance(raw.build_sha256, str)
                     or raw.build_sha256.casefold() != executable_sha256.casefold()):
                 raise SeriesUnavailable("native candidate source PID, epoch or build mismatch")
+            after_keys = None
+            if keyboard is not None:
+                after_keys = _poll_keys(keyboard, clock)
             _fast_pin(api, host=host, pid=pid, ticks=start_utc_ticks,
                       path=executable_path, hwnd=window_handle)
             end = _valid_clock(clock())
@@ -262,6 +341,18 @@ def observe_native_series(
             previous_owner = record["ownerKeyDecimal"]
             previous_sample_time = timestamp
             record["captureBracketSeconds"] = end - start
+            if keyboard is not None:
+                if not (start <= before_keys["atMonotonicSeconds"]
+                        <= timestamp <= after_keys["atMonotonicSeconds"] <= end):
+                    raise SeriesUnavailable("Windows key snapshot outside native observation bracket")
+                record["manualWindowsKeyStates"] = {
+                    "beforeNativeRead": before_keys,
+                    "afterNativeRead": after_keys,
+                    "unchangedDuringNativeRead": (
+                        before_keys["keys"] == after_keys["keys"]
+                    ),
+                    "gameInputConsumptionVerified": False,
+                }
             rows.append(record)
 
     final = inspect(pid, **options)
@@ -277,6 +368,7 @@ def observe_native_series(
     ]
     starts, ends = rows[0], rows[-1]
     diff = [y-x for x,y in zip(starts["xyzCandidate"], ends["xyzCandidate"])]
+    keyboard_summary = summarize_key_snapshots(rows) if observe_manual_keys else None
     return {
         "schema": "taxi.native-candidate-series/1",
         "status": "candidate-only",
@@ -295,6 +387,8 @@ def observe_native_series(
             "maximum": max(deltas),
         },
         "observations": rows,
+        "manualWindowsKeyObservationRequested": observe_manual_keys,
+        "manualWindowsKeyObservation": keyboard_summary,
         "candidateChanges": {
             "anyXYZChanged": any(r["xyzCandidate"] != starts["xyzCandidate"] for r in rows[1:]),
             "anyYawChanged": any(
@@ -313,6 +407,7 @@ def observe_native_series(
             "actorMatrix": include_matrix_candidate,
             "refreshGuard": include_refresh_guard_candidate,
             "actorTranslation": include_actor_translation_candidate,
+            "manualWindowsKeys": observe_manual_keys,
         },
         "qualifications": {
             "fullExecutableIdentityChecks": 2,
@@ -320,6 +415,8 @@ def observe_native_series(
             "perSampleProcessWindowChecks": True,
             "addonApiProducerQuietVerified": False,
             "externalActionReceiptsProvided": False,
+            "readOnlyWindowsKeyPollingUsed": observe_manual_keys,
+            "windowsKeyPollsAreNotGameInputProof": True,
             "physicalMovementVerified": False,
             "gameInputSent": False,
             "playerBodyHeadingVerified": False,
@@ -333,6 +430,8 @@ def observe_native_series(
             "Foreground changes, process replacement, owner replacement or incomplete samples abort.",
             "Configured addon Inspect.Unit.Detail polling may refresh cached XYZ during sampling.",
             "Even observed XYZ/yaw changes are not causally tied to an input without separate receipts.",
+            "Optional Windows W/A/D polling reads GetAsyncKeyState; no key is inserted.",
+            "Windows key-state snapshots may miss taps and cannot prove RIFT consumed input.",
             "No W/A/D or camera command is issued by this observer.",
         ],
     }
