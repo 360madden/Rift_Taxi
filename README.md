@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-74%20passing-27ae80?style=for-the-badge)](docs/M1_IMPLEMENTATION.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-98%20passing-27ae80?style=for-the-badge)](docs/M1_IMPLEMENTATION.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,7 +40,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** Offline replay, RR2 evidence import, synthetic steering and a driver-neutral STOP/input gate exist. A Taxi-owned read-only Windows **process/window identity inspector** has also been tested; **74 regression tests passed on Nov 23**. There is **no verified Taxi-owned native live position reader, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
+> **M1 is in progress, not complete.** Offline replay, RR2 evidence import, synthetic steering and a driver-neutral STOP/input gate exist. Taxi-owned **Windows process identity**, **bounded read-only memory access** and **exact-build XYZ/yaw candidate decoding** are implemented and tested; **98 regression tests passed on Nov 23**. There is **no independently qualified RIFT-live actor XYZ/yaw, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -50,6 +50,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Synthetic continuous-steering preview | ✅ Implemented offline | Produces steering intent, not physical movement |
 | Driver-neutral W/A/D and watchdog STOP gate | ✅ Implemented offline | [M1 control-boundary tests](docs/M1_CONTROL_BOUNDARY.md); no game input |
 | Read-only Win32 process/window identity candidate | ✅ Implemented and OS smoke-tested | [M1 identity tests](docs/M1_WIN32_IDENTITY.md); actor/zone not yet verified |
+| Bounded read-only process memory and exact-build XYZ/yaw candidate decoder | ✅ Implemented, candidate-only | [Native-read evidence](docs/M1_NATIVE_READONLY.md); real OS self-process smoke test + synthetic fields |
 | Taxi-owned fresh XYZ and actor-facing reader | 🔧 Next | Process/build/actor binding and observation freshness |
 | Native Windows W/A/D backend and independently supervised release | 🔧 Next | Physical confirmation of actual game response and settled release |
 | Smooth multi-bend live journey | ⏳ Not verified | Measured course with continuous forward travel |
@@ -94,7 +95,7 @@ M6  Standalone desktop experience    ○ Planned
                 ┌─────────────────┴─────────────────┐
                 ▼                                   ▼
        Pose / facing reader                  Movement controller
-       (OS identity built; pose pending)      (Gate built; driver planned)
+       (OS & candidate built; qualification pending)      (Gate built; driver planned)
                 │                                   │
                 └─────────────────┬─────────────────┘
                                   ▼
@@ -116,7 +117,7 @@ See [research imports](docs/RESEARCH_IMPORTS.md), [RR2 handoff](docs/RR2_HANDOFF
 
 ## 🧪 Try the offline tools
 
-The CLI commands below are **offline analysis**. The test suite also checks metadata for its **own Python process** through Win32. None of these commands launch RIFT, read RIFT memory or send game input.
+The CLI commands below are **offline analysis**. The test suite also performs read-only **process metadata and known-buffer memory checks on its own Python process**, plus synthetic native-field decoding. None of these commands launch RIFT, read RIFT memory or send game input.
 
 Open **PowerShell** in the local repository directory (documented working checkout: `C:\work\Rift_Taxi` on **LEGION**):
 
@@ -149,6 +150,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [🔬 M1 implementation](docs/M1_IMPLEMENTATION.md) | Commands, trace provenance, test receipts and limitations |
 | [🛑 M1 control gate](docs/M1_CONTROL_BOUNDARY.md) | Driver-neutral W/A/D, expiry watchdog, STOP/fault tests and live blockers |
 | [🪟 M1 Windows identity](docs/M1_WIN32_IDENTITY.md) | Read-only PID/start/hash/HWND qualification and test evidence |
+| [🔍 M1 native candidates](docs/M1_NATIVE_READONLY.md) | Read-only memory sessions, exact-build owner/XYZ/yaw decoding and unresolved live semantics |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |
 | [📖 Documentation hub](docs/README.md) | Index of research, handoffs and architecture notes |
 | [📝 Durable decisions](docs/DECISIONS.md) | Project decisions and non-negotiable boundaries |
@@ -157,7 +159,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 
 ## 🔭 What's next?
 
-1. **Finish M1:** connect the new process/window identity boundary to a fresh Taxi-owned current-player XYZ/yaw observation and a bounded native Windows W/A/D backend; physically qualify release/STOP beyond the tested driver-neutral gate.
+1. **Finish M1:** validate candidate XYZ and actor-facing semantics on a current RIFT client, integrate the existing process/window/memory boundaries with a verified fresh pose, and build a bounded native W/A/D backend; physically qualify release/STOP beyond the tested driver-neutral gate.
 2. **Measure real behavior:** verify yaw response, movement latency, coast and post-release evidence rather than extrapolating from synthetic traces.
 3. **Prove M2–M3:** achieve a measured straight arrival, then a qualified multi-bend journey with no unnecessary stops at guide points.
 4. **Expand only on evidence:** introduce local world packages, recovery and UI after the movement foundation is dependable.
