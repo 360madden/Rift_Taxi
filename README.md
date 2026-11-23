@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-309%20passing-27ae80?style=for-the-badge)](docs/M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-320%20passing-27ae80?style=for-the-badge)](docs/M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -42,7 +42,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, matching actor/position matrix bits, and an actor-world translation reconstruction). Two original captures also show **changed XYZ and orientation values in the same process/owner epoch**, without a synchronized action timeline. A new **24-sample, ~100 ms read-only native series** also succeeded on the physical client using one pinned process handle. A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **309 regression tests passed on Nov 23**. A **bounded W-only forward probe** has now passed dry-run/fake-sender and external-child tests, and **two real bounded 100 ms W-only pulses** now show 0.640 and 0.654 XZ source-unit candidate displacement at headings **59.25° apart**, accepted OS releases and separate stationary post-release checks. The native actor-matrix candidate matches their travel bearings within **0.061°** in both source-hashed experiments. Two 100 ms **physical A/D turn tests** now show complementary orientation changes, screenshot scene rotation/return, and accepted OS key-up with a supervised release child. A **real bounded left-mouse camera orbit** visibly changed the world view with zero same-owner XYZ, scalar yaw or actor-matrix yaw change, supported by independent mouse release and later stationary samples. **Authoritative body-heading, passive XYZ freshness, game-consumed release after failure, journeys and packaging** remain unverified or incomplete.
+> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, matching actor/position matrix bits, and an actor-world translation reconstruction). Two original captures also show **changed XYZ and orientation values in the same process/owner epoch**, without a synchronized action timeline. A new **24-sample, ~100 ms read-only native series** also succeeded on the physical client using one pinned process handle. A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **320 regression tests passed on Nov 23**. A **bounded W-only forward probe** has now passed dry-run/fake-sender and external-child tests, and **two real bounded 100 ms W-only pulses** now show 0.640 and 0.654 XZ source-unit candidate displacement at headings **59.25° apart**, accepted OS releases and separate stationary post-release checks. The native actor-matrix candidate matches their travel bearings within **0.061°** in both source-hashed experiments. Two 100 ms **physical A/D turn tests** now show complementary orientation changes, screenshot scene rotation/return, and accepted OS key-up with a supervised release child. A **real bounded left-mouse camera orbit** visibly changed the world view with zero same-owner XYZ, scalar yaw or actor-matrix yaw change, supported by independent mouse release and later stationary samples. An actual **A-only sender process crash** has now been survived by the independent release child, which issued a real OS-accepted A UP **without launcher backup**. A 100 ms pre-crash A hold produced a **−17.979° native actor-matrix turn**, followed by stable native state and all released W/A/D snapshots. [Original physical failure evidence](docs/M1_PHYSICAL_PARENT_CRASH_RELEASE_LEGION_2026-11-23.md). **Authoritative body-heading, passive XYZ freshness, release under other failure modes, journeys and packaging** remain unverified or incomplete.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -56,6 +56,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Bounded W-only forward calibration | ✅ Two 100 ms physical W pulses, two angles | [Two-heading source-hashed alignment](docs/M1_TWO_HEADING_ALIGNMENT_LEGION_2026-11-23.md); max 0.061° residual, game-consumed release not proven |
 | Camera-only orbit negative control | ✅ Physical left-mouse orbit and unchanged native angles | [Original screen/native/release receipts](docs/M1_PHYSICAL_CAMERA_NEGATIVE_CONTROL_LEGION_2026-11-23.md); body heading still candidate |
 | Offline physical forward-bearing analysis | ✅ Two original W/release pairs verified | [Two-heading heading evidence](docs/M1_TWO_HEADING_ALIGNMENT_LEGION_2026-11-23.md); candidate kinematics only, no production yaw promotion |
+| Independent release following real sender crash | ✅ **Physical A-only parent crash, child OS UP observed** | [Crash/release experiment](docs/M1_PHYSICAL_PARENT_CRASH_RELEASE_LEGION_2026-11-23.md); −17.98° actor-matrix rotation, no backup UP, stable later readings; not universal crash proof |
 | Read-only Win32 process/window identity candidate | ✅ Implemented and OS smoke-tested | [M1 identity tests](docs/M1_WIN32_IDENTITY.md); actor/zone not yet verified |
 | Bounded native memory, candidate decoder and one-shot capture CLI | ✅ Live read-only candidate captured | [LEGION physical native evidence](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md); player semantics still candidate-only |
 | Read-only multi-sample candidate burst | ✅ Four live stationary candidates captured | [Original source-hashed evidence](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md); static readings cannot prove freshness |
@@ -67,8 +68,8 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Matrix-enabled bursts + five-phase offline comparison | ✅ Synthetic-tested | [Facing signature](docs/M1_FACING_SIGNATURE.md); source-hashed comparisons without action/heading claims |
 | Taxi-owned fresh XYZ and actor-facing reader | 🔧 Next | Process/build/actor binding and observation freshness |
 | Native Windows W/A/D scan-code backend | ✅ Production backend fake-sender tested; disarmed | [M1 Windows input](docs/M1_WIN32_INPUT.md); real OS W/A/D used only by separate bounded diagnostics |
-| Separate-process release lease and cooperative ownership | ✅ Inert-tested prototype | [M1 external supervisor](docs/M1_RELEASE_SUPERVISOR.md); real release/game consumption unverified |
-| Live input/release and navigation acceptance | 🔧 Next | Independently qualified pose, crash/late-DOWN proof and fresh game-response evidence |
+| Separate-process release lease and cooperative ownership | ✅ Real A-key parent-crash recovery observed | [Physical fault evidence](docs/M1_PHYSICAL_PARENT_CRASH_RELEASE_LEGION_2026-11-23.md); actual child OS key-up and later stable game state, other release modes still unverified |
+| Live input/release and navigation acceptance | 🔧 Next | Independently qualified actor/zone/pose and other fault modes, including late-DOWN/child loss; no route run yet |
 | Smooth multi-bend live journey | ⏳ Not verified | Measured course with continuous forward travel |
 | Desktop UI and portable distribution | ⏳ Planned | PySide6 target after the control milestones |
 
@@ -183,13 +184,14 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [⏱️ Live pinned native series](docs/M1_LIVE_NATIVE_SERIES_LEGION_2026-11-23.md) | 24 real owner-checked samples, cadence correction, evidence SHA-256s and limits |
 | [⌨️ Passive manual-key observations](docs/M1_READONLY_MANUAL_KEY_OBSERVATION_LEGION_2026-11-23.md) | Optional W/A/D state snapshots, 48 key polls per key in live session; no injected input |
 | [⌨️ Win32 input backend](docs/M1_WIN32_INPUT.md) | Standard scan-code W/A/D adapter and explicit arming |
-| [🛟 External release supervisor](docs/M1_RELEASE_SUPERVISOR.md) | Separate-process lease, mutex and dry-run failure/release tests; not crash-proof physical release |
+| [🛟 External release supervisor](docs/M1_RELEASE_SUPERVISOR.md) | Separate-process lease, mutex, actual A-parent-crash OS release and remaining unverified failure modes |
 | [🎮 First physical A/D turn calibration](docs/M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md) | Real 100 ms A/D actions, native angle changes, screenshots and actual OS DOWN/UP receipts |
 | [🚶 Bounded W-only calibration](docs/M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md) | Fail-closed W-only tool, default dry-run and release tests |
 | [🏃 First physical W-only pulse](docs/M1_PHYSICAL_W_DISPLACEMENT_LEGION_2026-11-23.md) | Real 100 ms W, 0.640 XZ displacement candidate, accepted key-up and independent later stable pose checks |
 | [🖱️ Bounded camera orbit](docs/M1_CAMERA_ONLY_ORBIT_PROBE_2026-11-23.md) | Dry-run-default left-mouse-only diagnostic and supervised release design |
 | [📸 Physical camera negative control](docs/M1_PHYSICAL_CAMERA_NEGATIVE_CONTROL_LEGION_2026-11-23.md) | Same-owner unchanged native angles and position while actual world view changed |
-| [🧭 Two-heading kinematics](docs/M1_TWO_HEADING_ALIGNMENT_LEGION_2026-11-23.md) | Two source-hashed physical W motions 59° apart, near-exact actor-matrix directional agreement and 309 tests |
+| [🧭 Two-heading kinematics](docs/M1_TWO_HEADING_ALIGNMENT_LEGION_2026-11-23.md) | Two source-hashed physical W motions 59° apart, near-exact actor-matrix directional agreement |
+| [🛟 Physical crash-release recovery](docs/M1_PHYSICAL_PARENT_CRASH_RELEASE_LEGION_2026-11-23.md) | Actual abrupt input-parent exit, independent child A-up, native turning response with bounded A prehold and 12 stable post-release samples |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |
 | [📖 Documentation hub](docs/README.md) | Index of research, handoffs and architecture notes |
 | [📝 Durable decisions](docs/DECISIONS.md) | Project decisions and non-negotiable boundaries |
@@ -198,7 +200,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 
 ## 🔭 What's next?
 
-1. **Finish M1:** independent body-facing verification using the two-angle physical W evidence and camera negative control, repeatable time-resolved W response under independent actor/zone and source-freshness checks, current actor/zone/native XYZ and body-heading qualification, and independent release recovery beyond the completed A/D pulses.
+1. **Finish M1:** independent body-facing verification using the two-angle physical W evidence and camera negative control, repeatable time-resolved W response under independent actor/zone and source-freshness checks, current actor/zone/native XYZ and body-heading qualification, and qualification of crash-release behavior beyond the demonstrated A-only parent exit.
 2. **Measure real behavior:** verify yaw response, movement latency, coast and post-release evidence rather than extrapolating from synthetic traces.
 3. **Prove M2–M3:** achieve a measured straight arrival, then a qualified multi-bend journey with no unnecessary stops at guide points.
 4. **Expand only on evidence:** introduce local world packages, recovery and UI after the movement foundation is dependable.
