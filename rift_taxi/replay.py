@@ -19,8 +19,31 @@ def _clip(span: Span, start: float, end: float) -> float:
     return max(0.0, min(span.end, end) - max(span.start, start))
 
 
-def _overlap(a: Span, b: Span) -> float:
-    return max(0.0, min(a.end, b.end) - max(a.start, b.start))
+def _turn_overlap(forward: list[Span], turns: list[Span],
+                  start: float, end: float) -> tuple[float, int]:
+    """Linear sweep of ordered, disjoint spans; count each overlapping turn once."""
+    seconds = 0.0
+    intervals = 0
+    w_index = 0
+    for turn in turns:
+        left, right = max(turn.start, start), min(turn.end, end)
+        if right <= left:
+            continue
+        while w_index < len(forward) and forward[w_index].end <= left:
+            w_index += 1
+        cursor = w_index
+        amount = 0.0
+        while cursor < len(forward) and forward[cursor].start < right:
+            w = forward[cursor]
+            amount += max(0.0, min(right, w.end) - max(left, w.start))
+            if w.end > right:
+                break
+            cursor += 1
+        w_index = cursor
+        if amount > 0:
+            seconds += amount
+            intervals += 1
+    return seconds, intervals
 
 
 def _spans(trace: MovementTrace) -> tuple[dict[str, list[Span]], set[str]]:
@@ -71,14 +94,13 @@ def analyze(trace: MovementTrace) -> dict[str, Any]:
     turning_seconds = 0.0
     overlap_intervals = 0
     for turn_key in ("A", "D"):
-        for turn in spans.get(turn_key, []):
-            amount = sum(_overlap(turn, w) for w in spans.get("W", []))
-            turning_seconds += amount
-            if amount > 0:
-                overlap_intervals += 1
+        amount, count = _turn_overlap(spans.get("W", []),
+                                      spans.get(turn_key, []), start, end)
+        turning_seconds += amount
+        overlap_intervals += count
 
     releases = [e for e in trace.events
-                if e.key == "W" and e.edge == "up" and e.t < end - 1e-9]
+                if e.key == "W" and e.edge == "up" and start < e.t < end]
     guide_release_proxies = 0
     for release in releases:
         approx = _interpolated_xyz(trace.poses, release.t)
@@ -97,7 +119,12 @@ def analyze(trace: MovementTrace) -> dict[str, Any]:
                if e.key == "W" and e.edge == "up"):
             hard_stop_release_proxies += 1
 
-    directions = [e.key for e in trace.events if e.edge == "down" and e.key in {"A", "D"}]
+    # Include a turn already held when the eligible window starts, but not
+    # pre-window or post-window turn intervals with zero eligible duration.
+    directions = [key for _, key in sorted(
+        (span.start, key) for key in ("A", "D")
+        for span in spans.get(key, []) if _clip(span, start, end) > 0
+    )]
     direction_alternations = sum(a != b for a, b in zip(directions, directions[1:]))
     poses = trace.poses
     xz_distance = sum(_distance_xz(a.xyz, b.xyz) for a, b in zip(poses, poses[1:]))
@@ -119,6 +146,8 @@ def analyze(trace: MovementTrace) -> dict[str, Any]:
         },
         "movement": {
             "eligibleSeconds": window_duration,
+            "inputMetricScope": "declared-movement-window",
+            "trajectoryMetricScope": "full-observed-pose-timeline",
             "forwardHeldSeconds": forward_seconds,
             "forwardDutyRatio": forward_seconds / window_duration,
             "intermediateForwardReleases": len(releases),
@@ -145,6 +174,7 @@ def analyze(trace: MovementTrace) -> dict[str, Any]:
         "classification": "OFFLINE_REPLAY_ONLY",
         "limitations": [
             "Input event timeline is supplied data, not independently observed OS/game key state.",
+            "Duty, intermediate W releases, guide proxies and turn metrics use the declared eligible window; hard-stop proxies, trace-end release and trajectory metrics use the full trace.",
             "Guide release proximity is interpolated and is not proof of stationary game state.",
             "No source-world corridor/obstacle clearance is certified from a motion trace.",
             "Offline replay never proves a live RIFT journey or arrival.",

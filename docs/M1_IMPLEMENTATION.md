@@ -1,6 +1,6 @@
 # M1 offline implementation and handoff — 2026-11-23
 
-> **Historical M1 baseline (63 tests).** This document preserves the original offline implementation state. Later Taxi-owned live read-only native evidence, the separate supervised-input prototype, and the source-aware RR2 motion timing analyzer are documented in the [current roadmap](ROADMAP.md) and [movement-timing/Telemetry audit](M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md). The current regression total is **261**, not 63. The historical statements below should not be interpreted as current capability claims.
+> **Historical M1 baseline (63 tests).** This document preserves the original offline implementation state. Later Taxi-owned live read-only native evidence, the separate supervised-input prototype, and the source-aware RR2 motion timing analyzer are documented in the [current roadmap](ROADMAP.md) and [movement-timing/Telemetry audit](M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md). The regression total has advanced; see [current validation](VALIDATION.md), not the historical count below. The historical statements below should not be interpreted as current capability claims.
 
 **Host:** LEGION. **Repository:** C:\work\Rift_Taxi. **Status:** M1 **in progress**, not complete. The offline Python CLI, original RR2 importer, synthetic geometric steering preview and driver-neutral W/A/D + watchdog STOP gate are implemented. There is **no Taxi native pose reader, no Windows game actuator and no tested Taxi live movement**.
 
@@ -39,6 +39,10 @@ The source commit is a reference to the observed code snapshot, **not proof that
 ## Synthetic fixtures (not measured RIFT)
 
 The same hand-authored three-bend route yields a stop/go example with **76.9%** W duty, three guide releases, no steering overlap; and an illustrative continuous example with **100%** W duty, zero guide releases and three in-motion turn intervals. Both have **0** final error by construction. The synthetic preview shows geometric steering intents, **not closed-loop game physics or real A/D keypresses**.
+
+## Later replay metric correction — November 23, 3:05 PM ET
+
+The original replay mixed scopes: W duty was clipped to the movement window, but turning overlap, direction alternations and early W releases could include events outside that window. The existing replay now measures those input-quality metrics consistently over the declared eligible window. A W-up exactly at either boundary is not an intermediate release; a turn already held at window start contributes only its overlapping duration. Hard-stop proximity proxies, trajectory metrics and trace-end release retain the full observed timeline. New report fields label both scopes explicitly. An ordered linear interval sweep replaces the pairwise overlap calculation; 100 seeded interval-set comparisons matched the independent pairwise oracle. Four new tests passed, **24/24 focused replay tests and 376/376 full regressions**. The two original synthetic fixtures retained their benchmark expectations; no new physical arrival or movement qualification is claimed.
 
 ## Historical LEGION RR2 source actually imported
 

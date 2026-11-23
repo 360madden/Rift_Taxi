@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 import hashlib
+import random
 import json
 from pathlib import Path
 import subprocess
@@ -11,8 +13,8 @@ import sys
 import tempfile
 import unittest
 
-from rift_taxi.contracts import TraceError, load_trace
-from rift_taxi.replay import analyze, compare
+from rift_taxi.contracts import InputEvent, TraceError, load_trace
+from rift_taxi.replay import Span, _turn_overlap, analyze, compare
 
 ROOT = Path(__file__).resolve().parents[1]
 STOP = ROOT / "samples" / "synthetic_stop_go.json"
@@ -135,6 +137,76 @@ class MetricTests(unittest.TestCase):
         self.assertEqual(report["movement"]["turningWhileForwardIntervals"], 3)
         self.assertAlmostEqual(report["movement"]["turningWhileForwardSeconds"], 0.9)
         self.assertEqual(report["arrival"]["replayFinalXZError"], 0)
+
+    def test_input_metrics_exclude_pre_and_post_window_activity(self):
+        trace = replace(load_trace(CONTINUOUS), window_start=1., window_end=4.,
+            events=tuple(InputEvent(t, key, edge) for t, key, edge in (
+                (0., "W", "down"), (0., "D", "down"),
+                (.4, "D", "up"), (.5, "W", "up"),
+                (1., "W", "down"), (1.2, "A", "down"),
+                (1.4, "A", "up"), (2., "W", "up"),
+                (2.5, "W", "down"), (3., "D", "down"),
+                (4., "W", "up"), (4.2, "D", "up"),
+                (4.3, "A", "down"), (4.4, "W", "down"),
+                (4.8, "A", "up"), (5., "W", "up"),
+            )))
+        result = analyze(trace)
+        movement = result["movement"]
+        self.assertAlmostEqual(movement["eligibleSeconds"], 3.)
+        self.assertAlmostEqual(movement["forwardHeldSeconds"], 2.5)
+        self.assertAlmostEqual(movement["turningWhileForwardSeconds"], 1.2)
+        self.assertEqual(movement["turningWhileForwardIntervals"], 2)
+        self.assertEqual(movement["turnDirectionAlternations"], 1)
+        self.assertEqual(movement["intermediateForwardReleases"], 1)
+        self.assertEqual(movement["inputMetricScope"], "declared-movement-window")
+        self.assertEqual(movement["trajectoryMetricScope"], "full-observed-pose-timeline")
+        self.assertTrue(result["arrival"]["inputKeysReleasedByTraceEnd"])
+        self.assertFalse(result["arrival"]["liveArrivalVerified"])
+
+    def test_held_turn_crosses_window_and_multiple_forward_spans(self):
+        trace = replace(load_trace(CONTINUOUS), window_start=1., window_end=4.,
+            events=tuple(InputEvent(t, key, edge) for t, key, edge in (
+                (0., "A", "down"), (.5, "W", "down"), (1.5, "W", "up"),
+                (2., "W", "down"), (2.5, "W", "up"), (3., "W", "down"),
+                (4.5, "A", "up"), (5., "W", "up"),
+            )))
+        movement = analyze(trace)["movement"]
+        self.assertAlmostEqual(movement["turningWhileForwardSeconds"], 2.)
+        self.assertEqual(movement["turningWhileForwardIntervals"], 1)
+        self.assertEqual(movement["intermediateForwardReleases"], 2)
+
+    def test_release_at_window_start_is_not_intermediate_guide_release(self):
+        trace = replace(load_trace(CONTINUOUS), window_start=1.3, window_end=4.,
+            events=tuple(InputEvent(t, key, edge) for t, key, edge in (
+                (0., "W", "down"), (1.3, "W", "up"),
+                (1.4, "W", "down"), (4., "W", "up"),
+            )))
+        movement = analyze(trace)["movement"]
+        self.assertEqual(movement["intermediateForwardReleases"], 0)
+        self.assertEqual(movement["guideReleaseProxies"], 0)
+
+    def test_sweep_matches_pairwise_oracle_on_seeded_intervals(self):
+        rng = random.Random(20261123)
+        def spans():
+            result = []
+            cursor = 0.
+            for _ in range(rng.randrange(0, 60)):
+                left = cursor + rng.random()
+                right = left + rng.random()
+                result.append(Span(left, right))
+                cursor = right
+            return result
+        for _ in range(100):
+            forward, turns = spans(), spans()
+            start = rng.uniform(0., 20.)
+            end = start + rng.uniform(.01, 30.)
+            amounts = [
+                sum(max(0., min(w.end, t.end, end) - max(w.start, t.start, start))
+                    for w in forward) for t in turns
+            ]
+            seconds, count = _turn_overlap(forward, turns, start, end)
+            self.assertAlmostEqual(seconds, sum(amounts), places=10)
+            self.assertEqual(count, sum(a > 0. for a in amounts))
 
     def test_compare_same_route_reports_delta_without_live_claim(self):
         report = compare(load_trace(STOP), load_trace(CONTINUOUS))
