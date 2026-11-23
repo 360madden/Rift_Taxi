@@ -169,6 +169,7 @@ class HeldInputController:
         self._potentially_held: set[str] = set()
         self._last_pose: LivePose | None = None
         self._lease_deadline: float | None = None
+        self._last_clock: float | None = None
         self._release_fault = False
         self._edges: list[KeyEdge] = []
         self._thread = threading.Thread(
@@ -228,11 +229,40 @@ class HeldInputController:
         self._release_all(now)
         self._wake.set()
 
+    def _read_clock_locked(self) -> float:
+        """Reject unusable/rollback time; never use it to extend a lease."""
+        try:
+            raw = self._clock()
+            _finite(raw, "controller clock")
+            now = float(raw)
+            if now < 0 or (self._last_clock is not None and now < self._last_clock):
+                raise ValueError("controller clock moved backward or negative")
+        except Exception as error:
+            raise ControlRefused("controller-clock-invalid") from error
+        self._last_clock = now
+        return now
+
+    def _stop_time_locked(self) -> float:
+        # A clock failure must never prevent a key-up attempt. The fallback
+        # is the last valid audit timestamp, not a fresh observation.
+        try:
+            return self._read_clock_locked()
+        except ControlRefused:
+            return self._last_clock if self._last_clock is not None else 0.0
+
+    def _watch_expiry_locked(self) -> None:
+        if self._stop_latched:
+            return
+        try:
+            self._expire_locked(self._read_clock_locked())
+        except ControlRefused as error:
+            self._stop_locked(str(error), self._last_clock if self._last_clock is not None else 0.0)
+
     def stop(self, reason: str = "explicit-stop") -> ControlStatus:
         """STOP stays latched. Repeated STOP retries any unaccepted key-ups."""
         _nonempty(reason, "reason")
         with self._lock:
-            self._stop_locked(reason, self._clock())
+            self._stop_locked(reason, self._stop_time_locked())
             return self.status
 
     def _expire_locked(self, now: float) -> None:
@@ -246,7 +276,7 @@ class HeldInputController:
     def check_expiry(self) -> ControlStatus:
         """Deterministic expiry check, also used by the watchdog thread."""
         with self._lock:
-            self._expire_locked(self._clock())
+            self._watch_expiry_locked()
             return self.status
 
     def _watch(self) -> None:
@@ -256,7 +286,7 @@ class HeldInputController:
             with self._lock:
                 if self._closed:
                     return
-                self._expire_locked(self._clock())
+                self._watch_expiry_locked()
 
     def _validate_pose(self, pose: LivePose, now: float) -> None:
         if not isinstance(pose, LivePose):
@@ -280,6 +310,18 @@ class HeldInputController:
                     and pose.observed_monotonic_s <= previous.observed_monotonic_s):
                 raise ControlRefused("pose timestamp failed to advance")
 
+    def _check_action_time_locked(self, pose: LivePose, deadline: float) -> float:
+        now = self._read_clock_locked()
+        # Do not resurrect a prior held-key lease while waiting for a guard,
+        # and do not start another edge after this request's own deadline.
+        self._expire_locked(now)
+        if self._stop_latched:
+            raise ControlRefused(f"STOP latched: {self._stop_reason}")
+        self._validate_pose(pose, now)
+        if now >= deadline:
+            raise ControlRefused("action-lease-expired")
+        return now
+
     def apply(self, requested_keys: Iterable[str], pose: LivePose) -> ControlStatus:
         """Set desired W/A/D set, releasing obsolete keys BEFORE pressing new.
 
@@ -288,11 +330,14 @@ class HeldInputController:
         release; no automatic rearm.
         """
         with self._lock:
-            now = self._clock()
-            self._expire_locked(now)
             if self._stop_latched or self._closed:
                 raise ControlRefused(f"STOP latched: {self._stop_reason}")
             try:
+                now = self._read_clock_locked()
+                self._expire_locked(now)
+                if self._stop_latched:
+                    raise ControlRefused(f"STOP latched: {self._stop_reason}")
+                deadline = now + self._hold_s
                 # Reject strings, unbounded generators and custom iterables, even
                 # if they happen to contain valid characters. Never let malformed
                 # steering requests leave previously held keys active.
@@ -310,30 +355,39 @@ class HeldInputController:
                 renew = getattr(self._backend, "renew_guard", None)
                 if renew is not None and (not callable(renew) or renew() is not True):
                     raise ControlRefused("external release lease unavailable")
+                now = self._check_action_time_locked(pose, deadline)
+                self._last_pose = pose
+                # Establish a finite deadline before attempting any DOWN.
+                self._lease_deadline = deadline
+                # Release obsolete inputs before allowing any new direction.
+                for key in ("A", "D", "W"):
+                    if key in self._potentially_held and key not in desired:
+                        now = self._check_action_time_locked(pose, deadline)
+                        if not self._write_edge(key, False, now):
+                            raise ControlRefused("backend-release-rejected")
+                        self._check_action_time_locked(pose, deadline)
+                for key in _ORDER:
+                    if key in desired and key not in self._potentially_held:
+                        now = self._check_action_time_locked(pose, deadline)
+                        if not self._write_edge(key, True, now):
+                            raise ControlRefused("backend-press-rejected")
+                        # A slow accepted DOWN is still uncertain until it has
+                        # been released when its pose/lease became stale.
+                        self._check_action_time_locked(pose, deadline)
+                self._check_action_time_locked(pose, deadline)
+                self._lease_deadline = deadline if self._potentially_held else None
+                self._wake.set()
+                return self.status
             except Exception as error:
-                # Covers validation exceptions and broken collection methods too.
-                # Input faults are STOP events, not permission to keep W held.
-                self._stop_locked(str(error), now)
+                # Validation, driver and time faults all latch STOP. Even a
+                # broken clock cannot prevent release of uncertain keys.
+                if not self._stop_latched:
+                    self._stop_locked(str(error), self._stop_time_locked())
                 raise ControlRefused(str(error)) from error
-            self._last_pose = pose
-            # Release all obsolete inputs before allowing any new direction.
-            for key in ("A", "D", "W"):
-                if key in self._potentially_held and key not in desired:
-                    if not self._write_edge(key, False, now):
-                        self._stop_locked("backend-release-rejected", now)
-                        raise ControlRefused("backend-release-rejected")
-            for key in _ORDER:
-                if key in desired and key not in self._potentially_held:
-                    if not self._write_edge(key, True, now):
-                        self._stop_locked("backend-press-rejected", now)
-                        raise ControlRefused("backend-press-rejected")
-            self._lease_deadline = now + self._hold_s if self._potentially_held else None
-            self._wake.set()
-            return self.status
 
     def close(self) -> None:
         with self._lock:
-            self._stop_locked("controller-closed", self._clock())
+            self._stop_locked("controller-closed", self._stop_time_locked())
             self._closed = True
             self._wake.set()
         if self._thread is not threading.current_thread():

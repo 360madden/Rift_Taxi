@@ -12,6 +12,17 @@
 - A watchdog **thread independent of the steering call loop** checks pose age and finite input lease expiration. It attempts release without requiring another `apply()` call. `check_expiry()` offers a deterministic equivalent for seeded tests.
 - Driver responses and input edges are recorded separately from physical game-state observation. `game_response_verified` is **always false** in this module.
 
+## Timing-boundary hardening — November 23, 2:55 PM ET
+
+A review identified a stale-admission window: the controller originally validated the pose before renewing the external guard but reused the old timestamp after synchronous guard and backend calls. A clock failure could also prevent STOP from attempting release. The fix reuses the existing driver-neutral controller, fake clock and recording backend rather than adding a parallel control stack.
+
+- Revalidate the requested pose and old held-key lease after guard renewal, before/after each key transition, and before returning success. Establish a finite action deadline before insertion; delayed operations cannot resurrect an expired held-key lease.
+- If a DOWN returns accepted after pose/lease expiry, latch STOP and attempt release of all uncertain held keys; do not start another DOWN. A slow obsolete-turn UP cannot authorize a stale reversal.
+- Reject backward, negative, non-finite, nonnumeric and raising controller clocks. STOP/close use the last valid audit timestamp (or zero if none) when time is unavailable, not a newly qualified observation. The watchdog latches STOP on clock failure rather than silently exiting.
+- Existing synchronous-backend limitation remains: these checks cannot interrupt a foreign call that never returns while holding the lock. The separate release child remains necessary; actual focus-loss, child-death and game-consumed release are not qualified by fake-backend tests.
+
+Eight new deterministic/inert regressions passed; **37/37 focused control tests and 358/358 full tests passed on LEGION (Python 3.14.10)**. No game input or live pose promotion occurred.
+
 ## What the test results prove
 
 Run on LEGION in PowerShell from `C:\work\Rift_Taxi`:

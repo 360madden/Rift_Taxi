@@ -290,6 +290,109 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "xyz"):
             replace(pose(self.clock), xyz=[1, 2, 3])
 
+    def test_slow_guard_cannot_authorize_a_stale_pose(self) -> None:
+        def slow_renew():
+            self.clock.advance(.21)
+            return True
+        self.backend.renew_guard = slow_renew
+        with self.assertRaisesRegex(ControlRefused, "stale"):
+            self.controller.apply(("W",), pose(self.clock))
+        self.assertEqual(self.backend.events, [])
+        self.assertTrue(self.controller.status.stop_latched)
+
+    def test_slow_guard_cannot_resurrect_prior_lease(self) -> None:
+        clock, backend = Clock(), RecordingBackend()
+        with HeldInputController(session(), backend, clock=clock,
+                                  max_pose_age_s=.8, max_hold_s=.10) as gate:
+            gate.apply(("W",), pose(clock))
+            clock.advance(.08)
+            def slow_renew():
+                clock.advance(.03)
+                return True
+            backend.renew_guard = slow_renew
+            with self.assertRaisesRegex(ControlRefused, "lease-expired"):
+                gate.apply(("W", "D"), pose(clock, sequence=2))
+            self.assertEqual(backend.events, [("W", True), ("W", False)])
+            self.assertEqual(gate.status.potentially_held_keys, ())
+
+    def test_initial_guard_cannot_outlive_action_lease(self) -> None:
+        clock, backend = Clock(), RecordingBackend()
+        with HeldInputController(session(), backend, clock=clock,
+                                  max_pose_age_s=.8, max_hold_s=.10) as gate:
+            def slow_renew():
+                clock.advance(.11)
+                return True
+            backend.renew_guard = slow_renew
+            with self.assertRaisesRegex(ControlRefused, "action-lease-expired"):
+                gate.apply(("W",), pose(clock))
+            self.assertEqual(backend.events, [])
+
+    def test_late_accepted_down_releases_and_blocks_second_down(self) -> None:
+        write = self.backend.write_key
+        def slow_write(key, down):
+            if down:
+                self.clock.advance(.21)
+            return write(key, down)
+        self.backend.write_key = slow_write
+        with self.assertRaisesRegex(ControlRefused, "pose-expired"):
+            self.controller.apply(("W", "D"), pose(self.clock))
+        self.assertEqual(self.backend.events, [("W", True), ("W", False)])
+        self.assertEqual(self.controller.status.potentially_held_keys, ())
+        self.assertTrue(self.controller.status.stop_latched)
+
+    def test_slow_turn_release_blocks_reversal(self) -> None:
+        self.controller.apply(("W", "D"), pose(self.clock))
+        self.clock.advance(.01)
+        write = self.backend.write_key
+        def slow_write(key, down):
+            if (key, down) == ("D", False):
+                self.clock.advance(.21)
+            return write(key, down)
+        self.backend.write_key = slow_write
+        with self.assertRaisesRegex(ControlRefused, "pose-expired"):
+            self.controller.apply(("W", "A"), pose(self.clock, sequence=2))
+        self.assertEqual(self.backend.events, [
+            ("W", True), ("D", True), ("D", False), ("W", False),
+        ])
+        self.assertEqual(self.controller.status.potentially_held_keys, ())
+
+    def test_clock_rollback_and_nonfinite_release_held_keys(self) -> None:
+        for invalid in (99.0, float("nan"), float("inf"), -1.0, True):
+            with self.subTest(invalid=invalid):
+                clock, backend = Clock(), RecordingBackend()
+                with HeldInputController(session(), backend, clock=clock) as gate:
+                    gate.apply(("W", "A"), pose(clock))
+                    clock.t = invalid
+                    status = gate.check_expiry()
+                    self.assertEqual(status.stop_reason, "controller-clock-invalid")
+                    self.assertEqual(status.potentially_held_keys, ())
+                    self.assertEqual(backend.events[-2:], [("A", False), ("W", False)])
+
+    def test_raising_clock_does_not_prevent_stop_or_close(self) -> None:
+        for method in ("stop", "close", "check_expiry"):
+            with self.subTest(method=method):
+                clock, backend = Clock(), RecordingBackend()
+                def read():
+                    if clock.t < 0:
+                        raise OSError("simulated clock failure")
+                    return clock()
+                with HeldInputController(session(), backend, clock=read) as gate:
+                    gate.apply(("W",), pose(clock))
+                    clock.t = -1
+                    getattr(gate, method)()
+                    self.assertEqual(backend.events, [("W", True), ("W", False)])
+                    self.assertTrue(gate.status.stop_latched)
+                    self.assertEqual(gate.status.potentially_held_keys, ())
+
+    def test_background_watchdog_handles_clock_failure(self) -> None:
+        self.controller.apply(("W",), pose(self.clock))
+        self.clock.t = float("nan")
+        deadline = time.monotonic() + 1
+        while time.monotonic() < deadline and ("W", False) not in self.backend.events:
+            time.sleep(.01)
+        self.assertIn(("W", False), self.backend.events)
+        self.assertEqual(self.controller.status.stop_reason, "controller-clock-invalid")
+
     def test_release_exception_retains_uncertainty_until_retry(self) -> None:
         self.controller.apply(("W",), pose(self.clock))
         self.backend.raise_on.add(("W", False))
