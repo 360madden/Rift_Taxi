@@ -15,6 +15,7 @@ from .replay import analyze, compare
 from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .simulation import simulate_route
+from .simulation_stress import stress_route
 from .motion_timing import analyze_motion_timing
 from .forward_bearing import (
     analyze_forward_bearing, compare_two_forward_bearings, ForwardBearingError,
@@ -94,6 +95,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     sim.add_argument("--max-seconds", type=float, default=30.)
     sim.add_argument("--max-cross-track", type=float, default=2.)
     sim.add_argument("--out", help="write synthetic report to a NEW file")
+    stress = commands.add_parser("stress-route", help="offline fixed 180-case synthetic sensitivity benchmark")
+    stress.add_argument("trace", help="synthetic-local-xyz trace")
+    stress.add_argument("--out", help="write benchmark report to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -278,6 +282,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 lookahead=args.lookahead, max_yaw_rate=args.max_yaw_rate,
                 max_seconds=args.max_seconds, max_cross_track=args.max_cross_track,
             ), args.out)
+        elif args.command == "stress-route":
+            _write_or_print(stress_route(load_trace(args.trace)), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -430,6 +436,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineNativeCandidatePairComparisonAvailable": True,
                 "offlineMotionTimingAvailable": True,
                 "offlineSyntheticFeedbackAvailable": True,
+                "offlineSyntheticStressBenchmarkAvailable": True,
                 "offlinePhysicalForwardBearingComparisonAvailable": True,
                 "offlineTwoHeadingForwardComparisonAvailable": True,
                 "offlineRR2NativeZoneCorrelationAvailable": True,
