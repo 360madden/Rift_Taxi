@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-169%20passing-27ae80?style=for-the-badge)](docs/M1_WIN32_INPUT.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-187%20passing-27ae80?style=for-the-badge)](docs/M1_RELEASE_SUPERVISOR.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,7 +40,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, 9/9 raw actor/position matrix bits and a 4-sample stationary burst). A separate **Win32 W/A/D scan-code backend** is implemented but tested only with inert input fakes; **169 regression tests passed on Nov 23**. Actor-heading semantics, passive XYZ freshness, independently supervised release, physical game-input response, completed journeys and desktop packaging remain **unverified or incomplete**.
+> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, 9/9 raw actor/position matrix bits and a 4-sample stationary burst). A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **187 regression tests passed on Nov 23**. Actor-heading semantics, passive XYZ freshness, real game-consumed input/release, end-to-end crash recovery, journeys and packaging remain **unverified or incomplete**.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -56,7 +56,8 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Matrix-enabled bursts + five-phase offline comparison | ✅ Synthetic-tested | [Facing signature](docs/M1_FACING_SIGNATURE.md); source-hashed comparisons without action/heading claims |
 | Taxi-owned fresh XYZ and actor-facing reader | 🔧 Next | Process/build/actor binding and observation freshness |
 | Native Windows W/A/D scan-code backend | ✅ Implemented, fake-sender tested | [M1 Windows input](docs/M1_WIN32_INPUT.md); no physical key injected |
-| Independently supervised release and live movement acceptance | 🔧 Next | Cross-process release, exclusive ownership and fresh game-response evidence |
+| Separate-process release lease and cooperative ownership | ✅ Inert-tested prototype | [M1 external supervisor](docs/M1_RELEASE_SUPERVISOR.md); real release/game consumption unverified |
+| Live input/release and navigation acceptance | 🔧 Next | Independently qualified pose, crash/late-DOWN proof and fresh game-response evidence |
 | Smooth multi-bend live journey | ⏳ Not verified | Measured course with continuous forward travel |
 | Desktop UI and portable distribution | ⏳ Planned | PySide6 target after the control milestones |
 
@@ -160,7 +161,8 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [🧭 M1 matrix comparison](docs/M1_MATRIX_CANDIDATE.md) | Source-pinned position/actor raw matrix comparison; no body-heading promotion |
 | [📐 M1 facing signature](docs/M1_FACING_SIGNATURE.md) | Optional matrix bursts and five-phase source-verified offline comparison |
 | [🧪 First live native capture](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md) | Source-hashed physical XYZ/yaw and 9/9 matrix evidence; explicit limitations |
-| [⌨️ Win32 input backend](docs/M1_WIN32_INPUT.md) | Standard scan-code W/A/D adapter, explicit arming and incomplete release supervision |
+| [⌨️ Win32 input backend](docs/M1_WIN32_INPUT.md) | Standard scan-code W/A/D adapter and explicit arming |
+| [🛟 External release supervisor](docs/M1_RELEASE_SUPERVISOR.md) | Separate-process lease, mutex and dry-run failure/release tests; not physical release proof |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |
 | [📖 Documentation hub](docs/README.md) | Index of research, handoffs and architecture notes |
 | [📝 Durable decisions](docs/DECISIONS.md) | Project decisions and non-negotiable boundaries |

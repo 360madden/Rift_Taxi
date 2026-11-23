@@ -6,7 +6,7 @@
 
 `rift_taxi/win32_input.py` implements the existing `KeyBackend.write_key(key, is_down)` protocol using a standard-library Windows `SendInput` scan-code packet. It can be called by the existing `HeldInputController` after **explicit, same-session arming**. It is not exposed as a Taxi CLI command, does not launch RIFT, and **did not send any movement keys during this development cycle**.
 
-This module closes an M1 *code implementation* gap for OS insertion, but **NOT** the physical acceptance, actor/zone qualification, cross-process exclusive input ownership, crash-proof release or game-observed key transitions.
+This module closes an M1 *code implementation* gap for OS insertion. The later [separate-process release-supervisor prototype](M1_RELEASE_SUPERVISOR.md) adds lease/EOF/mutex tests, **not** physical game-release or crash-proof guarantees. Actor/zone qualification and game-observed input still remain open.
 
 ### Input ABI and supported keys
 
@@ -32,7 +32,7 @@ The normal Windows `SendInput` call is a best-effort **OS insertion**; it cannot
 
 ### Testing evidence
 
-**15 new scan-code backend regression tests passed on LEGION on November 23**, bringing the whole suite to **169/169**. The tests inject fake process/window probes and a fake sender; they cover scan-code packet/ABI layout, disarmed refusal, qualified-pose admission, focus loss, PID epoch/path/host/window mismatch, stopped/failed insertion uncertainty, key-up retries, disarm, duplicate press rejection, and integration with the actual driver-neutral `HeldInputController`. The sender object was constructed using Win32 without invoking `SendInput`.
+**15 scan-code backend regression tests passed on LEGION on November 23** (169/169 at that slice); the later external-supervisor cycle brought the suite to **187/187**. The tests inject fake process/window probes and a fake sender; they cover scan-code packet/ABI layout, disarmed refusal, qualified-pose admission, focus loss, PID epoch/path/host/window mismatch, stopped/failed insertion uncertainty, key-up retries, disarm, duplicate press rejection, and integration with the actual driver-neutral `HeldInputController`. The sender object was constructed using Win32 without invoking `SendInput`.
 
 Run from **PowerShell** in `C:\work\Rift_Taxi`:
 
@@ -46,8 +46,8 @@ The separate [real native capture handoff](M1_LIVE_NATIVE_LEGION_2026-11-23.md) 
 ## Missing before M1 physical acceptance
 
 1. Qualify same-actor/zone **fresh** native XYZ and independent body facing on the physical build. The live current-build candidate capture exists, but its `actorHeadingQualified` and `passivePositionFreshnessQualified` flags are still **false**. The backend must remain disarmed until that prerequisite is met.
-2. Add a **separate process** or other independently supervised release mechanism that can recover if the primary controller blocks or exits. The current thread and `release_all()` in the same Python process **cannot** guarantee recovery across process termination or kernel/API hangs.
-3. Add explicit **cross-process controller ownership** so competing scripts cannot press W/A/D simultaneously.
+2. Validate the new **separate-process release-only prototype** against actual game key consumption, focus-loss and blocked/late native SendInput behaviors. A synthetic parent-crash and delayed-DOWN compensation test now pass, but physical outcomes remain unknown. It is independent of the steering thread, but **cannot yet guarantee actual game release**.
+3. Verify the new **cooperative same-game-epoch Windows mutex** under packaged deployment and prevent competing external applications from taking ownership where practicable.
 4. Execute an approved, short physical clear-ground calibration on one pinned, freshly verified game process. Preserve exact input down/up timing, foreground/identity readback, independent game visual/XYZ/yaw response, and post-release settled pose. An inserted-key return value alone does not pass.
 
 ## Source boundary

@@ -31,19 +31,19 @@ The original gate tests use an inert `RecordingBackend`: they insert no OS input
 | Same-client process/window/player binding | OS PID/start/path/hash/HWND read-only candidate inspector plus exact session-contract equality | Bind that candidate to independently verified RIFT actor/zone and fresh pose |
 | Pose freshness/yaw | Same-clock gating + real exact-build read-only XYZ/yaw **candidates** | Prove live passive refresh and qualified body heading/actor/zone before motion |
 | Held W/A/D | Driver-neutral gate + **Win32 scan-code backend** with fake-sender acceptance tests | Qualify and measure bounded physical OS/game response after verified pose |
-| STOP and timeout | Latched STOP, daemon watchdog and accepted-UP accounting | Independently supervised release even if the native backend blocks; OS/game post-release readback |
-| Exclusive ownership | Single in-process lock | Cross-process actuator-owner arbitration and safe crash/restart behavior |
+| STOP and timeout | Latched STOP, daemon watchdog, **separate-process lease/EOF release prototype**, accepted-UP accounting | Physically verify input release, late-DOWN races, process/job crashes, actual settled game readback |
+| Exclusive ownership | In-process lock + **cooperative named Windows mutex** per PID/start | Noncooperating programs, safe restart/re-arm and physical exclusivity qualification |
 | Verification | 29 fake-driver tests plus historical/offline suite | Read actual observed game response and fresh independently settled final pose |
 | Navigation | Synthetic Pure Pursuit preview | Calibrated closed-loop trajectory controller and verified corridor |
 
 **Critical distinction:** a Python watchdog cannot guarantee release when a foreign driver call hangs under the shared controller lock, when the process exits, or when RIFT ignores a key-up despite OS insertion. Those require a short bounded native backend and independently supervised release/physical test. `potentially_held_keys` is an uncertainty ledger, **not** a claim that RIFT is still physically holding those keys.
 
-The `control.py` module itself has no automatic process discovery, native reads or SendInput; the separately implemented `win32_input.py` can issue SendInput **only if explicitly armed with independently qualified pose**. The physical RIFT session has not met that gate. Do not mark M1 complete from synthetic sender tests or real candidate reads alone. [Input evidence boundary](M1_WIN32_INPUT.md).
+The `control.py` module itself has no automatic process discovery, native reads or SendInput; the separately implemented `win32_input.py` can issue SendInput **only if explicitly armed with independently qualified pose**. `control.py` now optionally calls `renew_guard()` on **every fresh pose**, so the separate child lease is maintained through sustained W with no new input edge. The [external lease implementation](M1_RELEASE_SUPERVISOR.md) is a dry-run verified prototype, not a physical STOP guarantee. The physical RIFT session has not met that gate. Do not mark M1 complete from synthetic sender tests or real candidate reads alone. [Input evidence boundary](M1_WIN32_INPUT.md).
 
 ## Next most valuable development steps
 
 1. Correlate the already-acquired Taxi-owned current-build XYZ/yaw/matrix candidates with independent actual game-state changes, verified actor/zone and same-clock timestamps; no automatic promotion from stationary data.
-2. Complete **independently supervised release, exclusive actuator ownership**, and measured physical acceptance for the new bounded Win32 W/A/D backend. Distinguish OS insertion from independently observed game response.
+2. Validate the **external release-supervisor prototype** with physical game input (after pose qualification), real OS/driver timing, process death and noncooperative input owners. Dry-run child TTL/EOF, abrupt parent exit and late-DOWN compensation tests pass, but do not establish game release.
 3. Run a short **authorized physical** clear-ground probe: one qualified actor, same verified build and foreground, an actual timed W press/release, resulting XYZ/yaw and settled state. Preserve a source-hashed receipt; test lost focus/restart as negative cases.
 4. Only then tune sustained straight motion (M2) and measured multi-bend smooth steering (M3).
 

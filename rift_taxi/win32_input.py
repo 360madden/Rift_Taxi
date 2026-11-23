@@ -162,6 +162,11 @@ class WindowsScanKeyBackend:
         self._lock = threading.RLock()
 
     @property
+    def has_native_sender(self) -> bool:
+        """Only native sender uses actual Win32 SendInput (not a faked sender)."""
+        return isinstance(self._sender, Win32ScanSender)
+
+    @property
     def armed(self) -> bool:
         with self._lock:
             return self._armed

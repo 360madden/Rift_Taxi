@@ -1,6 +1,6 @@
 # RIFT Taxi architecture — standalone local autopilot
 
-> **State:** standalone runtime design. M1 replay/import/steering and STOP gate exist. Taxi's **own read-only native candidate reader has succeeded against a physical LEGION RIFT client**, and a separate Win32 W/A/D scan-code adapter is **inert-tested only**. Verified fresh actor-facing/zone telemetry, crash-proof release, physical input/journey acceptance and packaging are still missing. **Reviewed:** 2026-11-23 on LEGION. [Live native evidence](M1_LIVE_NATIVE_LEGION_2026-11-23.md) · [Win32 input boundary](M1_WIN32_INPUT.md) · [M1 implementation](M1_IMPLEMENTATION.md).
+> **State:** standalone runtime design. M1 replay/import/steering and STOP gate exist. Taxi's **own read-only native candidate reader has succeeded against a physical LEGION RIFT client**, and a separate Win32 W/A/D scan-code adapter plus **independent child-process key-release lease prototype** are **dry-run tested only**. A synthetic parent-abrupt-exit and late-key-DOWN compensation test pass; verified fresh actor-facing/zone telemetry, physical release/game response, robust crash recovery, journey acceptance and packaging are still missing. **Reviewed:** 2026-11-23 on LEGION. [Live native evidence](M1_LIVE_NATIVE_LEGION_2026-11-23.md) · [Win32 input boundary](M1_WIN32_INPUT.md) · [Release supervisor](M1_RELEASE_SUPERVISOR.md) · [M1 implementation](M1_IMPLEMENTATION.md).
 
 ## 0. Product invariants
 

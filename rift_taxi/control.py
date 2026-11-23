@@ -304,6 +304,12 @@ class HeldInputController:
                 if "A" in desired and "D" in desired:
                     raise ControlRefused("invalid or contradictory movement keys")
                 self._validate_pose(pose, now)
+                # Optional external release supervisor must renew even when W
+                # stays held and no new input edge is generated. Failure
+                # latches STOP and initiates release through both channels.
+                renew = getattr(self._backend, "renew_guard", None)
+                if renew is not None and (not callable(renew) or renew() is not True):
+                    raise ControlRefused("external release lease unavailable")
             except Exception as error:
                 # Covers validation exceptions and broken collection methods too.
                 # Input faults are STOP events, not permission to keep W held.
