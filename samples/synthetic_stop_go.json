@@ -1,0 +1,227 @@
+{
+  "schema": "taxi.motion-trace/1",
+  "sourceType": "synthetic",
+  "frame": {
+    "frameId": "synthetic-local-xyz",
+    "axisOrder": [
+      "x",
+      "y",
+      "z"
+    ],
+    "upAxis": "y",
+    "units": "synthetic-units"
+  },
+  "route": {
+    "id": "three-bend-synthetic-course",
+    "points": [
+      {
+        "name": "Start",
+        "kind": "guide",
+        "xyz": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Guide East",
+        "kind": "guide",
+        "xyz": [
+          4,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Guide North",
+        "kind": "optional",
+        "xyz": [
+          4,
+          0,
+          4
+        ]
+      },
+      {
+        "name": "Guide East Again",
+        "kind": "guide",
+        "xyz": [
+          8,
+          0,
+          4
+        ]
+      },
+      {
+        "name": "Final",
+        "kind": "destination",
+        "xyz": [
+          8,
+          0,
+          8
+        ]
+      }
+    ],
+    "arrivalToleranceXZ": 0.3
+  },
+  "movementWindow": [
+    0,
+    5.2
+  ],
+  "source": {
+    "generator": "hand-authored-stop-turn-run-comparison/1"
+  },
+  "poses": [
+    {
+      "t": 0,
+      "xyz": [
+        0,
+        0,
+        0
+      ],
+      "actorYawDeg": 0
+    },
+    {
+      "t": 1,
+      "xyz": [
+        4,
+        0,
+        0
+      ],
+      "actorYawDeg": 0
+    },
+    {
+      "t": 1.4,
+      "xyz": [
+        4,
+        0,
+        0
+      ],
+      "actorYawDeg": 90
+    },
+    {
+      "t": 2.4,
+      "xyz": [
+        4,
+        0,
+        4
+      ],
+      "actorYawDeg": 90
+    },
+    {
+      "t": 2.8,
+      "xyz": [
+        4,
+        0,
+        4
+      ],
+      "actorYawDeg": 0
+    },
+    {
+      "t": 3.8,
+      "xyz": [
+        8,
+        0,
+        4
+      ],
+      "actorYawDeg": 0
+    },
+    {
+      "t": 4.2,
+      "xyz": [
+        8,
+        0,
+        4
+      ],
+      "actorYawDeg": 90
+    },
+    {
+      "t": 5.2,
+      "xyz": [
+        8,
+        0,
+        8
+      ],
+      "actorYawDeg": 90
+    },
+    {
+      "t": 5.5,
+      "xyz": [
+        8,
+        0,
+        8
+      ],
+      "actorYawDeg": 90
+    }
+  ],
+  "events": [
+    {
+      "t": 0,
+      "key": "W",
+      "edge": "down"
+    },
+    {
+      "t": 1,
+      "key": "W",
+      "edge": "up"
+    },
+    {
+      "t": 1,
+      "key": "D",
+      "edge": "down"
+    },
+    {
+      "t": 1.4,
+      "key": "D",
+      "edge": "up"
+    },
+    {
+      "t": 1.4,
+      "key": "W",
+      "edge": "down"
+    },
+    {
+      "t": 2.4,
+      "key": "W",
+      "edge": "up"
+    },
+    {
+      "t": 2.4,
+      "key": "A",
+      "edge": "down"
+    },
+    {
+      "t": 2.8,
+      "key": "A",
+      "edge": "up"
+    },
+    {
+      "t": 2.8,
+      "key": "W",
+      "edge": "down"
+    },
+    {
+      "t": 3.8,
+      "key": "W",
+      "edge": "up"
+    },
+    {
+      "t": 3.8,
+      "key": "D",
+      "edge": "down"
+    },
+    {
+      "t": 4.2,
+      "key": "D",
+      "edge": "up"
+    },
+    {
+      "t": 4.2,
+      "key": "W",
+      "edge": "down"
+    },
+    {
+      "t": 5.2,
+      "key": "W",
+      "edge": "up"
+    }
+  ]
+}

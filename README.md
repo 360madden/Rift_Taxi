@@ -1,7 +1,7 @@
 # RIFT Taxi 🚕
 **Standalone, destination-driven navigation for RIFT MMORPG**
 
-> **Project status — 2026-11-23:** Git initialized; architecture, source-repository handoffs and integration contracts documented. **No Taxi navigation executable, live input, successful journey or packaged distribution is claimed.**
+> **Project status — 2026-11-23:** M1 implementation **in progress**. The standalone offline Python trace-replay CLI, original RR2 importer, synthetic steering preview and 34 regression tests are working. **No Taxi live native reader, game input, successful Taxi journey or packaged distribution is claimed.**
 
 ## Product goal
 
@@ -32,7 +32,7 @@ Select a destination, press **Go**, and let the **local application** guide the 
 | Stage | Result | Primary proof |
 |---|---|---|
 | M0 | Contract, repository, measurement plan | Docs and initial Git commit |
-| M1 | Standalone pose + bounded input | Exact client identity, fresh facing/XYZ and verified release |
+| M1 | **Offline replay implemented; native pose/input pending** | Exact client identity, fresh facing/XYZ and verified release still required |
 | M2 | Continuous straight travel | Sustained W and clean final stop on clear ground |
 | M3 | Smooth multi-bend travel | Three or more bends, steering with W held, no stops at guides |
 | M4 | Independently packaged destination routes | Same result without RR2/RiftWorld installed or running |
@@ -48,6 +48,7 @@ Detailed dependencies, tests, and gates: [Development roadmap](docs/ROADMAP.md).
 - [Development roadmap and milestones](docs/ROADMAP.md)
 - [Benchmarks and acceptance criteria](docs/VALIDATION.md)
 - [Documentation hub and reading order](docs/README.md)
+- [M1 offline implementation and verified test handoff](docs/M1_IMPLEMENTATION.md)
 - [RR2/RiftWorld/Telara Fly research reuse inventory](docs/RESEARCH_IMPORTS.md)
 - [RR2 source handoff](docs/RR2_HANDOFF.md) · [RiftWorld source handoff](docs/RIFTWORLD_HANDOFF.md) · [Telara Fly read-only inventory](docs/TELARA_FLY_REFERENCE.md)
 - [Versioned integration contract design](docs/INTEGRATION_CONTRACTS.md)
@@ -59,6 +60,8 @@ Detailed dependencies, tests, and gates: [Development roadmap](docs/ROADMAP.md).
 
 Repository: `C:\work\Rift_Taxi` on **LEGION**, branch `main`, Git author `360madden <360madden@gmail.com>`. GitHub remote/publication is a separate operation; no remote is implied by creating a local Git repository.
 
-## First implementation task
+## Current implementation — offline only
 
-Build a minimal **trace-replay CLI** with typed, time-stamped pose/facing, route, and input-event contracts. Reproduce a known stop-turn-run failure offline using genuinely time-aligned original RR2 observations when available; do **not** invent missing yaw or key timing. Then implement and compare a running/steering controller against the same trace. The November 23 15-point Guardian bridge route is a staged-travel reference, not an already accepted uninterrupted journey. Do not begin with a large GUI or a duplicate geometry extractor.
+From PowerShell in `C:\work\Rift_Taxi`, run `python -B -m rift_taxi doctor`, `python -B -m rift_taxi compare samples\synthetic_stop_go.json samples\synthetic_continuous.json`, or `python -B -m rift_taxi preview-steering samples\synthetic_continuous.json`. Run tests with `python -B -m unittest discover -s tests -v`. See [M1 implementation](docs/M1_IMPLEMENTATION.md) for the original-source RR2 importer, the verified 72-position/14-key-event historical receipt and honest evidence limits. No RIFT is opened and no game input is issued by these commands.
+
+**Next:** Complete M1's Taxi-owned native read-only current-player XYZ/actor yaw and controlled key-release path; calibrate actual RIFT yaw/latency before implementing live continuous steering. The 15-point Guardian bridge reference remains a staged RR2 run, not an accepted Taxi journey.

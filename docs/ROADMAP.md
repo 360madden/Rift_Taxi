@@ -16,13 +16,14 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 `M0 → M1 → M2 → M3 → M4 → M5 → M6`. Implement narrow vertical slices and run replay in parallel with live-scope investigation. Do not postpone a working multi-bend controller until every zone is mapped.
 
 ### M0 — Repository, requirements and evidence baseline
-**Status:** Bootstrap and expanded source/architecture documents completed. **Not yet implemented:** trace-contract fixtures, replay CLI, native reader or application.
+**Status:** Bootstrap and expanded source/architecture documents completed. Offline trace contracts, CLI and replay fixtures now implemented under M1; no live native reader or movement actuator exists.
 - Git main, scoped author, README/AGENTS, specs, architecture and validation plan.
 - Identify exact reusable RR2 native pose/facing and input behavior and RiftWorld route export contracts, with upstream commits/file hashes. **Completed as a read-only source audit** in [research index](RESEARCH_IMPORTS.md), [RR2 handoff](RR2_HANDOFF.md), [RiftWorld handoff](RIFTWORLD_HANDOFF.md) and [Telara Fly reference](TELARA_FLY_REFERENCE.md). Recheck hashes and actual raw receipts at implementation time.
 - Define minimal typed trace fixtures and clear source attribution; do not copy entire upstream applications. Existing upstream formats and **proposed Taxi** contract fields are separated in [integration contracts](INTEGRATION_CONTRACTS.md). Actual fixtures remain M1 work.
 **Exit:** documentation coherent, Git initial commit, no runtime dependencies silently introduced.
 
 ### M1 — Standalone pose, input and trace/replay substrate [P0]
+**Progress (Nov 23):** Offline CLI, strict `taxi.motion-trace/1`, source-hashed RR2 JSONL import, synthetic stop/go vs continuous metrics, and synthetic Pure Pursuit intent preview are implemented (**34/34 tests**). **Native live XYZ/yaw reader, key actuator and physical acceptance remain open.** [Implementation and original-source evidence](M1_IMPLEMENTATION.md).
 - Implement `taxi replay` reading deterministic observation/input/route traces; publish first benchmark JSON. First inspect original Legion pose/facing plus key-down/up source receipts for **same-clock or explicitly calibrated cross-clock timestamps**; never synthesize omitted fields while labeling them historical.
 - Implement Taxi-owned exact-process/build/player/zone pose and actor-facing acquisition, initially on verified Windows RIFT build.
 - Implement independently releasable bounded W/A/D state control with STOP; capture actual timing and fresh post-action movement evidence.
@@ -64,9 +65,9 @@ Note: arrival is not permission to traverse unknown geometry. Failure-to-plan is
 
 ## Next three concrete tasks (do these first)
 
-1. **Trace contracts and replay CLI.** Add minimal Python package, unit test harness, versioned `PoseSample`/`NavigationRoute`/`ControlFrame`/`JourneyReceipt` and a fixture reproducing one RR2 stop/turn movement profile.
-2. **Evidence-aware movement model.** Inspect retained build-1179 LEGION native facing/XYZ, real W/A/D timing and Watch pillar + Guardian bridge receipts; measure speed, turn response and coast only where same-epoch evidence supports it. The 15-point bridge route is a **staged** historical composite, not a Taxi continuous success. No game input needed for offline intake.
-3. **Two steering algorithms, same course.** Run continuous W+steer Pure Pursuit versus Stanley-style tracking in replay. Record path error, forward duty, guide pauses, turn alternations and final stop error, then choose the simplest passing candidate for a specifically authorized physical test.
+1. **Complete M1 live boundaries.** The implemented motion trace, synthetic fixtures and offline CLI are done; next pin RR2 native actor-facing source, implement Taxi-owned fresh XYZ/yaw and safe W/A/D held-input/STOP on a verified target. Detailed `PoseSample`/`ControlFrame`/`JourneyReceipt` runtime contracts still need implementation.
+2. **Source-verified movement model.** One RR2 build-1179 original JSONL receipt with 72 timed poses and 14 key-send events is imported and hash-validated. Expand to multiple same-epoch sources, independently qualify actor yaw and actual game response, and measure turn/coast/latency before claiming calibrated physical motion. The 15-point bridge route remains a **staged** historical composite.
+3. **Closed-loop steering comparison.** A synthetic Pure Pursuit lookahead intent preview exists, but does not simulate physics or actuate A/D. Build a source-calibrated closed-loop simulator and Stanley-style comparator, record path/corridor error and true forward-key duty, then qualify a controller with bounded physical tests.
 
 ## Intentional sequencing
 

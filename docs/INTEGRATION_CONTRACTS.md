@@ -1,6 +1,15 @@
 # Proposed integration contracts — RIFT Taxi's independent runtime
 
-> **Status:** Taxi-owned interface design, **NOT implemented**. Last reviewed 2026-11-23. The distinct upstream RIFTWorld/1 and RR2 schemas named below are **existing source facts**. The example `taxi.*` schemas are **new proposals** and must not be represented as already supported by either producer.
+> **Status (2026-11-23):** Some **Taxi-owned offline interfaces are now implemented** (`taxi.motion-trace/1`, `taxi.replay-metrics/1`, `taxi.replay-comparison/1`, `taxi.steering-preview/1` and the original RR2 importer). The **world bundle, live pose/control/journey runtime contracts remain proposals**. RR2/RiftWorld names below identify existing upstream formats, not automatically supported Taxi runtime APIs.
+
+## Implemented offline M1 contract subset
+
+- `rift_taxi/contracts.py`: strict `taxi.motion-trace/1` reader, relative in-window timestamps, X/Y/Z with Y up, typed guides and destination, source integrity, missing yaw preserved as `null`. Historical original RR2 JSONL source bytes and normalized positions/input events are cross-checked for `same-host-utc` traces.
+- `rift_taxi/import_rr2.py`: `taxi.rr2-import-manifest/1` + `taxi.rr2-import-result/1`; copies original JSONL into an isolated local folder and records source/build/process/user context without calling RR2 at runtime.
+- `rift_taxi/replay.py`: `taxi.replay-metrics/1` and `taxi.replay-comparison/1`; input send intervals, guide release proxies, terminal reported position, **not** independent game-key-state or live completion.
+- `rift_taxi/steering.py`: `taxi.steering-preview/1` is **synthetic-only**, yields positive/negative yaw intent without A/D binding, closed-loop physics or collision validity.
+
+See [M1 implementation and tests](M1_IMPLEMENTATION.md). The `taxi.world-bundle/1`, `taxi.pose/1`, `taxi.control-event/1` and `taxi.journey/1` formats below are still **proposed**, not implemented.
 
 ## 1. Two independent intake pipelines
 

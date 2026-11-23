@@ -14,6 +14,7 @@
 | Why preserve Telara Fly as reference only? | [Telara Fly inventory](TELARA_FLY_REFERENCE.md) | Unity asset/CDR/NIF/OBJ provenance and Z-flip hazard |
 | What should our import formats contain? | [Integration contracts](INTEGRATION_CONTRACTS.md) | **Proposed Taxi schemas** versus existing upstream names; import rejects |
 | What should be built first? | [Roadmap](ROADMAP.md) | M1 trace/reader → M2 straight → **M3 smooth bends** → M4 map |
+| What's already implemented? | [M1 implementation](M1_IMPLEMENTATION.md) | Executable offline CLI, original RR2 import, synthetic steering, tests, and remaining live-control gaps |
 | What qualifies as a successful journey? | [Validation](VALIDATION.md) | Measured W duty, running turns, stops, clearance and final readback |
 | Which NPC/services are initially supported? | [Curated destinations](NPC_DESTINATIONS.md) | Porticulum, banker, healer, auctioneer, mailbox, story NPCs (travel-only) |
 | Which choices are durable? | [Decisions](DECISIONS.md) | User-approved architecture and priority |

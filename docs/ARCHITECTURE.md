@@ -1,6 +1,6 @@
 # RIFT Taxi architecture — standalone local autopilot
 
-> **State:** architecture specification, not an implemented application. **Reviewed:** 2026-11-23 on LEGION. The source-checkpoint inventory is in [RESEARCH_IMPORTS.md](RESEARCH_IMPORTS.md).
+> **State:** standalone runtime design; M1's **offline replay/import/synthetic steering preview** is implemented, but there is **no native live Taxi reader, input, physical run or packaged app**. **Reviewed:** 2026-11-23 on LEGION. See [M1 implementation](M1_IMPLEMENTATION.md) and [research checkpoints](RESEARCH_IMPORTS.md).
 
 ## 0. Product invariants
 

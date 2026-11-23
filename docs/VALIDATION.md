@@ -1,5 +1,5 @@
 # Verification and navigation-quality benchmark
-**All metrics below are proposed acceptance criteria**, not verified Taxi results. Defined 2026-11-23.
+**Physical movement metrics below remain proposed acceptance criteria**, not verified Taxi live results. As of 2026-11-23, the M1 offline suite has **34 passing tests** and a source-hashed historical RR2 receipt was imported, but Taxi has sent no game input. [M1 evidence](M1_IMPLEMENTATION.md).
 
 ## Prove the behavior the user actually wants
 
