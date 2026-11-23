@@ -17,6 +17,7 @@
 | What should be built first? | [Roadmap](ROADMAP.md) | M1 trace/reader → M2 straight → **M3 smooth bends** → M4 map |
 | What's already implemented? | [M1 implementation](M1_IMPLEMENTATION.md) | Executable offline CLI, original RR2 import, synthetic steering, tests, and remaining live-control gaps |
 | How does STOP and held W+A/D behave offline? | [M1 control boundary](M1_CONTROL_BOUNDARY.md) | Same-session gate, watchdog, input rejection and driver-neutral fault tests |
+| Has Taxi physically turned RIFT and released keys? | [First bounded A/D calibration](M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md) | Physical A/D down/up, separate release process, native angle delta and screen receipts; body yaw pending |
 | How do we pin the Windows process and game window? | [M1 Windows identity](M1_WIN32_IDENTITY.md) | Read-only PID/start/path/hash/HWND inspection and limitations |
 | Can Taxi read native memory or decode XYZ/yaw? | [M1 native candidates](M1_NATIVE_READONLY.md) | Bounded read-only session, source-pinned candidate decoder and explicit one-shot/burst commands; not qualified for driving |
 | Do two position/actor matrices match in one capture? | [M1 matrix comparison](M1_MATRIX_CANDIDATE.md) | Optional owner-scoped raw float32 bit comparison and unqualified candidate planar angle |

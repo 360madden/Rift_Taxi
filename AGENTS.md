@@ -19,6 +19,8 @@ RIFT Taxi is a standalone, offline-decision, destination-first RIFT navigation a
 
 This policy governs the **development workflow**, not the delivered Taxi runtime: the finished app must navigate locally without AI or connected tooling. See [the autonomous execution handoff](docs/AUTONOMY_POLICY.md).
 
+**M1 evidence update (Nov 23, 11:26 ET):** The Taxi-owned `probe-ad-turn` diagnostic (default dry-run; real input requires explicit `--execute-physical`, exact OS process/actor pin, reviewed scene image SHA, one 60–160 ms A or D action and an independently started release-only child) completed actual 100 ms A and D tests on LEGION. Real native actor-matrix angle deltas were approximately −17.91° and +18.23°, while player-system scalar deltas were +11.65° and −12.15°; screenshots show world-view rotation and return. Both OS key-ups succeeded with W/A/D observed released, but crash/game-consumed release and authoritative body yaw remain unqualified. Source hashes and limitations: `docs/M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md`. **Do not promote these candidate angles to `LivePose.actor_yaw_verified` yet.** Production navigation remains disarmed. The next M1 tasks are camera-only negative control and bounded W-displacement/release proof.
+
 ## Ownership boundaries
 
 - RIFT Taxi **owns** its runtime, navigation logic, packaging, pose/acquisition and input components. Python-first; a narrowly scoped bundled native helper is allowed after timing evidence.

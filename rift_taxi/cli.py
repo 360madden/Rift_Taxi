@@ -16,6 +16,8 @@ from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .motion_timing import analyze_motion_timing
 from .native_series import observe_native_series, SeriesUnavailable
+from .release_supervisor import ReleaseLeasePin, SupervisorUnavailable
+from .turn_probe import run_turn_probe, TurnProbeRefused
 from .native_capture import capture_native_candidate, CandidateCaptureRefused
 from .native_burst import capture_native_burst
 from .native_pair import compare_native_candidates, NativePairError
@@ -141,6 +143,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     series.add_argument("--observe-manual-keys", action="store_true",
         help="read-only W/A/D high-bit polling while RIFT is foreground; no input sent")
     series.add_argument("--out", required=True, help="new JSON report; never overwrite")
+    turn = commands.add_parser("probe-ad-turn",
+        help="ONE bounded A or D calibration (not navigation); dry-run unless explicitly physical")
+    turn.add_argument("--pid", required=True, type=int)
+    turn.add_argument("--start-ticks", required=True, type=int)
+    turn.add_argument("--exe-path", required=True)
+    turn.add_argument("--sha256", required=True)
+    turn.add_argument("--hwnd", required=True, type=lambda raw: int(raw, 0))
+    turn.add_argument("--host", required=True)
+    turn.add_argument("--owner-key", required=True, type=int,
+        help="exact current self owner-key decimal, independently observed")
+    turn.add_argument("--key", choices=("A", "D"), required=True)
+    turn.add_argument("--hold-ms", type=int, default=100,
+        help="60..160 ms single A/D edge, never W")
+    turn.add_argument("--audit", required=True, help="new separate-process release audit JSONL")
+    turn.add_argument("--out", required=True, help="NEW probe report JSON")
+    turn.add_argument("--scene-image-sha256",
+        help="SHA-256 of freshly reviewed actual game-screen image")
+    turn.add_argument("--execute-physical", action="store_true",
+        help="Actually send one A or D DOWN/UP; otherwise dry-run only")
     pair = commands.add_parser("compare-native-candidates",
         help="offline only: SHA-pinned same-process/owner XYZ/yaw/matrix/actor comparison")
     pair.add_argument("--before", required=True, help="original first one-shot JSON receipt")
@@ -211,6 +232,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 observe_manual_keys=args.observe_manual_keys,
             )
             _write_or_print(report, args.out)
+        elif args.command == "probe-ad-turn":
+            _capture_preflight(args.out, 0.)
+            report = run_turn_probe(
+                pin=ReleaseLeasePin(
+                    args.host, args.pid, args.start_ticks, args.hwnd,
+                    args.exe_path, args.sha256,
+                ),
+                expected_owner_key=args.owner_key, key=args.key,
+                hold_ms=args.hold_ms, audit_path=args.audit,
+                scene_image_sha256=args.scene_image_sha256,
+                dry_run=not args.execute_physical,
+            )
+            _write_or_print(report, args.out)
         elif args.command == "compare-native-candidates":
             report = compare_native_candidates(args.before, args.after)
             _write_or_print(report, args.out)
@@ -234,6 +268,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "nativeCandidateCaptureAvailable": True,
                 "nativeCandidateBurstAvailable": True,
                 "nativeCandidateSeriesAvailable": True,
+                "boundedADTurnCalibrationAvailable": True,
                 "readOnlyManualKeyObservationAvailable": True,
                 "offlineFacingPhaseComparisonAvailable": True,
                 "offlineNativeCandidatePairComparisonAvailable": True,
@@ -244,7 +279,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     except (TraceError, ValueError, OSError, IdentityUnavailable,
             NativeReadUnavailable, NativeCandidateUnavailable, CandidateCaptureRefused,
-            FacingSignatureError, NativePairError) as error:
+            FacingSignatureError, NativePairError, SupervisorUnavailable,
+            TurnProbeRefused) as error:
         print(f"rift-taxi: {error}", file=sys.stderr)
         return 2
 

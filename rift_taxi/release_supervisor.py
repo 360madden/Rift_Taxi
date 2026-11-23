@@ -25,7 +25,7 @@ import time
 from typing import Callable
 
 from .control import ControlRefused, LivePose
-from .win32_identity import ProcessInfo, Win32DesktopProbe, inspect_desktop
+from .win32_identity import DesktopCandidate, ProcessInfo, Win32DesktopProbe, inspect_desktop
 from .win32_input import Win32ScanSender
 
 _KEYS = ("A", "D", "W")
@@ -378,6 +378,76 @@ class ExternalReleaseSupervisor:
             child.close()
             # Without parent handle the child will expire/observe EOF; never
             # blindly terminate a helper that might own uncertain key releases.
+            raise
+
+    @classmethod
+    def start_turn_probe(
+        cls, pin: ReleaseLeasePin, *, ttl_s: float = 0.6,
+        dry_run: bool = True, audit_path: str | None = None,
+        ack_timeout_s: float = 4.0,
+        admit: Callable = inspect_desktop,
+    ) -> "ExternalReleaseSupervisor":
+        """Release-only child for a brief A/D *diagnostic*, not live navigation.
+
+        Does not fabricate a LivePose. Physical release capability requires a
+        fresh exact-PID/start/path/SHA/HWND/foreground check. The caller must
+        use only A or D with a bounded input duration and independent checks.
+        """
+        if not isinstance(pin, ReleaseLeasePin) or type(dry_run) is not bool:
+            raise ValueError("validated pin and explicit dry_run bool required")
+        if (type(pin.pid) is not int or pin.pid <= 0
+                or type(pin.start_utc_ticks) is not int or pin.start_utc_ticks <= 0
+                or type(pin.hwnd) is not int or pin.hwnd <= 0
+                or not isinstance(pin.host, str) or not pin.host.strip()
+                or not isinstance(pin.executable_path, str)
+                or not ntpath.isabs(pin.executable_path)
+                or not isinstance(pin.sha256, str)
+                or len(pin.sha256) != 64
+                or any(c not in "0123456789abcdefABCDEF" for c in pin.sha256)):
+            raise ValueError("turn diagnostic pin must be fully specified")
+        if not isinstance(ttl_s, (float, int)) or isinstance(ttl_s, bool) \
+                or not math.isfinite(ttl_s) or not .4 <= ttl_s <= .8:
+            raise ValueError("turn diagnostic release TTL must be .4..0.8 seconds")
+        if not isinstance(ack_timeout_s, (float, int)) or isinstance(ack_timeout_s, bool) \
+                or not math.isfinite(ack_timeout_s) or not 1 <= ack_timeout_s <= 5:
+            raise ValueError("turn diagnostic ACK timeout must be 1..5 seconds")
+        if audit_path is not None:
+            destination = Path(audit_path)
+            if destination.exists() or not destination.parent.is_dir():
+                raise SupervisorUnavailable("turn diagnostic audit path must be new")
+        if not dry_run:
+            target = admit(
+                pin.pid, expected_executable_path=pin.executable_path,
+                expected_executable_sha256=pin.sha256,
+                expected_start_utc_ticks=pin.start_utc_ticks,
+                expected_window_handle=pin.hwnd,
+                expected_host=pin.host, require_foreground=True,
+            )
+            if (not isinstance(target, DesktopCandidate) or not target.foreground
+                    or target.pid != pin.pid
+                    or target.start_utc_ticks != pin.start_utc_ticks
+                    or target.window_handle != pin.hwnd
+                    or target.executable_sha256.casefold() != pin.sha256.casefold()):
+                raise SupervisorUnavailable("turn diagnostic release admission refused")
+        ctx = mp.get_context("spawn")
+        parent, child = ctx.Pipe(duplex=True)
+        process = ctx.Process(
+            target=_worker_entry, args=(child, pin, ttl_s, dry_run, audit_path),
+            daemon=False, name="RiftTaxiTurnProbeRelease",
+        )
+        try:
+            process.start()
+            child.close()
+            if not parent.poll(ack_timeout_s):
+                raise SupervisorUnavailable("turn diagnostic release process did not acknowledge")
+            reply = parent.recv()
+            if not isinstance(reply, dict) or reply.get("ok") is not True \
+                    or reply.get("ready") is not True or reply.get("dryRun") != dry_run:
+                raise SupervisorUnavailable(f"turn diagnostic release worker refused: {reply}")
+            return cls(process, parent, pin, dry_run, ack_timeout_s=ack_timeout_s)
+        except Exception:
+            parent.close()
+            child.close()
             raise
 
     @property
