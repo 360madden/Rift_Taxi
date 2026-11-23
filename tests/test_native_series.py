@@ -195,6 +195,74 @@ class SeriesTests(unittest.TestCase):
         self.assertEqual(self.harness.opens, 1)
         self.assertEqual(self.harness.inspections, 2)
 
+    def test_slow_midseries_decode_does_not_cause_catchup_burst(self):
+        original = self.harness.decode
+        def slow_decode(session, *, clock, **options):
+            # Model a nonzero decode duration, including a single overrun.
+            self.harness.clock.time += .35 if self.harness.decodes == 1 else .001
+            return original(session, clock=clock, **options)
+        self.harness.decode = slow_decode
+        report = self.harness.run(samples=6, interval_ms=100)
+        rows = report["observations"]
+        starts = [row["captureStartMonotonicSeconds"] for row in rows]
+        gaps = [b-a for a,b in zip(starts,starts[1:])]
+        self.assertTrue(all(gap >= .099999 for gap in gaps), gaps)
+        self.assertAlmostEqual(max(gaps), .35)
+        self.assertAlmostEqual(report["observedCaptureStartGapSeconds"]["minimum"], .1)
+        self.assertEqual(report["sampleSchedule"], "actual-start-relative-no-catch-up")
+        for row in rows:
+            self.assertLessEqual(row["captureStartMonotonicSeconds"],
+                                 row["observedMonotonicSeconds"])
+            self.assertLessEqual(row["observedMonotonicSeconds"],
+                                 row["captureEndMonotonicSeconds"])
+            self.assertAlmostEqual(row["captureBracketSeconds"],
+                row["captureEndMonotonicSeconds"]-row["captureStartMonotonicSeconds"])
+        self.assertFalse(report["qualifications"]["nativeXYZPassiveFreshnessVerified"])
+
+    def test_short_sleep_refuses_instead_of_bunching_samples(self):
+        def undersleep(seconds):
+            self.harness.clock.time += seconds * .5
+        with self.assertRaisesRegex(SeriesUnavailable, "requested sample spacing invalid"):
+            self.harness.run(sleep=undersleep)
+        self.assertEqual(self.harness.decodes, 1)
+        self.assertEqual(self.harness.session.closed, 1)
+
+    def test_clock_rollback_between_samples_is_refused(self):
+        original = self.harness.decode
+        state = {"rollback_pending": False, "reads": 0}
+        def decode(session, *, clock, **options):
+            row = original(session, clock=clock, **options)
+            state["rollback_pending"] = True
+            state["reads"] = 0
+            return row
+        def clock():
+            if state["rollback_pending"]:
+                state["reads"] += 1
+                if state["reads"] == 2:
+                    self.harness.clock.time -= .01
+            return self.harness.clock()
+        self.harness.decode = decode
+        with self.assertRaisesRegex(SeriesUnavailable, "clock moved backward between samples"):
+            self.harness.run(clock=clock)
+        self.assertEqual(self.harness.session.closed, 1)
+
+    def test_final_clock_rollback_is_refused(self):
+        original = self.harness.inspect
+        def inspect(pid, **options):
+            result = original(pid, **options)
+            if self.harness.inspections == 2:
+                self.harness.clock.time -= .05
+            return result
+        self.harness.inspect = inspect
+        with self.assertRaisesRegex(SeriesUnavailable, "final full identity check"):
+            self.harness.run()
+        self.assertEqual(self.harness.session.closed, 1)
+
+    def test_unrepresentable_clock_value_is_controlled_refusal(self):
+        with self.assertRaisesRegex(SeriesUnavailable, "monotonic clock invalid"):
+            self.harness.run(clock=lambda: 10**1000)
+        self.assertEqual(self.harness.opens, 0)
+
     def test_manual_keys_are_not_read_without_explicit_opt_in(self):
         def fail_on_use():
             raise AssertionError("keyboard factory must not run")

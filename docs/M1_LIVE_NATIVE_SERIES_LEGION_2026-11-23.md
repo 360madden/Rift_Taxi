@@ -11,6 +11,12 @@ The standalone `rift_taxi/native_series.py` module provides **3–128 candidate 
 
 A changed owner, unexpected PID/start/path/window, missing foreground, changed executable identity, invalid timestamp, partial native read or expired total-time budget **aborts the whole operation without producing a completed report**. The output is an immutable-intended, new-path-only JSON report with original sample monotonic times, sample gaps, optional source-pinned raw actor/position matrices, refresh-guard inputs and actor stored-world translation candidates.
 
+## Later cadence hardening — 3:01 PM ET
+
+The initial-admission cadence fix did not prevent catch-up after a slow individual decode. The existing sampler now derives the next start from the actual preceding sample start, not an old ideal grid. A read overrun may delay future samples but does not cause a catch-up burst. A short sleep or backward/unrepresentable clock aborts the report. Each row records `captureStartMonotonicSeconds` and `captureEndMonotonicSeconds` alongside the native observation timestamp. The new `observedCaptureStartGapSeconds` summary and `sampleSchedule` distinguish acquisition starts from source observation cadence. Existing observation-gap semantics remain unchanged: variable read durations can still change source-observation gaps.
+
+Five new synthetic regressions passed, including a 350 ms fake decode overrun and rollback at the final admission. The full suite passed **372/372** on LEGION. No physical acquisition was performed during this hardening cycle, and the historical physical receipts below remain unchanged. This does not establish passive native freshness, body yaw, or hard real-time scheduling.
+
 ## Live proof from physical RIFT client
 
 Target process, verified for both experiments:

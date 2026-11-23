@@ -47,7 +47,10 @@ def _path(path: str) -> str:
 def _valid_clock(value: object) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise SeriesUnavailable("monotonic clock is not numeric")
-    result = float(value)
+    try:
+        result = float(value)
+    except (ValueError, OverflowError) as error:
+        raise SeriesUnavailable("monotonic clock invalid") from error
     if not math.isfinite(result) or result < 0:
         raise SeriesUnavailable("monotonic clock invalid")
     return result
@@ -322,15 +325,24 @@ def observe_native_series(
         # Anchor sample cadence AFTER the initial process/file admissions,
         # which can consume hundreds of ms. Never bunch the early samples to
         # catch up with the pre-admission clock.
-        schedule_started = _valid_clock(clock())
+        next_start = _valid_clock(clock())
+        previous_end = next_start
+        if next_start < entered:
+            raise SeriesUnavailable("series monotonic clock moved backward during admission")
         for i in range(samples):
             now = _valid_clock(clock())
-            target = schedule_started + (i * interval_ms / 1000.)
-            if target > now:
-                sleep(target - now)
+            if now < previous_end:
+                raise SeriesUnavailable("series monotonic clock moved backward between samples")
+            if next_start > now:
+                sleep(next_start - now)
             start = _valid_clock(clock())
+            if start < now or start + 1e-9 < next_start:
+                raise SeriesUnavailable("series monotonic clock or requested sample spacing invalid")
             if start - entered > max_total_s:
                 raise SeriesUnavailable("series exceeded total observation budget")
+            # Schedule from this actual sample start, not an old ideal grid.
+            # An overrun may delay later samples, never create catch-up bursts.
+            next_start = start + interval_ms / 1000.
             _fast_pin(api, host=host, pid=pid, ticks=start_utc_ticks,
                       path=executable_path, hwnd=window_handle)
             before_keys = None
@@ -349,6 +361,7 @@ def observe_native_series(
             _fast_pin(api, host=host, pid=pid, ticks=start_utc_ticks,
                       path=executable_path, hwnd=window_handle)
             end = _valid_clock(clock())
+            previous_end = end
             record = _row(raw, i + 1, matrix=include_matrix_candidate,
                           guard=include_refresh_guard_candidate,
                           translation=include_actor_translation_candidate,
@@ -368,6 +381,8 @@ def observe_native_series(
                 previous_zone_key = current_zone_key
             previous_sample_time = timestamp
             record["captureBracketSeconds"] = end - start
+            record["captureStartMonotonicSeconds"] = start
+            record["captureEndMonotonicSeconds"] = end
             if keyboard is not None:
                 if not (start <= before_keys["atMonotonicSeconds"]
                         <= timestamp <= after_keys["atMonotonicSeconds"] <= end):
@@ -386,11 +401,16 @@ def observe_native_series(
     if not _same_desktop(first, final, host=host, pid=pid, ticks=start_utc_ticks,
                          path=executable_path, sha=executable_sha256, hwnd=window_handle):
         raise SeriesUnavailable("final full process/build/window identity admission failed")
-    elapsed = _valid_clock(clock()) - entered
-    if not 0 <= elapsed <= max_total_s:
+    finished = _valid_clock(clock())
+    elapsed = finished - entered
+    if finished < previous_end or not 0 <= elapsed <= max_total_s:
         raise SeriesUnavailable("final full identity check exceeded series budget")
     deltas = [
         b["observedMonotonicSeconds"] - a["observedMonotonicSeconds"]
+        for a, b in zip(rows, rows[1:])
+    ]
+    start_gaps = [
+        b["captureStartMonotonicSeconds"] - a["captureStartMonotonicSeconds"]
         for a, b in zip(rows, rows[1:])
     ]
     starts, ends = rows[0], rows[-1]
@@ -413,6 +433,11 @@ def observe_native_series(
             "minimum": min(deltas), "median": statistics.median(deltas),
             "maximum": max(deltas),
         },
+        "observedCaptureStartGapSeconds": {
+            "minimum": min(start_gaps), "median": statistics.median(start_gaps),
+            "maximum": max(start_gaps),
+        },
+        "sampleSchedule": "actual-start-relative-no-catch-up",
         "observations": rows,
         "manualWindowsKeyObservationRequested": observe_manual_keys,
         "manualWindowsKeyObservation": keyboard_summary,
