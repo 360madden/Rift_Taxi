@@ -1,6 +1,6 @@
 # RIFT Taxi documentation index
 
-**Status:** design and source-research foundation, as of 2026-11-23; **offline replay/control and a live-tested read-only RIFT candidate reader exist; two physical A/D pulses succeeded with OS release receipts, and one subsequent physical W-only 100 ms pulse changed native XZ by 0.6395 source units, with independently stable later readings; a new physical camera-only orbit changed screen view while native XYZ/bearing/matrix candidates remained stable. All **289** regressions pass; game-consumed release under failure, time-resolved W response, authoritative body-facing and autonomous journeys remain incomplete**. Local project is `C:\work\Rift_Taxi` on LEGION.
+**Status:** design and source-research foundation, as of 2026-11-23; **offline replay/control and a live-tested read-only RIFT candidate reader exist; two physical A/D pulses succeeded with OS release receipts, and two physical W-only 100 ms pulses changed native XZ by 0.6395 and 0.6543 source units at two headings separated by 59.25°, each with source-hashed release evidence and stable later samples; a new physical camera-only orbit changed screen view while native XYZ/bearing/matrix candidates remained stable. All **309** regressions pass; game-consumed release under failure, time-resolved W response, authoritative body-facing and autonomous journeys remain incomplete**. Local project is `C:\work\Rift_Taxi` on LEGION.
 
 ## Start here (recommended reading order)
 
@@ -21,6 +21,7 @@
 | Has Taxi physically turned RIFT and released keys? | [First bounded A/D calibration](M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md) | Physical A/D down/up, separate release process, native angle delta and screen receipts; body yaw pending |
 | Is a supervised W-only movement experiment ready? | [Bounded W diagnostic](M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md) | Default dry-run, 60–160 ms W gate, delayed readback and supervised release tests; one physical W result now exists |
 | Did Taxi move during real W-only input? | [First physical W displacement](M1_PHYSICAL_W_DISPLACEMENT_LEGION_2026-11-23.md) | One 100 ms W pulse, native XYZ change, actual OS release and 12 stable later samples; no body-yaw promotion |
+| Does the actor matrix predict physical forward direction twice? | [Two-heading physical kinematics](M1_TWO_HEADING_ALIGNMENT_LEGION_2026-11-23.md) | Independent original SHA and lease checks; 59.25° distinct headings with ≤0.061° candidate residual, no LivePose promotion |
 | How can camera rotation be tested separately? | [Bounded camera-only diagnostic](M1_CAMERA_ONLY_ORBIT_PROBE_2026-11-23.md) | Left mouse only, supervised release, no W/A/D, default dry-run and active scene approval |
 | Did camera orbit alter native body-angle candidates? | [Physical camera negative control](M1_PHYSICAL_CAMERA_NEGATIVE_CONTROL_LEGION_2026-11-23.md) | Visible view change, unchanged native XYZ, scalar/matrix angles and release receipts |
 | How do we pin the Windows process and game window? | [M1 Windows identity](M1_WIN32_IDENTITY.md) | Read-only PID/start/path/hash/HWND inspection and limitations |

@@ -68,6 +68,8 @@ A separate RIFT screenshot was saved after the pulse. Static world framing and c
 | `m1-physical-afterW-20261123-1238.jpg` | `98F60F9EA48D3663C99CB319A283851E98C9ADFAD470A05701AA2AC5E43E9A02` |
 | `m1-W-postrelease-series-20261123-1238.json` | `b73b7f974a810ddbae3a901b6a933716ff0c992a0739194eaa20c58d9cf133bb` |
 
+**Later corroboration:** A second independently bounded W pulse at another facing direction, with a physical intervening A turn, produced **0.6543 source-unit XZ displacement** and **0.0608° travel-versus-actor-matrix residual**, compared with **0.0054°** for this first pulse. See the [two-heading source-hashed analysis](M1_TWO_HEADING_ALIGNMENT_LEGION_2026-11-23.md). This does **not** by itself qualify body yaw or emergency release.
+
 ## Next M1 acceptance gates
 
 1. **Camera-only negative control:** use RIFT's documented left-mouse camera orbit, separate from A/D body-turning, and independent release; inspect native XYZ/matrix/scalar before/after and screen evidence.

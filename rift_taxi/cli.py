@@ -15,6 +15,9 @@ from .replay import analyze, compare
 from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .motion_timing import analyze_motion_timing
+from .forward_bearing import (
+    analyze_forward_bearing, compare_two_forward_bearings, ForwardBearingError,
+)
 from .native_series import observe_native_series, SeriesUnavailable
 from .release_supervisor import ReleaseLeasePin, SupervisorUnavailable
 from .turn_probe import run_turn_probe, run_forward_probe, TurnProbeRefused
@@ -88,6 +91,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     timing.add_argument("--response-horizon-seconds", type=float, default=1.0)
     timing.add_argument("--coast-window-seconds", type=float, default=.5)
     timing.add_argument("--out", help="write report to a NEW file; never overwrite")
+    heading = commands.add_parser("analyze-forward-bearing",
+        help="OFFLINE: validate source-hashed physical W/release receipts and compare native heading candidates")
+    heading.add_argument("--report", required=True, help="original real bounded W-only JSON")
+    heading.add_argument("--report-sha256", required=True, help="trusted original W report SHA-256")
+    heading.add_argument("--release-audit", required=True, help="original W child release JSONL")
+    heading.add_argument("--release-sha256", required=True, help="trusted original child audit SHA-256")
+    heading.add_argument("--out", help="write candidate-only JSON to NEW file; never overwrite")
+    two = commands.add_parser("compare-two-forward-bearings",
+        help="OFFLINE: compare two original physical W pulses/child ledgers at distinct headings")
+    two.add_argument("--first-report", required=True)
+    two.add_argument("--first-report-sha256", required=True)
+    two.add_argument("--first-release-audit", required=True)
+    two.add_argument("--first-release-sha256", required=True)
+    two.add_argument("--second-report", required=True)
+    two.add_argument("--second-report-sha256", required=True)
+    two.add_argument("--second-release-audit", required=True)
+    two.add_argument("--second-release-sha256", required=True)
+    two.add_argument("--out", help="write candidate-only comparison to NEW JSON file")
     candidate = commands.add_parser("inspect-native-candidate",
         help="one explicit pinned read-only RIFT candidate capture; NEVER sends input")
     candidate.add_argument("--pid", required=True, type=int)
@@ -238,6 +259,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                 coast_window_s=args.coast_window_seconds,
             )
             _write_or_print(report, args.out)
+        elif args.command == "analyze-forward-bearing":
+            if args.out is not None:
+                _capture_preflight(args.out, 0.)
+            _write_or_print(analyze_forward_bearing(
+                report=args.report, report_sha256=args.report_sha256,
+                release_audit=args.release_audit,
+                release_audit_sha256=args.release_sha256,
+            ), args.out)
+        elif args.command == "compare-two-forward-bearings":
+            if args.out is not None:
+                _capture_preflight(args.out, 0.)
+            _write_or_print(compare_two_forward_bearings(
+                first_report=args.first_report,
+                first_report_sha256=args.first_report_sha256,
+                first_release_audit=args.first_release_audit,
+                first_release_audit_sha256=args.first_release_sha256,
+                second_report=args.second_report,
+                second_report_sha256=args.second_report_sha256,
+                second_release_audit=args.second_release_audit,
+                second_release_audit_sha256=args.second_release_sha256,
+            ), args.out)
         elif args.command == "inspect-native-candidate":
             _capture_preflight(args.out, args.start_delay_seconds)
             report = capture_native_candidate(
@@ -348,6 +390,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineFacingPhaseComparisonAvailable": True,
                 "offlineNativeCandidatePairComparisonAvailable": True,
                 "offlineMotionTimingAvailable": True,
+                "offlinePhysicalForwardBearingComparisonAvailable": True,
+                "offlineTwoHeadingForwardComparisonAvailable": True,
                 "nativeCandidateQualifiedForMovement": False,
                 "siblingRepositoryRequired": False,
             }, None)
@@ -355,7 +399,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (TraceError, ValueError, OSError, IdentityUnavailable,
             NativeReadUnavailable, NativeCandidateUnavailable, CandidateCaptureRefused,
             FacingSignatureError, NativePairError, SupervisorUnavailable,
-            TurnProbeRefused, CameraProbeRefused) as error:
+            TurnProbeRefused, CameraProbeRefused, ForwardBearingError) as error:
         print(f"rift-taxi: {error}", file=sys.stderr)
         return 2
 
