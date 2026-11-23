@@ -9,18 +9,35 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import ntpath
 from pathlib import Path
 import re
 
 _SHA = re.compile(r"[a-fA-F0-9]{64}\Z")
 _ZONE = re.compile(r"z[0-9A-F]{16}\Z")
-_OWNER = re.compile(r"[1-9][0-9]*\Z")
+_OWNER = re.compile(r"[1-9][0-9]{0,19}\Z")
 _MAX_BYTES = 1024*1024
 
 
 class ZoneCorrelationRefused(ValueError):
     """Missing, altered, contradictory or insufficient candidate evidence."""
+
+
+def _unique_object(pairs: list[tuple[str, object]]) -> dict:
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ZoneCorrelationRefused(f"duplicate JSON key: {key}")
+        obj[key] = value
+    return obj
+
+
+def _finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ZoneCorrelationRefused("non-finite JSON number refused")
+    return number
 
 
 def _pinned_json(path: str | Path, expected_sha256: str, label: str) -> tuple[dict,dict]:
@@ -29,14 +46,21 @@ def _pinned_json(path: str | Path, expected_sha256: str, label: str) -> tuple[di
     p=Path(path)
     if not p.is_file() or not 0 < p.stat().st_size <= _MAX_BYTES:
         raise ZoneCorrelationRefused(f"{label}: original file missing or unbounded")
-    raw=p.read_bytes()
+    # Bound the actual read too, even if the file changes after stat().
+    with p.open("rb") as stream:
+        raw=stream.read(_MAX_BYTES+1)
+    if not 0 < len(raw) <= _MAX_BYTES:
+        raise ZoneCorrelationRefused(f"{label}: original file missing or unbounded")
     actual=hashlib.sha256(raw).hexdigest()
     if actual!=expected_sha256.lower():
         raise ZoneCorrelationRefused(f"{label}: original SHA-256 mismatch")
     try:
-        doc=json.loads(raw.decode("utf-8"), parse_constant=lambda val:
+        doc=json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object,
+            parse_float=_finite_float, parse_constant=lambda val:
             (_ for _ in ()).throw(ZoneCorrelationRefused("non-finite JSON refused")))
-    except (UnicodeError,ValueError) as ex:
+    except ZoneCorrelationRefused:
+        raise
+    except (UnicodeError,ValueError,RecursionError) as ex:
         raise ZoneCorrelationRefused(f"{label}: invalid UTF-8 JSON") from ex
     if not isinstance(doc,dict):
         raise ZoneCorrelationRefused(f"{label}: root JSON object required")
@@ -106,14 +130,17 @@ def compare_native_zone_sources(
         raise ZoneCorrelationRefused("two different original source files required")
     taxi,taxi_file=_pinned_json(taxi_report,taxi_sha256,"Taxi source")
     rr2,rr2_file=_pinned_json(rr2_report,rr2_sha256,"RR2 source")
+    evidence=taxi.get("evidence")
+    if not isinstance(evidence,dict):
+        raise ZoneCorrelationRefused("Taxi evidence object missing or malformed")
     if (taxi.get("schema")!="taxi.native-candidate/1"
             or taxi.get("status")!="candidate-only"
-            or taxi.get("evidence",{}).get("zoneKeyEvidenceRequested") is not True
-            or taxi.get("evidence",{}).get("inputSent") is not False
-            or taxi.get("evidence",{}).get("actorHeadingQualified") is not False
-            or taxi.get("evidence",{}).get("passivePositionFreshnessQualified") is not False):
+            or evidence.get("zoneKeyEvidenceRequested") is not True
+            or evidence.get("inputSent") is not False
+            or evidence.get("actorHeadingQualified") is not False
+            or evidence.get("passivePositionFreshnessQualified") is not False):
         raise ZoneCorrelationRefused("Taxi source must remain read-only, candidate-only zone observation")
-    if (rr2.get("schemaVersion")!=1
+    if (type(rr2.get("schemaVersion")) is not int or rr2.get("schemaVersion")!=1
             or rr2.get("contractVersion")!="native-current-zone-seed-candidate/1"
             or rr2.get("status")!="complete"):
         raise ZoneCorrelationRefused("RR2 original native zone-seed contract required")
@@ -129,6 +156,7 @@ def compare_native_zone_sources(
         raise ZoneCorrelationRefused("missing candidate payload")
     owner=t_candidate.get("ownerKeyDecimal")
     if (not isinstance(owner,str) or not _OWNER.fullmatch(owner)
+            or not 0 < int(owner) <= 0xFFFFFFFFFFFFFFFF
             or int(owner)!=_positive_int(obs.get("selfKey"),"RR2 self key")):
         raise ZoneCorrelationRefused("same player owner not verified")
     raw=t_zone.get("rawSelfZoneKey")
@@ -158,7 +186,8 @@ def compare_native_zone_sources(
     if u<t or (u-t).total_seconds()>5:
         raise ZoneCorrelationRefused("RR2 native observation bracket invalid")
     clock=t_candidate.get("observationMonotonicSeconds")
-    if isinstance(clock,bool) or not isinstance(clock,(int,float)) or clock<=0:
+    if (isinstance(clock,bool) or not isinstance(clock,(int,float))
+            or not 0 < clock <= 1e15 or not math.isfinite(clock)):
         raise ZoneCorrelationRefused("Taxi monotonic sample clock invalid")
     return {
         "schema":"taxi.m1-cross-source-zone-candidate/1",
@@ -184,6 +213,8 @@ def compare_native_zone_sources(
             "sourceOriginalsSHA256Verified":True,
             "exactGameEpochAndPlayerOwnerMatch":True,
             "twoRawNativeKeyReadingsAgree":True,
+            "independentHostIdentityVerified":False,
+            "sourceClockAlignmentVerified":False,
             "publicZoneIdFromAddonApiVerified":False,
             "publicLocationNameVerified":False,
             "worldInstanceVerified":False,
@@ -193,7 +224,8 @@ def compare_native_zone_sources(
             "M1Complete":False,
         },
         "limitations":[
-            "Both native readers access the same game process; not a public API independent zone confirmation.",
+            "Matching recorded process/build/owner fields are not an independent host attestation.",
+            "Both sources are native reader receipts, not independent public API confirmation.",
             "Taxi monotonic and RR2 UTC clocks cannot be directly compared without a calibration.",
             "The native source observations are sequential and cannot establish atomic world-instance identity.",
             "Typed native zone ID is only a candidate until corroborated by Inspect.Unit.Detail/Inspect.Zone.Detail.",

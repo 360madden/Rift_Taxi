@@ -101,6 +101,8 @@ class ZoneCrossSourceTests(unittest.TestCase):
         self.assertEqual(result["candidates"]["rawSelfZoneKeyUnsigned"],ZONE)
         self.assertTrue(result["qualification"]["exactGameEpochAndPlayerOwnerMatch"])
         self.assertTrue(result["qualification"]["sourceOriginalsSHA256Verified"])
+        self.assertFalse(result["qualification"]["independentHostIdentityVerified"])
+        self.assertFalse(result["qualification"]["sourceClockAlignmentVerified"])
         self.assertFalse(result["qualification"]["publicZoneIdFromAddonApiVerified"])
         self.assertFalse(result["qualification"]["worldInstanceVerified"])
         self.assertFalse(result["qualification"]["productionNavigationArmed"])
@@ -184,6 +186,58 @@ class ZoneCrossSourceTests(unittest.TestCase):
         taxi["process"]["foregroundAtStartAndEnd"]=False
         with self.assertRaisesRegex(ZoneCorrelationRefused,"foreground"):
             compare_native_zone_sources(**self._write(taxi,rr2))
+
+    def _rewrite_raw(self,args,source,raw):
+        args[source+"_report"].write_bytes(raw)
+        args[source+"_sha256"]=hashlib.sha256(raw).hexdigest()
+        return args
+
+    def test_duplicate_json_fields_are_refused_even_with_valid_hash(self):
+        for source,old,new in (
+            ("taxi",b'"inputSent": false',b'"inputSent": true, "inputSent": false'),
+            ("rr2",b'"schemaVersion": 1',b'"schemaVersion": 2, "schemaVersion": 1'),
+        ):
+            args=self._write()
+            raw=args[source+"_report"].read_bytes()
+            self.assertIn(old,raw)
+            with self.subTest(source=source),self.assertRaisesRegex(ZoneCorrelationRefused,"duplicate JSON key"):
+                compare_native_zone_sources(**self._rewrite_raw(args,source,raw.replace(old,new,1)))
+
+    def test_nonfinite_json_and_overflowing_exponents_are_refused(self):
+        for value in (b'NaN',b'Infinity',b'-Infinity',b'1e999'):
+            args=self._write()
+            raw=args["taxi_report"].read_bytes().replace(b'29000.15',value,1)
+            with self.subTest(value=value),self.assertRaisesRegex(ZoneCorrelationRefused,"non-finite"):
+                compare_native_zone_sources(**self._rewrite_raw(args,"taxi",raw))
+
+    def test_malformed_taxi_evidence_is_controlled_refusal(self):
+        for value in (None,[],True,"candidate-only"):
+            taxi,rr2=fixture()
+            taxi["evidence"]=value
+            with self.subTest(value=value),self.assertRaisesRegex(ZoneCorrelationRefused,"evidence object"):
+                compare_native_zone_sources(**self._write(taxi,rr2))
+
+    def test_boolean_or_float_schema_version_is_refused(self):
+        for value in (True,1.0):
+            taxi,rr2=fixture()
+            rr2["schemaVersion"]=value
+            with self.subTest(value=value),self.assertRaisesRegex(ZoneCorrelationRefused,"zone-seed contract"):
+                compare_native_zone_sources(**self._write(taxi,rr2))
+
+    def test_owner_key_is_unsigned_64_bit_not_unbounded_integer(self):
+        for value in (2**64,10**40):
+            taxi,rr2=fixture()
+            taxi["candidate"]["ownerKeyDecimal"]=str(value)
+            rr2["observation"]["selfKey"]=value
+            with self.subTest(value=value),self.assertRaisesRegex(ZoneCorrelationRefused,"player owner"):
+                compare_native_zone_sources(**self._write(taxi,rr2))
+
+    def test_monotonic_clock_bounds_are_enforced(self):
+        for value in (0,-1,True,10**40):
+            taxi,rr2=fixture()
+            taxi["candidate"]["observationMonotonicSeconds"]=value
+            with self.subTest(value=value),self.assertRaisesRegex(ZoneCorrelationRefused,"monotonic sample clock"):
+                compare_native_zone_sources(**self._write(taxi,rr2))
 
     def test_cli_can_write_new_candidate_only_json(self):
         args=self._write()
