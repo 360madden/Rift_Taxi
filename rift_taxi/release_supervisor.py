@@ -21,6 +21,7 @@ from multiprocessing.connection import Connection
 import ntpath
 from pathlib import Path
 import sys
+import threading
 import time
 from typing import Callable
 
@@ -330,6 +331,8 @@ class ExternalReleaseSupervisor:
         self._conn = connection
         self._timeout = ack_timeout_s
         self._closed = False
+        self._channel_failed = False
+        self._request_lock = threading.RLock()
 
     @classmethod
     def start(cls, pose: LivePose, executable_path: str, *,
@@ -373,7 +376,7 @@ class ExternalReleaseSupervisor:
                 raise SupervisorUnavailable("supervisor did not acknowledge startup")
             reply = parent.recv()
             if not isinstance(reply, dict) or reply.get("ok") is not True \
-                    or reply.get("ready") is not True:
+                    or reply.get("ready") is not True or reply.get("dryRun") is not dry_run:
                 raise SupervisorUnavailable(f"supervisor initialization refused: {reply}")
             return cls(process, parent, pin, dry_run, ack_timeout_s=ack_timeout_s)
         except Exception:
@@ -445,7 +448,7 @@ class ExternalReleaseSupervisor:
                 raise SupervisorUnavailable("turn diagnostic release process did not acknowledge")
             reply = parent.recv()
             if not isinstance(reply, dict) or reply.get("ok") is not True \
-                    or reply.get("ready") is not True or reply.get("dryRun") != dry_run:
+                    or reply.get("ready") is not True or reply.get("dryRun") is not dry_run:
                 raise SupervisorUnavailable(f"turn diagnostic release worker refused: {reply}")
             return cls(process, parent, pin, dry_run, ack_timeout_s=ack_timeout_s)
         except Exception:
@@ -455,21 +458,66 @@ class ExternalReleaseSupervisor:
 
     @property
     def alive(self) -> bool:
-        return not self._closed and self._process.is_alive()
+        return not self._closed and not self._channel_failed and self._process.is_alive()
+
+    def _invalidate_channel(self) -> None:
+        # A late reply after a timeout must never be consumed as the ACK for
+        # another command. Closing the pipe also gives the worker its EOF
+        # fallback; do not terminate a worker with uncertain reservations.
+        self._channel_failed = True
+        try:
+            self._conn.close()
+        except OSError:
+            pass
+
+    @staticmethod
+    def _validate_status(status: object) -> dict:
+        if not isinstance(status, dict):
+            raise SupervisorUnavailable("missing release status")
+        held = status.get("possibleHeld")
+        stopped = status.get("stopped")
+        attempts = status.get("releaseAttempts")
+        deadline = status.get("deadlineMonotonicSeconds")
+        if (type(stopped) is not bool
+                or status.get("gameResponseVerified") is not False
+                or not isinstance(held, list)
+                or any(type(k) is not str or k not in _KEYS for k in held)
+                or len(set(held)) != len(held)
+                or not isinstance(attempts, list)
+                or any(not isinstance(a, dict)
+                       or type(a.get("key")) is not str or a["key"] not in _KEYS
+                       or type(a.get("releaseHandlerAccepted")) is not bool
+                       for a in attempts)
+                or (deadline is not None and (
+                    type(deadline) not in (int, float)
+                    or not 0 <= deadline <= 1e15 or not math.isfinite(deadline)))
+                or (stopped and deadline is not None)
+                or (not stopped and bool(held) != (deadline is not None))):
+            raise SupervisorUnavailable("malformed release status")
+        return status
 
     def _request(self, action: str, key: str | None = None) -> dict:
-        if self._closed or not self._process.is_alive():
-            raise SupervisorUnavailable("release supervisor not running")
-        try:
-            self._conn.send({"action": action, "key": key})
-            if not self._conn.poll(self._timeout):
-                raise SupervisorUnavailable("release supervisor response timed out")
-            reply = self._conn.recv()
-        except (EOFError, OSError) as error:
-            raise SupervisorUnavailable("release supervisor channel unavailable") from error
-        if not isinstance(reply, dict) or reply.get("ok") is not True:
-            raise SupervisorUnavailable(f"release supervisor refused: {reply}")
-        return reply["status"]
+        with self._request_lock:
+            if not self.alive:
+                self._invalidate_channel()
+                raise SupervisorUnavailable("release supervisor not running")
+            try:
+                self._conn.send({"action": action, "key": key})
+                if not self._conn.poll(self._timeout):
+                    raise SupervisorUnavailable("release supervisor response timed out")
+                reply = self._conn.recv()
+                if not isinstance(reply, dict) or reply.get("ok") is not True:
+                    raise SupervisorUnavailable(f"release supervisor refused: {reply}")
+                status = self._validate_status(reply.get("status"))
+                if action == "stop" and status["stopped"] is not True:
+                    raise SupervisorUnavailable("STOP acknowledgement not latched")
+                return status
+            except (EOFError, OSError) as error:
+                self._invalidate_channel()
+                raise SupervisorUnavailable("release supervisor channel unavailable") from error
+            except SupervisorUnavailable:
+                self._invalidate_channel()
+                raise
 
     def reserve(self, key: str) -> dict:
         """Must ACK before parent may attempt the corresponding key DOWN."""
@@ -490,18 +538,19 @@ class ExternalReleaseSupervisor:
         return self._request("stop")
 
     def close(self) -> None:
-        if self._closed:
-            return
-        try:
-            if self._process.is_alive():
-                try:
-                    self.stop()
-                except SupervisorUnavailable:
-                    pass  # child TTL/EOF is the fallback
-        finally:
-            self._closed = True
-            self._conn.close()
-            self._process.join(timeout=3.0)
+        with self._request_lock:
+            if self._closed:
+                return
+            try:
+                if self.alive:
+                    try:
+                        self.stop()
+                    except SupervisorUnavailable:
+                        pass  # child TTL/EOF is the fallback
+            finally:
+                self._closed = True
+                self._conn.close()
+        self._process.join(timeout=3.0)
 
     def __enter__(self):
         return self

@@ -8,6 +8,14 @@
 
 **Latest physical fault result, November 23, 1:39–1:44 PM EST:** Taxi now has an independently verified **real abrupt A-key sender process crash** on physical LEGION RIFT. Two crash variants: immediate parent exit with **0°** native angle response and **168.027 ms** down-to-child-UP; and a more informative **100 ms pre-crash A hold**, which produced **−17.979° actor-matrix change**, then independent child OS A UP **108.499 ms after DOWN**, no backup key-up, stable native delayed/post-series readings, and W/A/D all UP. Both external children reported `parent-disconnected`. The ordinary 100 ms A control between runs produced **−17.800°**, demonstrating the game responded to normal A presses in that scene. This improves bounded physical fault-release confidence, but other crash/focus/late-DOWN cases, game consumption under every condition and child failure remain unverified. `rift_taxi/crash_release_probe.py` is a separate opt-in diagnostic with an independent backup launcher; it is **not** an armed production controller. [Physical fault handoff](M1_PHYSICAL_PARENT_CRASH_RELEASE_LEGION_2026-11-23.md). Current regression suite: **320/320**.
 
+## Acknowledgement and release uncertainty hardening — 2:58 PM ET
+
+The parent IPC client previously allowed another request after a timed-out response. A late reply could therefore be mistaken for the next command's acknowledgement. The fix serializes request/reply exchanges and permanently invalidates the pipe after a timeout, malformed/refused receipt, connection failure, or worker disappearance. No subsequent request consumes a delayed reply. Closing the pipe lets an existing child use its EOF/lease fallback; this does not terminate the child or prove successful key-up.
+
+Status validation requires explicit booleans, unique supported keys, finite bounded lease deadlines, coherent stopped/held state and typed release-attempt records. STOP must acknowledge a latched state; a valid partial STOP response retains its unresolved keys rather than treating them as released. A partial-release regression checks that only unresolved keys are retried. Startup also verifies the exact dry-run flag in its ready acknowledgement.
+
+**22/22 focused supervisor tests and 367/367 full regressions passed on LEGION (Python 3.14.10).** Nine new inert/transport tests were added, reusing the existing release state and fake fixtures. Existing Windows child-process tests remain dry-run only. A dead release worker cannot be assumed to have released any keys; actual physical child-death/focus-loss recovery and game-consumed STOP remain independent M1 gates. No live input occurred in this cycle.
+
 ## What exists
 
 | Module | Responsibility |

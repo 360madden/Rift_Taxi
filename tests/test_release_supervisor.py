@@ -92,6 +92,23 @@ class StateTests(unittest.TestCase):
         self.assertEqual(self.events, ["W", "W"])
         self.assertFalse(self.state.status()["gameResponseVerified"])
 
+    def test_partial_release_retries_only_unresolved_keys(self):
+        self.state.command("reserve", "W")
+        self.state.command("reserve", "D")
+        def partial(key):
+            self.events.append(key)
+            return key != "D"
+        self.state.release = partial
+        first = self.state.stop("fault")
+        self.assertEqual(first["possibleHeld"], ["D"])
+        self.assertEqual(self.events, ["D", "W"])
+        self.state.release = self._release
+        second = self.state.stop("retry")
+        self.assertEqual(second["possibleHeld"], [])
+        self.assertEqual(second["reason"], "fault")
+        self.assertEqual(self.events, ["D", "W", "D"])
+        self.assertFalse(second["gameResponseVerified"])
+
     def test_bad_operations_and_parameters_rejected(self):
         for ttl in (-1, 0, 5, float("nan"), float("inf"), True):
             with self.assertRaises(ValueError):
@@ -99,6 +116,150 @@ class StateTests(unittest.TestCase):
         with self.assertRaisesRegex(SupervisorUnavailable, "invalid"):
             self.state.command("reserve", "S")
         self.assertTrue(self.state.stopped)
+
+
+class ChannelTests(unittest.TestCase):
+    """Inert transport fixtures; no game or native input access."""
+
+    class Process:
+        def __init__(self):
+            self.running = True
+            self.joined = False
+
+        def is_alive(self):
+            return self.running
+
+        def join(self, timeout):
+            self.joined = True
+
+    class Pipe:
+        def __init__(self):
+            self.sent = []
+            self.closed = False
+            self.ready = True
+            self.reply = None
+            self.receive_error = None
+            self.receive_count = 0
+
+        def send(self, message):
+            self.sent.append(message)
+
+        def poll(self, timeout):
+            return self.ready
+
+        def recv(self):
+            self.receive_count += 1
+            if self.receive_error:
+                raise self.receive_error
+            return self.reply
+
+        def close(self):
+            self.closed = True
+
+    def setUp(self):
+        self.process = self.Process()
+        self.pipe = self.Pipe()
+        pin = ReleaseLeasePin("LEGION", 777, 12345, 888,
+                              r"C:\Fake\rift_x64.exe", "a" * 64)
+        self.worker = ExternalReleaseSupervisor(
+            self.process, self.pipe, pin, True,
+        )
+        self.addCleanup(self.worker.close)
+
+    def status(self, *, stopped=False, held=None, deadline=None, attempts=None):
+        return {
+            "ok": True, "status": {
+                "stopped": stopped, "reason": "explicit-stop" if stopped else None,
+                "possibleHeld": [] if held is None else held,
+                "deadlineMonotonicSeconds": deadline,
+                "releaseAttempts": [] if attempts is None else attempts,
+                "gameResponseVerified": False,
+            }
+        }
+
+    def test_timed_out_channel_never_consumes_late_reply(self):
+        self.pipe.ready = False
+        with self.assertRaisesRegex(SupervisorUnavailable, "timed out"):
+            self.worker.reserve("W")
+        self.assertTrue(self.pipe.closed)
+        self.assertFalse(self.worker.alive)
+        self.pipe.ready = True
+        self.pipe.reply = self.status(held=["W"], deadline=100.)
+        with self.assertRaisesRegex(SupervisorUnavailable, "not running"):
+            self.worker.renew()
+        self.assertEqual(self.pipe.sent, [{"action": "reserve", "key": "W"}])
+        self.assertEqual(self.pipe.receive_count, 0)
+
+    def test_missing_status_poisoned_instead_of_keyerror(self):
+        self.pipe.reply = {"ok": True}
+        with self.assertRaisesRegex(SupervisorUnavailable, "missing release status"):
+            self.worker.reserve("A")
+        self.assertFalse(self.worker.alive)
+        self.assertTrue(self.pipe.closed)
+
+    def test_invalid_status_fields_refused(self):
+        malformed = [
+            {"possibleHeld": "W"},
+            {"possibleHeld": ["W", "W"], "deadlineMonotonicSeconds": 100.},
+            {"possibleHeld": ["unknown"], "deadlineMonotonicSeconds": 100.},
+            {"possibleHeld": [[]]},
+            {"stopped": 0},
+            {"gameResponseVerified": True},
+            {"releaseAttempts": [{"key": "W", "releaseHandlerAccepted": 1}]},
+            {"deadlineMonotonicSeconds": float("nan")},
+            {"possibleHeld": ["W"]},
+        ]
+        for fields in malformed:
+            with self.subTest(fields=fields):
+                reply = self.status()["status"]
+                reply.update(fields)
+                with self.assertRaisesRegex(SupervisorUnavailable, "malformed"):
+                    self.worker._validate_status(reply)
+
+    def test_stop_ack_preserves_partial_release_uncertainty(self):
+        self.pipe.reply = self.status(
+            stopped=True, held=["D"],
+            attempts=[
+                {"key": "D", "releaseHandlerAccepted": False},
+                {"key": "W", "releaseHandlerAccepted": True},
+            ],
+        )
+        reply = self.worker.stop()
+        self.assertTrue(reply["stopped"])
+        self.assertEqual(reply["possibleHeld"], ["D"])
+        self.assertFalse(reply["gameResponseVerified"])
+
+    def test_stop_without_latched_ack_is_refused(self):
+        self.pipe.reply = self.status()
+        with self.assertRaisesRegex(SupervisorUnavailable, "not latched"):
+            self.worker.stop()
+        self.assertFalse(self.worker.alive)
+
+    def test_eof_and_worker_disappearance_close_channel(self):
+        self.pipe.receive_error = EOFError()
+        with self.assertRaisesRegex(SupervisorUnavailable, "channel unavailable"):
+            self.worker.reserve("D")
+        self.assertFalse(self.worker.alive)
+        self.assertTrue(self.pipe.closed)
+        self.process.running = False
+        with self.assertRaisesRegex(SupervisorUnavailable, "not running"):
+            self.worker.clear("D")
+        self.assertEqual(len(self.pipe.sent), 1)
+
+    def test_worker_refusal_prevents_further_commands(self):
+        self.pipe.reply = {"ok": False, "error": "STOP latched"}
+        with self.assertRaisesRegex(SupervisorUnavailable, "refused"):
+            self.worker.reserve("W")
+        with self.assertRaisesRegex(SupervisorUnavailable, "not running"):
+            self.worker.stop()
+        self.assertEqual(len(self.pipe.sent), 1)
+
+    def test_dead_worker_never_receives_new_request(self):
+        self.process.running = False
+        with self.assertRaisesRegex(SupervisorUnavailable, "not running"):
+            self.worker.reserve("W")
+        self.assertEqual(self.pipe.sent, [])
+        self.assertTrue(self.pipe.closed)
 
 
 def _fake_qualified_pose() -> LivePose:
