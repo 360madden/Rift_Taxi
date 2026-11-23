@@ -1,6 +1,8 @@
 # RIFT Taxi — repository working instructions
 Established 2026-11-23. This repository is **Rift_Taxi** at `C:\work\Rift_Taxi`.
 
+**Start or resume M1 here:** [Current source-verified M1 handoff](docs/M1_HANDOFF_2026-11-23.md). Read it after this file; maintain the AI-first policy and do not treat A/D turn calibration as M1 acceptance.
+
 ## Mission and acceptance
 
 RIFT Taxi is a standalone, offline-decision, destination-first RIFT navigation application. A journey runs automatically from start to final destination **without needing an AI agent**. Waypoints are usually pass-through guidance and may be skipped. Only explicitly designated hard stops, mandatory traversal constraints, actual hazards, termination, and final arrival warrant a stop. Optimize smooth movement and steering while running, rather than per-waypoint positional precision.

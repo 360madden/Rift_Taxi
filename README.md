@@ -13,7 +13,7 @@
 
 *A standalone, destination-driven navigation project for the RIFT MMORPG.*
 
-[**Explore the roadmap**](docs/ROADMAP.md) · [**See what works**](#-current-state) · [**AI-first development policy**](docs/AUTONOMY_POLICY.md) · [**Run the offline tools**](#-try-the-offline-tools) · [**Documentation**](#-documentation)
+[**Explore the roadmap**](docs/ROADMAP.md) · [**Current M1 handoff**](docs/M1_HANDOFF_2026-11-23.md) · [**See what works**](#-current-state) · [**AI-first development policy**](docs/AUTONOMY_POLICY.md) · [**Run the offline tools**](#-try-the-offline-tools) · [**Documentation**](#-documentation)
 
 </div>
 

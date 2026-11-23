@@ -3,6 +3,8 @@
 
 **Standing development policy (user directive, November 23):** [AI-first autonomous execution](AUTONOMY_POLICY.md). The AI should perform the available machine, UI, game observation, test and GitHub work itself; ask for manual intervention only when truly unavoidable. This does not waive exact-session control/release qualification or convert unverified candidates into success.
 
+**Current continuation:** [M1 handoff, November 23](M1_HANDOFF_2026-11-23.md) — verified physical A/D calibration and the shortest remaining path to camera-only control, W displacement, authoritative pose and independent release.
+
 ## Product success hierarchy
 
 1. **Reliable end-to-end destination arrival** through an admissible route.
