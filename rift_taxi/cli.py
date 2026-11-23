@@ -14,6 +14,7 @@ from .contracts import TraceError, load_trace
 from .replay import analyze, compare
 from .import_rr2 import import_rr2
 from .steering import preview_steering
+from .motion_timing import analyze_motion_timing
 from .native_capture import capture_native_candidate, CandidateCaptureRefused
 from .native_burst import capture_native_burst
 from .native_pair import compare_native_candidates, NativePairError
@@ -75,6 +76,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     steering.add_argument("--lookahead", type=float, default=2.0)
     steering.add_argument("--deadband-degrees", type=float, default=4.0)
     steering.add_argument("--out", help="write report to a NEW file")
+    timing = commands.add_parser("measure-motion-timing",
+        help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
+    timing.add_argument("trace", help="source-hashed motion trace JSON")
+    timing.add_argument("--movement-threshold-xz", type=float, default=.02)
+    timing.add_argument("--max-interval-seconds", type=float, default=.25)
+    timing.add_argument("--response-horizon-seconds", type=float, default=1.0)
+    timing.add_argument("--coast-window-seconds", type=float, default=.5)
+    timing.add_argument("--out", help="write report to a NEW file; never overwrite")
     candidate = commands.add_parser("inspect-native-candidate",
         help="one explicit pinned read-only RIFT candidate capture; NEVER sends input")
     candidate.add_argument("--pid", required=True, type=int)
@@ -137,6 +146,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "preview-steering":
             _write_or_print(preview_steering(load_trace(args.trace), lookahead=args.lookahead,
                                             deadband_degrees=args.deadband_degrees), args.out)
+        elif args.command == "measure-motion-timing":
+            report = analyze_motion_timing(
+                load_trace(args.trace),
+                movement_threshold_xz=args.movement_threshold_xz,
+                max_interval_s=args.max_interval_seconds,
+                response_horizon_s=args.response_horizon_seconds,
+                coast_window_s=args.coast_window_seconds,
+            )
+            _write_or_print(report, args.out)
         elif args.command == "inspect-native-candidate":
             _capture_preflight(args.out, args.start_delay_seconds)
             report = capture_native_candidate(
@@ -182,6 +200,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "nativeCandidateBurstAvailable": True,
                 "offlineFacingPhaseComparisonAvailable": True,
                 "offlineNativeCandidatePairComparisonAvailable": True,
+                "offlineMotionTimingAvailable": True,
                 "nativeCandidateQualifiedForMovement": False,
                 "siblingRepositoryRequired": False,
             }, None)

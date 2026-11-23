@@ -23,6 +23,7 @@
 | Did Taxi itself read the live physical RIFT client? | [M1 LEGION live native capture](M1_LIVE_NATIVE_LEGION_2026-11-23.md) | Original artifact hashes, exact process identity, player XYZ/yaw and 9/9 matrix candidate match |
 | Are the cached XYZ refresh guards active? | [M1 live XYZ refresh guards](M1_LIVE_XYZ_REFRESH_GUARDS_LEGION_2026-11-23.md) | Exact-build 0/0 guards on real client, four-sample evidence and API-refresh caveat |
 | Does the actor component expose another world translation and changed state? | [M1 actor-world changed-state](M1_ACTOR_TRANSLATION_CHANGED_STATE_LEGION_2026-11-23.md) | Live model-transform reconstruction, original hashes and two-capture same-epoch candidate differences |
+| What can historical key/pose timing really measure? | [M1 source timing + Telemetry audit](M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md) | Source-hashed RR2 sample-speed timing, 0.10s installed addon polling and evidence caveats |
 | Can Taxi insert standard Windows W/A/D keys? | [M1 Win32 scan-code backend](M1_WIN32_INPUT.md) | Explicit arming, test-only fake insertion; no physical acceptance yet |
 | Can key-release continue if steering stalls? | [M1 external supervisor](M1_RELEASE_SUPERVISOR.md) | Windows child process, lease, EOF and mutex regressions; real game release unverified |
 | What qualifies as a successful journey? | [Validation](VALIDATION.md) | Measured W duty, running turns, stops, clearance and final readback |

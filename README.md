@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-221%20passing-27ae80?style=for-the-badge)](docs/M1_ACTOR_TRANSLATION_CHANGED_STATE_LEGION_2026-11-23.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-233%20passing-27ae80?style=for-the-badge)](docs/M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,13 +40,14 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, matching actor/position matrix bits, and an actor-world translation reconstruction). Two original captures also show **changed XYZ and orientation values in the same process/owner epoch**, without a synchronized action timeline. A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **221 regression tests passed on Nov 23**. Actor-heading semantics, passive XYZ freshness, real game-consumed input/release, end-to-end crash recovery, journeys and packaging remain **unverified or incomplete**.
+> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, matching actor/position matrix bits, and an actor-world translation reconstruction). Two original captures also show **changed XYZ and orientation values in the same process/owner epoch**, without a synchronized action timeline. A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **233 regression tests passed on Nov 23**. Actor-heading semantics, passive XYZ freshness, real game-consumed input/release, end-to-end crash recovery, journeys and packaging remain **unverified or incomplete**.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
 | Repository, contracts and design | ✅ Documented | [Architecture](docs/ARCHITECTURE.md) · [Product specification](docs/PRODUCT_SPEC.md) |
 | Deterministic motion-trace replay | ✅ Implemented offline | [M1 implementation](docs/M1_IMPLEMENTATION.md) |
 | RR2 source-provenance importer | ✅ Implemented offline | Historical original-source receipt; not a Taxi live run |
+| Source-aware movement timing | ✅ Original RR2 trace analyzed offline | [Motion timing audit](docs/M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md); 6.63-unit/s median sample speed, no causal input proof |
 | Synthetic continuous-steering preview | ✅ Implemented offline | Produces steering intent, not physical movement |
 | Driver-neutral W/A/D and watchdog STOP gate | ✅ Implemented offline | [M1 control-boundary tests](docs/M1_CONTROL_BOUNDARY.md); no game input |
 | Read-only Win32 process/window identity candidate | ✅ Implemented and OS smoke-tested | [M1 identity tests](docs/M1_WIN32_IDENTITY.md); actor/zone not yet verified |
@@ -140,13 +141,16 @@ python -B -m rift_taxi compare samples\synthetic_stop_go.json samples\synthetic_
 # Preview steering intent against a synthetic motion trace
 python -B -m rift_taxi preview-steering samples\synthetic_continuous.json
 
+# Inspect pose/key timing (offline, never sends game input)
+python -B -m rift_taxi measure-motion-timing samples\synthetic_continuous.json
+
 # Re-run the regression suite
 python -B -m unittest discover -s tests -v
 ```
 
 The **opt-in, read-only** `inspect-native-candidate` and `inspect-native-burst` subcommands require exact PID, process creation ticks, executable path/hash, window handle and host. Both commands support `--include-matrix-candidate` and `--include-refresh-guard-candidate`: the burst compares 2–8 XYZ/yaw observations, optional matrices and source-pinned cached-XYZ refresh guards. Guard eligibility never establishes writer execution or passive freshness. The one-shot command also supports `--include-actor-translation-candidate` to reconstruct the source-pinned model-world translation; it is **not** an independent position provider. `compare-native-candidates` compares two exact-source, same-session saved one-shot reports **offline**. `compare-facing-phases` analyzes five complete, separately labeled matrix bursts **offline**. The native commands also offer `--start-delay-seconds` (0–15) to switch focus back to RIFT before reading, and refuse occupied output paths before capture. **No analysis establishes true game movement, passive freshness or qualified body heading.** None of the commands auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
 
-The historical RR2 import includes a **72-position / 14-key-event** original-source receipt. Its source and limitations are explained in [M1 implementation](docs/M1_IMPLEMENTATION.md); it does **not** establish a Taxi-owned live journey.
+The historical RR2 import includes a **72-position / 14-key-event** original-source receipt. Taxi's source-aware timing analysis found **6.63 source units/s median sampled speed during recorded W-held intervals**, but this is **not a qualified RIFT speed model or a new Taxi journey**. The installed Telemetry addon contains two 0.10-second `Inspect.Unit.Detail` polling paths, making naive API-quiet claims unreliable when active. See the [motion timing and producer audit](docs/M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md) and [original M1 implementation handoff](docs/M1_IMPLEMENTATION.md).
 
 ## 📚 Documentation
 
@@ -165,6 +169,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [🧪 First live native capture](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md) | Source-hashed physical XYZ/yaw and 9/9 matrix evidence; explicit limitations |
 | [🔬 XYZ cache-refresh guards](docs/M1_LIVE_XYZ_REFRESH_GUARDS_LEGION_2026-11-23.md) | Live branch input diagnostics, source hashes and why API/native agreement can be circular |
 | [🧩 Actor-world translation and changed-state](docs/M1_ACTOR_TRANSLATION_CHANGED_STATE_LEGION_2026-11-23.md) | Physical actor translation, same-epoch XYZ/yaw differences and source-hashed offline pair proof |
+| [📈 Source timing and Telemetry audit](docs/M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md) | Historical RR2 speed/timing candidates and installed-addon API polling provenance |
 | [⌨️ Win32 input backend](docs/M1_WIN32_INPUT.md) | Standard scan-code W/A/D adapter and explicit arming |
 | [🛟 External release supervisor](docs/M1_RELEASE_SUPERVISOR.md) | Separate-process lease, mutex and dry-run failure/release tests; not physical release proof |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |
@@ -175,7 +180,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 
 ## 🔭 What's next?
 
-1. **Finish M1:** validate candidate XYZ and actor-facing semantics on a current RIFT client, integrate the existing process/window/memory boundaries with a verified fresh pose, and build a bounded native W/A/D backend; physically qualify release/STOP beyond the tested driver-neutral gate.
+1. **Finish M1:** independently validate native XYZ freshness and body-heading semantics on the current RIFT client, account for addon API polling, and physically qualify the already implemented—but currently unarmed—Win32 input and external-release prototypes.
 2. **Measure real behavior:** verify yaw response, movement latency, coast and post-release evidence rather than extrapolating from synthetic traces.
 3. **Prove M2–M3:** achieve a measured straight arrival, then a qualified multi-bend journey with no unnecessary stops at guide points.
 4. **Expand only on evidence:** introduce local world packages, recovery and UI after the movement foundation is dependable.
