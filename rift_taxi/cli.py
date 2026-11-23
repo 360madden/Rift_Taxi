@@ -18,6 +18,7 @@ from .motion_timing import analyze_motion_timing
 from .forward_bearing import (
     analyze_forward_bearing, compare_two_forward_bearings, ForwardBearingError,
 )
+from .zone_correlation import compare_native_zone_sources, ZoneCorrelationRefused
 from .native_series import observe_native_series, SeriesUnavailable
 from .release_supervisor import ReleaseLeasePin, SupervisorUnavailable
 from .turn_probe import run_turn_probe, run_forward_probe, TurnProbeRefused
@@ -109,6 +110,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     two.add_argument("--second-release-audit", required=True)
     two.add_argument("--second-release-sha256", required=True)
     two.add_argument("--out", help="write candidate-only comparison to NEW JSON file")
+    native_zone = commands.add_parser("correlate-zone-candidates",
+        help="OFFLINE: compare source-hashed Taxi and RR2 native zone candidates; no game access")
+    native_zone.add_argument("--taxi-report", required=True)
+    native_zone.add_argument("--taxi-sha256", required=True)
+    native_zone.add_argument("--rr2-report", required=True)
+    native_zone.add_argument("--rr2-sha256", required=True)
+    native_zone.add_argument("--out", help="write candidate-only JSON to NEW file")
     candidate = commands.add_parser("inspect-native-candidate",
         help="one explicit pinned read-only RIFT candidate capture; NEVER sends input")
     candidate.add_argument("--pid", required=True, type=int)
@@ -284,6 +292,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 second_release_audit=args.second_release_audit,
                 second_release_audit_sha256=args.second_release_sha256,
             ), args.out)
+        elif args.command == "correlate-zone-candidates":
+            if args.out is not None:
+                _capture_preflight(args.out, 0.)
+            _write_or_print(compare_native_zone_sources(
+                taxi_report=args.taxi_report, taxi_sha256=args.taxi_sha256,
+                rr2_report=args.rr2_report, rr2_sha256=args.rr2_sha256,
+            ), args.out)
         elif args.command == "inspect-native-candidate":
             _capture_preflight(args.out, args.start_delay_seconds)
             report = capture_native_candidate(
@@ -400,6 +415,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineMotionTimingAvailable": True,
                 "offlinePhysicalForwardBearingComparisonAvailable": True,
                 "offlineTwoHeadingForwardComparisonAvailable": True,
+                "offlineRR2NativeZoneCorrelationAvailable": True,
+                "nativeZoneCandidateQualifiedForPublicApi": False,
                 "nativeCandidateQualifiedForMovement": False,
                 "siblingRepositoryRequired": False,
             }, None)
@@ -407,7 +424,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (TraceError, ValueError, OSError, IdentityUnavailable,
             NativeReadUnavailable, NativeCandidateUnavailable, CandidateCaptureRefused,
             FacingSignatureError, NativePairError, SupervisorUnavailable,
-            TurnProbeRefused, CameraProbeRefused, ForwardBearingError) as error:
+            TurnProbeRefused, CameraProbeRefused, ForwardBearingError, ZoneCorrelationRefused) as error:
         print(f"rift-taxi: {error}", file=sys.stderr)
         return 2
 
