@@ -17,6 +17,7 @@ from .steering import preview_steering
 from .simulation import simulate_route
 from .simulation_stress import stress_route, compare_speed_policies
 from .simulation_holdout import evaluate_holdout
+from .simulation_recovery_audit import audit_recovery_efficiency
 from .motion_timing import analyze_motion_timing
 from .forward_bearing import (
     analyze_forward_bearing, compare_two_forward_bearings, ForwardBearingError,
@@ -110,6 +111,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     holdout = commands.add_parser("evaluate-holdout", help="offline paired synthetic route-shape holdout v1")
     holdout.add_argument("--include-rejoin", action="store_true", help="compare the experimental third policy on v1 scenarios")
     holdout.add_argument("--out", help="write holdout report to a NEW file")
+    # Diagnostic-only: use the unchanged synthetic recovery variant and
+    # partition its generated time steps, without changing its duty metric.
+    recovery = commands.add_parser("audit-recovery", help="offline synthetic recovery phase timing on v1 cases")
+    recovery.add_argument("--out", help="write phase audit to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -301,6 +306,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_or_print(compare_speed_policies(load_trace(args.trace)), args.out)
         elif args.command == "evaluate-holdout":
             _write_or_print(evaluate_holdout(include_rejoin=args.include_rejoin), args.out)
+        elif args.command == "audit-recovery":
+            _write_or_print(audit_recovery_efficiency(), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -456,6 +463,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineSyntheticStressBenchmarkAvailable": True,
                 "offlineSyntheticSpeedPolicyComparisonAvailable": True,
                 "offlineSyntheticRouteHoldoutAvailable": True,
+                "offlineSyntheticRecoveryPhaseAuditAvailable": True,
                 "offlinePhysicalForwardBearingComparisonAvailable": True,
                 "offlineTwoHeadingForwardComparisonAvailable": True,
                 "offlineRR2NativeZoneCorrelationAvailable": True,
