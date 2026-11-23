@@ -37,6 +37,7 @@ def capture_native_candidate(
     window_handle: int,
     host: str,
     max_capture_s: float = 3.0,
+    include_matrix_candidate: bool = False,
     inspect: Callable = inspect_desktop,
     open_session: Callable = ReadOnlyNativeSession.open,
     decode: Callable = decode_current_build_candidate,
@@ -47,6 +48,8 @@ def capture_native_candidate(
     bracket a single read-only process session; changed ownership/foreground,
     stale source, or failed candidate decoding aborts the entire report.
     """
+    if type(include_matrix_candidate) is not bool:
+        raise ValueError("include_matrix_candidate must be bool")
     if type(start_utc_ticks) is not int or start_utc_ticks <= 0:
         raise ValueError("explicit positive process start UTC ticks are required")
     if type(window_handle) is not int or window_handle <= 0:
@@ -75,7 +78,10 @@ def capture_native_candidate(
         executable_sha256=first.executable_sha256,
     )
     with open_session(pin) as session:
-        raw: PositionFacingCandidate = decode(session)
+        raw: PositionFacingCandidate = (
+            decode(session, include_matrix_candidate=True) if include_matrix_candidate
+            else decode(session)
+        )
     final: DesktopCandidate = inspect(pid, **options)
 
     if not isinstance(final, DesktopCandidate):
@@ -96,12 +102,30 @@ def capture_native_candidate(
         raise CandidateCaptureRefused("candidate observation outside OS capture bracket")
     if raw.actor_heading_qualified or raw.passive_position_freshness_qualified:
         raise CandidateCaptureRefused("candidate cannot be advertised as qualified")
+    matrix = raw.matrix_copy_candidate
+    if include_matrix_candidate and matrix is None:
+        raise CandidateCaptureRefused("requested matrix candidate evidence missing")
+    if matrix is not None and matrix.body_heading_qualified:
+        raise CandidateCaptureRefused("matrix evidence is not qualified body heading")
+    matrix_evidence = None
+    if matrix is not None:
+        matrix_evidence = {
+            "positionSecondaryRawBits": list(matrix.position_secondary_raw_bits),
+            "actorRawBits": list(matrix.actor_raw_bits),
+            "exactRawBitsMatch": matrix.exact_bits_match,
+            "positionSecondaryPlanarAngleDegreesCandidate": matrix.position_planar_angle_degrees_candidate,
+            "actorPlanarAngleDegreesCandidate": matrix.actor_planar_angle_degrees_candidate,
+            "positionMatrixStatus": matrix.position_matrix_status,
+            "actorMatrixStatus": matrix.actor_matrix_status,
+            "actorHeadingQualified": False,
+        }
 
     # Output is structured metadata, never a LivePose. No game response is inferred.
     return {
         "schema": "taxi.native-candidate/1",
         "status": "candidate-only",
         "qualification": raw.qualification,
+        "matrixEvidence": matrix_evidence,
         "runtimeDependencies": "python-stdlib-only",
         "process": {
             "host": first.host,
@@ -122,6 +146,7 @@ def capture_native_candidate(
         "evidence": {
             "captureBracketSeconds": elapsed,
             "actorHeadingQualified": False,
+            "matrixEvidenceRequested": include_matrix_candidate,
             "passivePositionFreshnessQualified": False,
             "liveInGameResponseVerified": False,
             "inputSent": False,

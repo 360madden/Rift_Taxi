@@ -70,6 +70,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     candidate.add_argument("--host", required=True, help="expected Windows machine name")
     candidate.add_argument("--out", required=True, help="NEW local JSON report; never overwrite")
     candidate.add_argument("--max-capture-seconds", type=float, default=3.0)
+    candidate.add_argument("--include-matrix-candidate", action="store_true",
+        help="also capture same-owner position-secondary and actor matrix raw bits; never qualified heading")
     burst = commands.add_parser("inspect-native-burst",
         help="2..8 fully pinned read-only candidate captures for manual change analysis; no input")
     burst.add_argument("--pid", required=True, type=int)
@@ -101,6 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 executable_path=args.exe_path, executable_sha256=args.sha256,
                 window_handle=args.hwnd, host=args.host,
                 max_capture_s=args.max_capture_seconds,
+                include_matrix_candidate=args.include_matrix_candidate,
             )
             _write_or_print(report, args.out)
         elif args.command == "inspect-native-burst":

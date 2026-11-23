@@ -130,3 +130,7 @@ On November 23, 2026, the installed `C:\Program Files (x86)\Glyph\Games\RIFT\Liv
 That hash exactly matches the **updated historical executable layout** in the source-pinned decoder, but this does **not** establish that the client is currently running, that loaded module bytes are identical, that the memory offsets are still behaving as expected in-game, or that the candidate values have independently qualified gameplay semantics. Rehash the executable and rebind the exact session before each actual live experiment.
 
 No RIFT process matching the expected names was running on LEGION during the check; no game memory was read or keys sent.
+
+## Optional same-owner actor/position matrix diagnostic
+
+The one-shot `inspect-native-candidate` command now accepts `--include-matrix-candidate`. It reads source-pinned position-secondary and actor matrices from the same owner, compares their 9 original float32 bit patterns, and reports separate structural planar-angle candidates without qualifying body yaw. The default capture and multi-sample XYZ/yaw burst remain unchanged. Details, source file hashes, semantics and 132-test evidence: [M1 matrix candidate comparison](M1_MATRIX_CANDIDATE.md).

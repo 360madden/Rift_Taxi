@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from rift_taxi.native_capture import CandidateCaptureRefused, capture_native_candidate
-from rift_taxi.native_candidate import PositionFacingCandidate, NativeCandidateUnavailable
+from rift_taxi.native_candidate import PositionFacingCandidate, MatrixCopyCandidate, NativeCandidateUnavailable
 from rift_taxi.win32_identity import DesktopCandidate
 from rift_taxi.cli import main
 
@@ -30,6 +30,11 @@ class CaptureFixture:
         self.result = PositionFacingCandidate(
             7, self.windows[0].start_utc_ticks, SHA, 12345,
             (1.0, 2.0, 3.0), 0.5, 28.6478897565, 100.25
+        )
+        self.matrix = MatrixCopyCandidate(
+            tuple(range(9)), tuple(range(9)), True, 30., 30.,
+            "structural-y-planar-matrix-candidate",
+            "structural-y-planar-matrix-candidate"
         )
         self.inspects = 0
         self.opened = 0
@@ -60,7 +65,9 @@ class CaptureFixture:
         self.opened += 1
         return self._Session(self)
 
-    def decode(self, _: object) -> PositionFacingCandidate:
+    def decode(self, _: object, **kwargs: object) -> PositionFacingCandidate:
+        if kwargs.get("include_matrix_candidate") is True:
+            return replace(self.result, matrix_copy_candidate=self.matrix)
         return self.result
 
     def capture(self, **kwargs: object) -> dict:
@@ -185,6 +192,40 @@ class ReadOnlyCaptureTests(unittest.TestCase):
                 # Never overwrite an existing capture, even with the same path.
                 with contextlib.redirect_stderr(io.StringIO()):
                     self.assertEqual(main(argv), 2)
+
+    def test_opt_in_matrix_evidence_reports_bits_but_never_qualified_yaw(self) -> None:
+        data = self.fixture.capture(include_matrix_candidate=True)
+        self.assertEqual(data["matrixEvidence"]["actorRawBits"], list(range(9)))
+        self.assertEqual(data["matrixEvidence"]["positionSecondaryRawBits"], list(range(9)))
+        self.assertTrue(data["matrixEvidence"]["exactRawBitsMatch"])
+        self.assertAlmostEqual(data["matrixEvidence"]["actorPlanarAngleDegreesCandidate"], 30.)
+        self.assertFalse(data["matrixEvidence"]["actorHeadingQualified"])
+        self.assertFalse(data["evidence"]["actorHeadingQualified"])
+        self.assertTrue(data["evidence"]["matrixEvidenceRequested"])
+        self.assertEqual(self.fixture.closed, 1)
+
+    def test_matrix_request_unavailable_or_qualified_fails_closed(self) -> None:
+        self.fixture.matrix = None
+        with self.assertRaisesRegex(CandidateCaptureRefused, "matrix candidate evidence missing"):
+            self.fixture.capture(include_matrix_candidate=True)
+        self.fixture = CaptureFixture()
+        self.fixture.matrix = replace(self.fixture.matrix, body_heading_qualified=True)
+        with self.assertRaisesRegex(CandidateCaptureRefused, "not qualified body heading"):
+            self.fixture.capture(include_matrix_candidate=True)
+
+    def test_matrix_cli_flag_is_passed_to_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "capture.json"
+            argv = [
+                "inspect-native-candidate", "--pid", "7", "--start-ticks",
+                str(self.fixture.windows[0].start_utc_ticks), "--exe-path", EXE,
+                "--sha256", SHA, "--hwnd", "9999", "--host", "LEGION",
+                "--out", str(output), "--include-matrix-candidate"
+            ]
+            with patch("rift_taxi.cli.capture_native_candidate", return_value=self.fixture.capture(include_matrix_candidate=True)) as call:
+                self.assertEqual(main(argv), 0)
+                self.assertTrue(call.call_args.kwargs["include_matrix_candidate"])
+            self.assertTrue(json.loads(output.read_text())["matrixEvidence"]["exactRawBitsMatch"])
 
     def test_cli_doctor_still_does_not_auto_select_game(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()) as output:

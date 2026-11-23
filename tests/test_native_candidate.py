@@ -14,8 +14,8 @@ from rift_taxi.native_memory import MainModule, ProcessPin
 OLD = "1935a05c9db6d468e34e0055014a4a99c1b5afceb1695884e24600f5c20a4be8"
 NEW = "df954b798331e18359be62a31cc74b49fc3f50b87385ebb080a5448256322c01"
 LAYOUTS = {
-    OLD: (0x33624A8, 0x33623E0, 0x2F588A0, 0x26B4FB0),
-    NEW: (0x3373C68, 0x3373BA0, 0x2F698A0, 0x26C35C0),
+    OLD: (0x33624A8, 0x33623E0, 0x2F588A0, 0x26B4FB0, 0x2F58490),
+    NEW: (0x3373C68, 0x3373BA0, 0x2F698A0, 0x26C35C0, 0x2F69490),
 }
 
 
@@ -30,6 +30,7 @@ class MemoryFixture:
         self.entity = 0x20050000
         self.components = 0x20060000
         self.component = 0x20070000
+        self.actor = 0x20080000
         self.count = 8
         self.key = key
         self.pin = ProcessPin(24, 638_000_000_000_000_000, r"C:\RIFT\RIFT.exe", build)
@@ -37,24 +38,35 @@ class MemoryFixture:
         self.regions: dict[int, bytearray] = {}
         self.calls = 0
         self.mutate_on_yaw = False
-        manager_rva, system_rva, index_rva, vptr_rva = LAYOUTS[build]
+        self.mutate_actor_matrix_after_read = False
+        manager_rva, system_rva, index_rva, vptr_rva, actor_selector_rva = LAYOUTS[build]
 
         self.put(self.base + system_rva, struct.pack("<Q", self.system))
         self.put(self.base + manager_rva, struct.pack("<Q", self.manager))
         self.put(self.base + index_rva, struct.pack("<i", 3))
+        self.put(self.base + actor_selector_rva, struct.pack("<i", 5))
         self.put(self.manager + 0x50, struct.pack("<Q", self.header))
         self.put(self.header, struct.pack("<QQQ", self.buckets, 24, self.count))
         bucket = self.buckets + bucket_index(key, self.count) * 24
         self.put(bucket, struct.pack("<QQQ", 0, key, self.entity))
         entity = bytearray(128)
         entity[0x18 + 3] = 2
+        entity[0x18 + 5] = 4
         struct.pack_into("<Q", entity, 0x78, self.components)
         self.put(self.entity, entity)
         self.put(self.components + 2 * 8, struct.pack("<Q", self.component))
+        self.put(self.components + 4 * 8, struct.pack("<Q", self.actor))
+        c = struct.unpack("<f", struct.pack("<f", math.cos(math.pi / 6)))[0]
+        s = struct.unpack("<f", struct.pack("<f", math.sin(math.pi / 6)))[0]
+        self.matrix = struct.pack("<9f", c, 0., -s, 0., 1., 0., s, 0., c)
+        actor_payload = bytearray(0x3BC)
+        actor_payload[0x398:0x3BC] = self.matrix
+        self.put(self.actor, actor_payload)
         payload = bytearray(0x110)
         struct.pack_into("<Q", payload, 0, self.base + vptr_rva)
         struct.pack_into("<Q", payload, 0x10, self.entity)
         struct.pack_into("<fff", payload, 0x48, 12.5, 3.0, -9.25)
+        payload[0x94:0xB8] = self.matrix
         self.put(self.component, payload)
         self.put(self.system + 0x360, struct.pack("<Q", key))
         self.put(self.system + 0x3F8, struct.pack("<Q", self.entity))
@@ -78,6 +90,9 @@ class MemoryFixture:
                 if self.mutate_on_yaw and address == self.system + 0x304:
                     self.mutate_on_yaw = False
                     self.overwrite(self.component + 0x48, struct.pack("<f", 42.0))
+                if self.mutate_actor_matrix_after_read and address == self.actor + 0x398:
+                    self.mutate_actor_matrix_after_read = False
+                    self.overwrite(self.actor + 0x398, struct.pack("<f", 0.0))
                 return raw
         raise NativeCandidateUnavailable(f"unmapped read: {address:x}/{size}")
 
@@ -96,6 +111,68 @@ class DecoderTests(unittest.TestCase):
                 self.assertFalse(sample.passive_position_freshness_qualified)
                 self.assertEqual(sample.observed_monotonic_s, 90)
                 self.assertGreater(fixture.calls, 20)
+
+    def test_opt_in_same_owner_matrix_bits_and_planar_angle(self) -> None:
+        for build in (OLD, NEW):
+            with self.subTest(build=build[:8]):
+                fixture = MemoryFixture(build)
+                standard = decode_current_build_candidate(fixture)
+                self.assertIsNone(standard.matrix_copy_candidate)
+                sample = decode_current_build_candidate(fixture, include_matrix_candidate=True)
+                matrix = sample.matrix_copy_candidate
+                self.assertIsNotNone(matrix)
+                self.assertTrue(matrix.exact_bits_match)
+                self.assertEqual(len(matrix.position_secondary_raw_bits), 9)
+                self.assertEqual(matrix.position_secondary_raw_bits, matrix.actor_raw_bits)
+                self.assertAlmostEqual(matrix.actor_planar_angle_degrees_candidate, 30., places=4)
+                self.assertAlmostEqual(matrix.position_planar_angle_degrees_candidate, 30., places=4)
+                self.assertEqual(matrix.actor_matrix_status, "structural-y-planar-matrix-candidate")
+                self.assertFalse(matrix.body_heading_qualified)
+                self.assertFalse(sample.actor_heading_qualified)
+
+    def test_matrix_bits_mismatch_is_reported_not_heading_qualified(self) -> None:
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.actor + 0x398, struct.pack("<f", 0.0))
+        matrix = decode_current_build_candidate(fixture, include_matrix_candidate=True).matrix_copy_candidate
+        self.assertFalse(matrix.exact_bits_match)
+        self.assertFalse(matrix.body_heading_qualified)
+        self.assertEqual(matrix.actor_matrix_status, "unqualified-matrix-shape")
+        self.assertIsNone(matrix.actor_planar_angle_degrees_candidate)
+
+    def test_nonfinite_actor_matrix_remains_raw_unqualified_diagnostic(self) -> None:
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.actor + 0x398, struct.pack("<f", float("nan")))
+        matrix = decode_current_build_candidate(fixture, include_matrix_candidate=True).matrix_copy_candidate
+        self.assertFalse(matrix.exact_bits_match)
+        self.assertEqual(matrix.actor_matrix_status, "nonfinite-matrix")
+        self.assertIsNone(matrix.actor_planar_angle_degrees_candidate)
+
+    def test_opt_in_actor_owner_selector_refused_on_invalid_or_missing(self) -> None:
+        for invalid in (-1, 0x60):
+            fixture = MemoryFixture()
+            actor_selector = LAYOUTS[NEW][-1]
+            fixture.overwrite(fixture.base + actor_selector, struct.pack("<i", invalid))
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(NativeCandidateUnavailable, "actor component selector"):
+                decode_current_build_candidate(fixture, include_matrix_candidate=True)
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.entity + 0x18 + 5, b"\xff")
+        with self.assertRaisesRegex(NativeCandidateUnavailable, "lacks actor"):
+            decode_current_build_candidate(fixture, include_matrix_candidate=True)
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.components + 4 * 8, struct.pack("<Q", fixture.component))
+        with self.assertRaisesRegex(NativeCandidateUnavailable, "alias"):
+            decode_current_build_candidate(fixture, include_matrix_candidate=True)
+
+    def test_matrix_bytes_change_during_capture_rejected(self) -> None:
+        fixture = MemoryFixture()
+        fixture.mutate_actor_matrix_after_read = True
+        with self.assertRaisesRegex(NativeCandidateUnavailable, "changed during capture"):
+            decode_current_build_candidate(fixture, include_matrix_candidate=True)
+
+    def test_matrix_option_requires_boolean(self) -> None:
+        fixture = MemoryFixture()
+        with self.assertRaisesRegex(ValueError, "must be bool"):
+            decode_current_build_candidate(fixture, include_matrix_candidate=1)
 
     def test_unknown_build_is_refused_before_any_read(self) -> None:
         fixture = MemoryFixture()

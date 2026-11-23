@@ -23,11 +23,12 @@ _MAX_ADDR = 0x00007FFF_FFFF_FFFF
 # Hashes and addresses originate in RR2's CurrentBuildPlayerLookup.cs,
 # CurrentBuildPositionSampleCommand.cs and CurrentBuildFacingCandidateReader.cs.
 # SHA pinning does NOT prove the current installed game is one of these builds.
+# Entries: manager, player system, position selector, position vtable, actor selector.
 _BUILD_LAYOUTS = {
     "1935a05c9db6d468e34e0055014a4a99c1b5afceb1695884e24600f5c20a4be8": (
-        0x33624A8, 0x33623E0, 0x2F588A0, 0x26B4FB0),
+        0x33624A8, 0x33623E0, 0x2F588A0, 0x26B4FB0, 0x2F58490),
     "df954b798331e18359be62a31cc74b49fc3f50b87385ebb080a5448256322c01": (
-        0x3373C68, 0x3373BA0, 0x2F698A0, 0x26C35C0),
+        0x3373C68, 0x3373BA0, 0x2F698A0, 0x26C35C0, 0x2F69490),
 }
 
 
@@ -43,6 +44,20 @@ class CandidateReadSource(Protocol):
 
 
 @dataclass(frozen=True)
+class MatrixCopyCandidate:
+    """Two separately read matrix bytes, no actor-facing qualification."""
+
+    position_secondary_raw_bits: tuple[int, ...]
+    actor_raw_bits: tuple[int, ...]
+    exact_bits_match: bool
+    position_planar_angle_degrees_candidate: float | None
+    actor_planar_angle_degrees_candidate: float | None
+    position_matrix_status: str
+    actor_matrix_status: str
+    body_heading_qualified: bool = False
+
+
+@dataclass(frozen=True)
 class PositionFacingCandidate:
     process_id: int
     process_start_utc_ticks: int
@@ -55,6 +70,34 @@ class PositionFacingCandidate:
     qualification: str = "candidate-only; passive-XYZ-freshness-and-body-yaw-unverified"
     actor_heading_qualified: bool = False
     passive_position_freshness_qualified: bool = False
+    matrix_copy_candidate: MatrixCopyCandidate | None = None
+
+
+def _matrix_descriptor(raw: bytes) -> tuple[tuple[int, ...], float | None, str]:
+    """Source-pinned RR2 Y-planar diagnostics; candidate only, never body yaw."""
+    if len(raw) != 36:
+        raise NativeCandidateUnavailable("actor/position matrix read was not 36 bytes")
+    bits = struct.unpack("<9I", raw)
+    values = struct.unpack("<9f", raw)
+    if not all(math.isfinite(v) for v in values):
+        return (bits, None, "nonfinite-matrix")
+    orthogonal_error = max(
+        abs(sum(values[row * 3 + col] * values[other * 3 + col]
+                for col in range(3)) - (1 if row == other else 0))
+        for row in range(3) for other in range(3)
+    )
+    v = values
+    det = (v[0] * (v[4] * v[8] - v[5] * v[7])
+           - v[1] * (v[3] * v[8] - v[5] * v[6])
+           + v[2] * (v[3] * v[7] - v[4] * v[6]))
+    planar_error = max(abs(v[i]) for i in (1, 3, 5, 7))
+    planar_error = max(planar_error, abs(v[4] - 1),
+                       abs(v[8] - v[0]), abs(v[2] + v[6]))
+    structural = max(orthogonal_error, abs(det - 1), planar_error) < 0.01
+    if not structural:
+        return (bits, None, "unqualified-matrix-shape")
+    return (bits, math.degrees(math.atan2(v[6], v[0])),
+            "structural-y-planar-matrix-candidate")
 
 
 def _pointer(value: int, byte_count: int = 8) -> int:
@@ -89,12 +132,15 @@ def decode_current_build_candidate(
     source: CandidateReadSource,
     *,
     clock: Callable[[], float] = time.monotonic,
+    include_matrix_candidate: bool = False,
 ) -> PositionFacingCandidate:
     """Read an exact-known-build owner/XYZ/yaw candidate without game actions.
 
     This object is intentionally NOT a LivePose and cannot be passed directly
     to HeldInputController, whose verified yaw/freshness gates remain required.
     """
+    if type(include_matrix_candidate) is not bool:
+        raise ValueError("include_matrix_candidate must be bool")
     if not isinstance(source.pin, ProcessPin) or not isinstance(source.module, MainModule):
         raise NativeCandidateUnavailable("pinned process and module identity required")
     pin = source.pin
@@ -104,9 +150,10 @@ def decode_current_build_candidate(
     layout = _BUILD_LAYOUTS.get(build_sha)
     if layout is None:
         raise NativeCandidateUnavailable("unqualified executable build; no offsets available")
-    manager_rva, system_rva, position_selector_rva, position_vptr_rva = layout
+    manager_rva, system_rva, position_selector_rva, position_vptr_rva, actor_selector_rva = layout
     if size <= max(manager_rva + 8, system_rva + 8, position_selector_rva + 4,
-                   position_vptr_rva + 8):
+                   position_vptr_rva + 8,
+                   (actor_selector_rva + 4 if include_matrix_candidate else 0)):
         raise NativeCandidateUnavailable("module too small for exact-build addresses")
 
     anchors: list[tuple[int, bytes]] = []
@@ -185,6 +232,29 @@ def decode_current_build_candidate(
         raise NativeCandidateUnavailable("player-system yaw nonfinite")
     bearing = ((math.degrees(yaw_rad) + 180.0) % 360.0) - 180.0
 
+    matrix_copy = None
+    if include_matrix_candidate:
+        # RR2 CurrentBuildActorPoseCandidateReader resolves the actor component
+        # from the SAME self entity, with a separate exact-build selector.
+        actor_selector = struct.unpack("<i", read(base + actor_selector_rva, 4))[0]
+        if not 0 <= actor_selector < 0x60:
+            raise NativeCandidateUnavailable("invalid native actor component selector")
+        actor_slot = entity_bytes[0x18 + actor_selector]
+        if actor_slot == 0xFF:
+            raise NativeCandidateUnavailable("self entity lacks actor component")
+        actor = get_ptr(table + actor_slot * 8, length=0x3BC)
+        if actor == component:
+            raise NativeCandidateUnavailable("actor/position components unexpectedly alias")
+        # Position +0x94 and actor +0x398 contain separately sourced 3x3 matrices.
+        # A bitwise match is a copy/alias candidate, not proof of player body yaw.
+        position_bits, position_angle, position_status = _matrix_descriptor(
+            payload[0x94:0xB8])
+        actor_bits, actor_angle, actor_status = _matrix_descriptor(
+            read(actor + 0x398, 36))
+        matrix_copy = MatrixCopyCandidate(
+            position_bits, actor_bits, position_bits == actor_bits,
+            position_angle, actor_angle, position_status, actor_status)
+
     # A changing pose or owner is refused rather than silently coalesced.
     for address, original in anchors:
         later = read(address, len(original), anchor=False)
@@ -195,5 +265,5 @@ def decode_current_build_candidate(
         raise NativeCandidateUnavailable("candidate timestamp invalid")
     return PositionFacingCandidate(
         pin.pid, pin.start_utc_ticks, build_sha, key,
-        xyz, yaw_rad, bearing, observed,
+        xyz, yaw_rad, bearing, observed, matrix_copy_candidate=matrix_copy,
     )

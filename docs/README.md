@@ -18,6 +18,7 @@
 | How does STOP and held W+A/D behave offline? | [M1 control boundary](M1_CONTROL_BOUNDARY.md) | Same-session gate, watchdog, input rejection and driver-neutral fault tests |
 | How do we pin the Windows process and game window? | [M1 Windows identity](M1_WIN32_IDENTITY.md) | Read-only PID/start/path/hash/HWND inspection and limitations |
 | Can Taxi read native memory or decode XYZ/yaw? | [M1 native candidates](M1_NATIVE_READONLY.md) | Bounded read-only session, source-pinned candidate decoder and explicit one-shot/burst commands; not qualified for driving |
+| Do two position/actor matrices match in one capture? | [M1 matrix comparison](M1_MATRIX_CANDIDATE.md) | Optional owner-scoped raw float32 bit comparison and unqualified candidate planar angle |
 | What qualifies as a successful journey? | [Validation](VALIDATION.md) | Measured W duty, running turns, stops, clearance and final readback |
 | Which NPC/services are initially supported? | [Curated destinations](NPC_DESTINATIONS.md) | Porticulum, banker, healer, auctioneer, mailbox, story NPCs (travel-only) |
 | Which choices are durable? | [Decisions](DECISIONS.md) | User-approved architecture and priority |
