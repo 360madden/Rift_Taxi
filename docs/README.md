@@ -1,6 +1,6 @@
 # RIFT Taxi documentation index
 
-**Status:** design and source-research foundation, as of 2026-11-23; **offline replay/control and a live-tested read-only RIFT candidate reader exist; two physical A/D pulses succeeded with OS release receipts, and a separate W-only probe passes 278 offline/fake-sender regressions; game-consumed release, physical W motion, actor-facing freshness, crash recovery and autonomous journeys remain incomplete**. Local project is `C:\work\Rift_Taxi` on LEGION.
+**Status:** design and source-research foundation, as of 2026-11-23; **offline replay/control and a live-tested read-only RIFT candidate reader exist; two physical A/D pulses succeeded with OS release receipts, and one subsequent physical W-only 100 ms pulse changed native XZ by 0.6395 source units, with independently stable later readings; game-consumed release, time-resolved W response, actor-facing freshness, crash recovery and autonomous journeys remain incomplete**. Local project is `C:\work\Rift_Taxi` on LEGION.
 
 ## Start here (recommended reading order)
 
@@ -19,7 +19,8 @@
 | What's already implemented? | [M1 implementation](M1_IMPLEMENTATION.md) | Executable offline CLI, original RR2 import, synthetic steering, tests, and remaining live-control gaps |
 | How does STOP and held W+A/D behave offline? | [M1 control boundary](M1_CONTROL_BOUNDARY.md) | Same-session gate, watchdog, input rejection and driver-neutral fault tests |
 | Has Taxi physically turned RIFT and released keys? | [First bounded A/D calibration](M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md) | Physical A/D down/up, separate release process, native angle delta and screen receipts; body yaw pending |
-| Is a supervised W-only movement experiment ready? | [Bounded W diagnostic](M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md) | Default dry-run, 60–160 ms W gate, new delayed readback and release tests; physical W **not performed** |
+| Is a supervised W-only movement experiment ready? | [Bounded W diagnostic](M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md) | Default dry-run, 60–160 ms W gate, delayed readback and supervised release tests; one physical W result now exists |
+| Did Taxi move during real W-only input? | [First physical W displacement](M1_PHYSICAL_W_DISPLACEMENT_LEGION_2026-11-23.md) | One 100 ms W pulse, native XYZ change, actual OS release and 12 stable later samples; no body-yaw promotion |
 | How do we pin the Windows process and game window? | [M1 Windows identity](M1_WIN32_IDENTITY.md) | Read-only PID/start/path/hash/HWND inspection and limitations |
 | Can Taxi read native memory or decode XYZ/yaw? | [M1 native candidates](M1_NATIVE_READONLY.md) | Bounded read-only session, source-pinned candidate decoder and explicit one-shot/burst commands; not qualified for driving |
 | Do two position/actor matrices match in one capture? | [M1 matrix comparison](M1_MATRIX_CANDIDATE.md) | Optional owner-scoped raw float32 bit comparison and unqualified candidate planar angle |

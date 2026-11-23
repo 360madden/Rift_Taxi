@@ -1,7 +1,7 @@
 # M1 — Bounded W-only forward calibration: implementation and validation
 
 **November 23, 2026 · LEGION**  
-**Evidence class:** implementation + injected-sender regression only. **No physical W pulse recorded in this document.**
+**Evidence class at this document's creation:** implementation + injected-sender regression only. **Subsequently exercised physically** on November 23; see [original 100 ms W-only physical receipts](M1_PHYSICAL_W_DISPLACEMENT_LEGION_2026-11-23.md). The present document explains the implemented safety boundary.
 
 ## Purpose
 
@@ -32,7 +32,7 @@ The placeholders must be filled from a single fresh verified session. No `--exec
 ## Remaining gates
 
 1. Camera-only rotation negative control to separate scene yaw from player body yaw.
-2. Independently review a fresh suitable physical scene and qualify actor/zone/foreground before one physical W test.
+2. Repeat one physical W test with stronger independent actor/zone proof, post-release key-readback and a synchronized scene/pose timeline. An initial 100 ms live pulse and stable later key/XYZ observations are now source-hashed in the physical handoff.
 3. Capture source-hashed before/action/after/release/post-settle receipts and corroborating game frames; compare against addon poll activity to avoid false passive-freshness claims.
 4. Physically test crash/late-DOWN independent release, without assuming the dry-run simulation proves it.
 5. Only then consider promoting an accepted live pose and an M2 straight-route experiment.
