@@ -20,7 +20,7 @@ Run on LEGION in PowerShell from `C:\work\Rift_Taxi`:
 python -B -m unittest discover -s tests -v
 ```
 
-**63/63 offline regression tests passed on November 23, 2026 (Python 3.14).** Of these, **29** new control-gate tests cover forward-key continuity across turn changes, A/D reversal ordering, STOP/retry, worker-initiated release, expiry ordering, exact session binding, stale/duplicate/out-of-order source data, invalid key sets, immutable pose coordinates, and injected backend faults.
+**The original 63/63 offline regression tests passed on November 23, 2026 (Python 3.14).** A separate Win32 identity slice added 11 tests, bringing the later suite to **74/74 passing**; see [M1 Windows identity](M1_WIN32_IDENTITY.md). The **29** control-gate tests cover forward-key continuity across turn changes, A/D reversal ordering, STOP/retry, worker-initiated release, expiry ordering, exact session binding, stale/duplicate/out-of-order source data, invalid key sets, immutable pose coordinates, and injected backend faults.
 
 Tests use an inert `RecordingBackend`. No OS input is inserted; no RIFT client is opened, moved or queried; no new XYZ/yaw evidence is collected. Backend acceptance means only **test driver acceptance**, not a game-observed key transition or proof of movement.
 
@@ -28,7 +28,7 @@ Tests use an inert `RecordingBackend`. No OS input is inserted; no RIFT client i
 
 | Boundary | Present | Still required for live M1 |
 |---|---|---|
-| Same-client process/window/player binding | Validated values and exact equality | Discover and independently verify current RIFT build/PID/start/window/actor/zone |
+| Same-client process/window/player binding | OS PID/start/path/hash/HWND read-only candidate inspector plus exact session-contract equality | Bind that candidate to independently verified RIFT actor/zone and fresh pose |
 | Pose freshness/yaw | Same-clock sequence, timestamp and qualification gating | Taxi-owned native Win32 read-only acquisition; establish actor-facing source and true clock alignment |
 | Held W/A/D | Driver-neutral, sequential edge state and audit receipts | Taxi-owned native Windows backend, bounded calls, exact foreground ownership and physical calibration |
 | STOP and timeout | Latched STOP, daemon watchdog and accepted-UP accounting | Independently supervised release even if the native backend blocks; OS/game post-release readback |

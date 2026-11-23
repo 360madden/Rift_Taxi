@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-63%20passing-27ae80?style=for-the-badge)](docs/M1_IMPLEMENTATION.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-74%20passing-27ae80?style=for-the-badge)](docs/M1_IMPLEMENTATION.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,7 +40,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** The offline replay CLI, RR2 evidence importer, synthetic steering preview and driver-neutral STOP/held-input gate exist, with **63 regression tests passed on Nov 23**. There is **no verified Taxi-owned native live position reader, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
+> **M1 is in progress, not complete.** Offline replay, RR2 evidence import, synthetic steering and a driver-neutral STOP/input gate exist. A Taxi-owned read-only Windows **process/window identity inspector** has also been tested; **74 regression tests passed on Nov 23**. There is **no verified Taxi-owned native live position reader, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -49,6 +49,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | RR2 source-provenance importer | ✅ Implemented offline | Historical original-source receipt; not a Taxi live run |
 | Synthetic continuous-steering preview | ✅ Implemented offline | Produces steering intent, not physical movement |
 | Driver-neutral W/A/D and watchdog STOP gate | ✅ Implemented offline | [M1 control-boundary tests](docs/M1_CONTROL_BOUNDARY.md); no game input |
+| Read-only Win32 process/window identity candidate | ✅ Implemented and OS smoke-tested | [M1 identity tests](docs/M1_WIN32_IDENTITY.md); actor/zone not yet verified |
 | Taxi-owned fresh XYZ and actor-facing reader | 🔧 Next | Process/build/actor binding and observation freshness |
 | Native Windows W/A/D backend and independently supervised release | 🔧 Next | Physical confirmation of actual game response and settled release |
 | Smooth multi-bend live journey | ⏳ Not verified | Measured course with continuous forward travel |
@@ -93,11 +94,11 @@ M6  Standalone desktop experience    ○ Planned
                 ┌─────────────────┴─────────────────┐
                 ▼                                   ▼
        Pose / facing reader                  Movement controller
-       (Taxi-owned; planned)                 (Gate built; driver planned)
+       (OS identity built; pose pending)      (Gate built; driver planned)
                 │                                   │
                 └─────────────────┬─────────────────┘
                                   ▼
-                       Verified RIFT session
+                       Future verified RIFT session
 
        Versioned, local route evidence ──► Route acceptance
        (imported from research)           and trajectory tracking
@@ -115,7 +116,7 @@ See [research imports](docs/RESEARCH_IMPORTS.md), [RR2 handoff](docs/RR2_HANDOFF
 
 ## 🧪 Try the offline tools
 
-These commands exercise **offline analysis only**. They do **not** launch RIFT, read live game memory or send game input.
+The CLI commands below are **offline analysis**. The test suite also checks metadata for its **own Python process** through Win32. None of these commands launch RIFT, read RIFT memory or send game input.
 
 Open **PowerShell** in the local repository directory (documented working checkout: `C:\work\Rift_Taxi` on **LEGION**):
 
@@ -147,6 +148,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [📏 Validation](docs/VALIDATION.md) | Benchmarks and measurable movement quality |
 | [🔬 M1 implementation](docs/M1_IMPLEMENTATION.md) | Commands, trace provenance, test receipts and limitations |
 | [🛑 M1 control gate](docs/M1_CONTROL_BOUNDARY.md) | Driver-neutral W/A/D, expiry watchdog, STOP/fault tests and live blockers |
+| [🪟 M1 Windows identity](docs/M1_WIN32_IDENTITY.md) | Read-only PID/start/hash/HWND qualification and test evidence |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |
 | [📖 Documentation hub](docs/README.md) | Index of research, handoffs and architecture notes |
 | [📝 Durable decisions](docs/DECISIONS.md) | Project decisions and non-negotiable boundaries |
@@ -155,7 +157,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 
 ## 🔭 What's next?
 
-1. **Finish M1:** implement fresh Taxi-owned current-player XYZ/yaw observation and a bounded native Windows W/A/D backend; physically qualify release/STOP beyond the tested driver-neutral gate.
+1. **Finish M1:** connect the new process/window identity boundary to a fresh Taxi-owned current-player XYZ/yaw observation and a bounded native Windows W/A/D backend; physically qualify release/STOP beyond the tested driver-neutral gate.
 2. **Measure real behavior:** verify yaw response, movement latency, coast and post-release evidence rather than extrapolating from synthetic traces.
 3. **Prove M2–M3:** achieve a measured straight arrival, then a qualified multi-bend journey with no unnecessary stops at guide points.
 4. **Expand only on evidence:** introduce local world packages, recovery and UI after the movement foundation is dependable.
