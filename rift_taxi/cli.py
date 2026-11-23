@@ -14,6 +14,7 @@ from .replay import analyze, compare
 from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .native_capture import capture_native_candidate, CandidateCaptureRefused
+from .native_burst import capture_native_burst
 from .native_candidate import NativeCandidateUnavailable
 from .native_memory import NativeReadUnavailable
 from .win32_identity import IdentityUnavailable
@@ -69,6 +70,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     candidate.add_argument("--host", required=True, help="expected Windows machine name")
     candidate.add_argument("--out", required=True, help="NEW local JSON report; never overwrite")
     candidate.add_argument("--max-capture-seconds", type=float, default=3.0)
+    burst = commands.add_parser("inspect-native-burst",
+        help="2..8 fully pinned read-only candidate captures for manual change analysis; no input")
+    burst.add_argument("--pid", required=True, type=int)
+    burst.add_argument("--start-ticks", required=True, type=int)
+    burst.add_argument("--exe-path", required=True)
+    burst.add_argument("--sha256", required=True)
+    burst.add_argument("--hwnd", required=True, type=lambda raw: int(raw, 0))
+    burst.add_argument("--host", required=True)
+    burst.add_argument("--samples", type=int, default=4)
+    burst.add_argument("--interval-ms", type=int, default=250)
+    burst.add_argument("--max-total-seconds", type=float, default=30.0)
+    burst.add_argument("--out", required=True, help="new JSON file; no overwrite")
     commands.add_parser("doctor", help="offline environment check; never selects RIFT")
     args = parser.parse_args(argv)
     try:
@@ -90,6 +103,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 max_capture_s=args.max_capture_seconds,
             )
             _write_or_print(report, args.out)
+        elif args.command == "inspect-native-burst":
+            report = capture_native_burst(
+                pid=args.pid, start_utc_ticks=args.start_ticks,
+                executable_path=args.exe_path, executable_sha256=args.sha256,
+                window_handle=args.hwnd, host=args.host, samples=args.samples,
+                interval_ms=args.interval_ms, max_total_s=args.max_total_seconds,
+            )
+            _write_or_print(report, args.out)
         else:
             _write_or_print({
                 "schema": "taxi.doctor/1",
@@ -99,6 +120,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "gameInputEnabled": False,
                 "nativeReaderImplemented": False,
                 "nativeCandidateCaptureAvailable": True,
+                "nativeCandidateBurstAvailable": True,
                 "nativeCandidateQualifiedForMovement": False,
                 "siblingRepositoryRequired": False,
             }, None)

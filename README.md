@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-110%20passing-27ae80?style=for-the-badge)](docs/M1_IMPLEMENTATION.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-123%20passing-27ae80?style=for-the-badge)](docs/M1_IMPLEMENTATION.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,7 +40,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** Offline replay, RR2 evidence import, synthetic steering and a driver-neutral STOP/input gate exist. Taxi-owned **Windows process identity**, **bounded read-only memory access** and **exact-build XYZ/yaw candidate decoding** are implemented and tested; **110 regression tests passed on Nov 23**. There is **no independently qualified RIFT-live actor XYZ/yaw, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
+> **M1 is in progress, not complete.** Offline replay, RR2 evidence import, synthetic steering and a driver-neutral STOP/input gate exist. Taxi-owned **Windows process identity**, **bounded read-only memory access** and **exact-build XYZ/yaw candidate decoding** are implemented and tested; **123 regression tests passed on Nov 23**. There is **no independently qualified RIFT-live actor XYZ/yaw, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -50,7 +50,8 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Synthetic continuous-steering preview | ✅ Implemented offline | Produces steering intent, not physical movement |
 | Driver-neutral W/A/D and watchdog STOP gate | ✅ Implemented offline | [M1 control-boundary tests](docs/M1_CONTROL_BOUNDARY.md); no game input |
 | Read-only Win32 process/window identity candidate | ✅ Implemented and OS smoke-tested | [M1 identity tests](docs/M1_WIN32_IDENTITY.md); actor/zone not yet verified |
-| Bounded native memory, candidate decoder and explicit one-shot capture CLI | ✅ Implemented, candidate-only | [Native-read evidence](docs/M1_NATIVE_READONLY.md); real OS self-process smoke test + synthetic fields |
+| Bounded native memory, candidate decoder and one-shot capture CLI | ✅ Implemented, candidate-only | [Native-read evidence](docs/M1_NATIVE_READONLY.md); real OS self-process smoke test + synthetic fields |
+| Read-only multi-sample candidate burst | ✅ Implemented, synthetic-tested | [Burst verification](docs/M1_NATIVE_READONLY.md#repeated-read-only-candidate-burst); does not verify physical movement |
 | Taxi-owned fresh XYZ and actor-facing reader | 🔧 Next | Process/build/actor binding and observation freshness |
 | Native Windows W/A/D backend and independently supervised release | 🔧 Next | Physical confirmation of actual game response and settled release |
 | Smooth multi-bend live journey | ⏳ Not verified | Measured course with continuous forward travel |
@@ -137,7 +138,7 @@ python -B -m rift_taxi preview-steering samples\synthetic_continuous.json
 python -B -m unittest discover -s tests -v
 ```
 
-A separate **opt-in, read-only** `inspect-native-candidate` subcommand requires explicit PID, process creation ticks, executable path/hash, window handle and host. It never auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
+The **opt-in, read-only** `inspect-native-candidate` and `inspect-native-burst` subcommands require exact PID, process creation ticks, executable path/hash, window handle and host. The burst command can compare 2–8 candidate XYZ/yaw samples but **does not establish true game movement or passive freshness**. Neither command auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
 
 The historical RR2 import includes a **72-position / 14-key-event** original-source receipt. Its source and limitations are explained in [M1 implementation](docs/M1_IMPLEMENTATION.md); it does **not** establish a Taxi-owned live journey.
 

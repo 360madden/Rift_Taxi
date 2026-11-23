@@ -97,4 +97,36 @@ python -B -m rift_taxi inspect-native-candidate `
 
 Use a **new report filename each time**: the command refuses overwriting existing evidence. If no RIFT process exists, if focus/window identity changes, if the executable does not match one of the two pinned historical builds, or if native bytes are inconsistent, the command fails without producing a completed report. Successful capture still means **candidate only**; there is no qualified body heading, proven passive XYZ freshness, or physical game-response proof.
 
-On November 23, the `test_native_capture.py` suite added **12 synthetic bracketing/CLI tests** (pre/post owner continuity, foreground, process epoch, timing, new output, and failure paths); **110/110 total tests passed**. The CLI was **not executed against RIFT** because no matching client process was running on LEGION at that check.
+On November 23, the `test_native_capture.py` suite added **12 synthetic bracketing/CLI tests** (pre/post owner continuity, foreground, process epoch, timing, new output, and failure paths); **110/110 tests passed** at that stage. The CLI was **not executed against RIFT** because no matching client process was running on LEGION at that check.
+
+## Repeated read-only candidate burst
+
+`rift_taxi/native_burst.py` adds the opt-in `inspect-native-burst` command. This takes **2–8 independent full pinned read-only captures**, each of which checks the exact game PID/start epoch/executable hash/HWND before and after its native memory read. Any single failed capture, changed player-key candidate, invalid/nonadvancing timestamp, changed process or foreground, or total-duration overrun aborts the burst **without publishing a completed report**.
+
+It compares the X/Z/3D XYZ candidate displacements, candidate player-system yaw (with degree wraparound), and whether any **intermediate** sample differs. None of those comparisons establishes actual RIFT character movement, passive XYZ freshness, or actor body heading; the report explicitly sets those verification flags to false.
+
+**PowerShell example**, after obtaining the explicit process pins in the preceding section:
+
+```powershell
+cd C:\work\Rift_Taxi
+python -B -m rift_taxi inspect-native-burst `
+    --pid $rift.Id --start-ticks $startTicks `
+    --exe-path $exe --sha256 $exeHash `
+    --hwnd $hwnd --host $computer `
+    --samples 4 --interval-ms 250 `
+    --out .\artifacts\native-burst-unique.json
+```
+
+Use a new output path. The requested interval is a **minimum delay after each capture**, not a promised sampling rate; executable hashing and identity checks take additional time. The default total budget is 30 seconds. The command **does not start, focus, or move the game**.
+
+**Validation:** 13 new deterministic burst tests passed; the full regression suite passed **123/123 tests** on LEGION, November 23, 2026. All burst data in these tests are injected synthetic candidate reports. Actual RIFT passive freshness and body-yaw qualification remain unresolved.
+
+## Installed game build reference (LEGION; read-only check)
+
+On November 23, 2026, the installed `C:\Program Files (x86)\Glyph\Games\RIFT\Live\rift_x64.exe` was found on LEGION. It is **60,574,536 bytes**, last modified **November 20, 2026, 12:34:40 UTC**, and its **on-disk SHA-256** was:
+
+`DF954B798331E18359BE62A31CC74B49FC3F50B87385EBB080A5448256322C01`
+
+That hash exactly matches the **updated historical executable layout** in the source-pinned decoder, but this does **not** establish that the client is currently running, that loaded module bytes are identical, that the memory offsets are still behaving as expected in-game, or that the candidate values have independently qualified gameplay semantics. Rehash the executable and rebind the exact session before each actual live experiment.
+
+No RIFT process matching the expected names was running on LEGION during the check; no game memory was read or keys sent.

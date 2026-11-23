@@ -1,6 +1,6 @@
 # RIFT Taxi documentation index
 
-**Status:** design and source-research foundation, as of 2026-11-23; **offline replay/control, OS identity/memory candidate readers and an opt-in pinned read-only candidate capture CLI exist; no independently qualified live RIFT actor reader, game controller or Taxi journey is implemented**. Local project is `C:\work\Rift_Taxi` on LEGION.
+**Status:** design and source-research foundation, as of 2026-11-23; **offline replay/control, OS identity/memory candidate readers and opt-in pinned read-only one-shot and burst candidate capture commands exist; no independently qualified live RIFT actor reader, game controller or Taxi journey is implemented**. Local project is `C:\work\Rift_Taxi` on LEGION.
 
 ## Start here (recommended reading order)
 
@@ -17,7 +17,7 @@
 | What's already implemented? | [M1 implementation](M1_IMPLEMENTATION.md) | Executable offline CLI, original RR2 import, synthetic steering, tests, and remaining live-control gaps |
 | How does STOP and held W+A/D behave offline? | [M1 control boundary](M1_CONTROL_BOUNDARY.md) | Same-session gate, watchdog, input rejection and driver-neutral fault tests |
 | How do we pin the Windows process and game window? | [M1 Windows identity](M1_WIN32_IDENTITY.md) | Read-only PID/start/path/hash/HWND inspection and limitations |
-| Can Taxi read native memory or decode XYZ/yaw? | [M1 native candidates](M1_NATIVE_READONLY.md) | Bounded read-only session, source-pinned candidate decoder and explicit capture CLI; not qualified for driving |
+| Can Taxi read native memory or decode XYZ/yaw? | [M1 native candidates](M1_NATIVE_READONLY.md) | Bounded read-only session, source-pinned candidate decoder and explicit one-shot/burst commands; not qualified for driving |
 | What qualifies as a successful journey? | [Validation](VALIDATION.md) | Measured W duty, running turns, stops, clearance and final readback |
 | Which NPC/services are initially supported? | [Curated destinations](NPC_DESTINATIONS.md) | Porticulum, banker, healer, auctioneer, mailbox, story NPCs (travel-only) |
 | Which choices are durable? | [Decisions](DECISIONS.md) | User-approved architecture and priority |
