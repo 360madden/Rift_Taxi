@@ -89,6 +89,17 @@ class ActorWorldTranslationCandidate:
 
 
 @dataclass(frozen=True)
+class ZoneKeyCandidate:
+    """Source-backed self-owner raw u32, NOT a public zone/world instance ID."""
+
+    raw_zone_key: int
+    source_status: str = "same-owner-typed-raw-zone-key-candidate"
+    public_zone_id_status: str = "not-derived"
+    world_instance_status: str = "unavailable"
+    authoritative_zone_qualified: bool = False
+
+
+@dataclass(frozen=True)
 class PositionFacingCandidate:
     process_id: int
     process_start_utc_ticks: int
@@ -104,6 +115,7 @@ class PositionFacingCandidate:
     matrix_copy_candidate: MatrixCopyCandidate | None = None
     refresh_guard_candidate: RefreshGuardCandidate | None = None
     actor_translation_candidate: ActorWorldTranslationCandidate | None = None
+    zone_key_candidate: ZoneKeyCandidate | None = None
 
 
 def _matrix_descriptor(raw: bytes) -> tuple[tuple[int, ...], float | None, str]:
@@ -168,6 +180,7 @@ def decode_current_build_candidate(
     include_matrix_candidate: bool = False,
     include_refresh_guard_candidate: bool = False,
     include_actor_translation_candidate: bool = False,
+    include_zone_key_candidate: bool = False,
 ) -> PositionFacingCandidate:
     """Read an exact-known-build owner/XYZ/yaw candidate without game actions.
 
@@ -180,6 +193,8 @@ def decode_current_build_candidate(
         raise ValueError("include_refresh_guard_candidate must be bool")
     if type(include_actor_translation_candidate) is not bool:
         raise ValueError("include_actor_translation_candidate must be bool")
+    if type(include_zone_key_candidate) is not bool:
+        raise ValueError("include_zone_key_candidate must be bool")
     if not isinstance(source.pin, ProcessPin) or not isinstance(source.module, MainModule):
         raise NativeCandidateUnavailable("pinned process and module identity required")
     pin = source.pin
@@ -270,6 +285,34 @@ def decode_current_build_candidate(
     if not math.isfinite(yaw_rad):
         raise NativeCandidateUnavailable("player-system yaw nonfinite")
     bearing = ((math.degrees(yaw_rad) + 180.0) % 360.0) - 180.0
+
+    zone_key = None
+    if include_zone_key_candidate:
+        # Minimal, attributed adaptation of RR2 CurrentBuildPlayerContext-
+        # CandidateReader and CurrentBuildZoneSeedSampleCommand. This reuses
+        # our *already resolved* self key/entity/component table rather than
+        # implementing the upstream TLS registry/zone ID resolver.
+        updated = build_sha == "df954b798331e18359be62a31cc74b49fc3f50b87385ebb080a5448256322c01"
+        health_selector_rva = 0x2F68850 if updated else 0x2F57850
+        health_selector = struct.unpack("<i", read(base + health_selector_rva, 4))[0]
+        if not 0 <= health_selector < 0x60:
+            raise NativeCandidateUnavailable("invalid self health component selector")
+        health_slot = entity_bytes[0x18 + health_selector]
+        if health_slot == 0xFF:
+            raise NativeCandidateUnavailable("self entity lacks health/owner component")
+        health = get_ptr(table + health_slot * 8, length=0x48)
+        if health == component:
+            raise NativeCandidateUnavailable("health and position component unexpectedly alias")
+        if _u64(read(health + 0x10, 8)) != entity:
+            raise NativeCandidateUnavailable("health component owner backlink mismatch")
+        self_owner = get_ptr(health + 0x40, length=0x154)
+        owner_vptr_rva = 0x2933218 if updated else 0x2927448
+        owner_getter_rva = 0x19D2020 if updated else 0x19D21E0
+        if (_u64(read(self_owner, 8)) != base + owner_vptr_rva
+                or _u64(read(base + owner_vptr_rva + 0x40, 8)) != base + owner_getter_rva):
+            raise NativeCandidateUnavailable("self-owner type/getter fingerprint mismatch")
+        raw_key = struct.unpack("<I", read(self_owner + 0x150, 4))[0]
+        zone_key = ZoneKeyCandidate(raw_key)
 
     guard = None
     if include_refresh_guard_candidate:
@@ -364,4 +407,5 @@ def decode_current_build_candidate(
         pin.pid, pin.start_utc_ticks, build_sha, key,
         xyz, yaw_rad, bearing, observed, matrix_copy_candidate=matrix_copy,
         refresh_guard_candidate=guard, actor_translation_candidate=translation,
+        zone_key_candidate=zone_key,
     )

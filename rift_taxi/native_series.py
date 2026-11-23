@@ -94,7 +94,7 @@ def _fast_pin(
 
 
 def _row(raw: PositionFacingCandidate, index: int, *,
-         matrix: bool, guard: bool, translation: bool) -> dict:
+         matrix: bool, guard: bool, translation: bool, zone: bool = False) -> dict:
     if not isinstance(raw, PositionFacingCandidate):
         raise SeriesUnavailable("native reader did not return a candidate")
     if (raw.actor_heading_qualified is not False
@@ -147,6 +147,23 @@ def _row(raw: PositionFacingCandidate, index: int, *,
             "reconstructionResidual": t.reconstruction_max_abs_delta,
             "renderBranch": t.render_status,
             "independentlyFresh": False,
+        }
+    if zone:
+        z = raw.zone_key_candidate
+        if (z is None or type(z.raw_zone_key) is not int
+                or not 0 <= z.raw_zone_key <= 0xFFFFFFFF
+                or z.authoritative_zone_qualified is not False
+                or z.source_status != "same-owner-typed-raw-zone-key-candidate"
+                or z.public_zone_id_status != "not-derived"
+                or z.world_instance_status != "unavailable"):
+            raise SeriesUnavailable("optional raw same-owner zone key missing/invalid")
+        record["zoneKeyEvidence"] = {
+            "rawSelfZoneKey": z.raw_zone_key,
+            "rawSelfZoneKeyHex": f"0x{z.raw_zone_key:08X}",
+            "sourceStatus": z.source_status,
+            "publicZoneIdStatus": "not-derived",
+            "worldInstanceStatus": "unavailable",
+            "authoritativeZoneQualified": False,
         }
     return record
 
@@ -222,6 +239,7 @@ def observe_native_series(
     include_matrix_candidate: bool = True,
     include_refresh_guard_candidate: bool = True,
     include_actor_translation_candidate: bool = False,
+    include_zone_key_candidate: bool = False,
     observe_manual_keys: bool = False,
     inspect: Callable = inspect_desktop,
     api_factory: Callable[[], FastProbe] = Win32DesktopProbe,
@@ -246,7 +264,7 @@ def observe_native_series(
     if any(type(b) is not bool for b in (include_matrix_candidate,
                                         include_refresh_guard_candidate,
                                         include_actor_translation_candidate,
-                                        observe_manual_keys)):
+                                        include_zone_key_candidate, observe_manual_keys)):
         raise ValueError("optional native field switches must be boolean")
     if (type(pid) is not int or pid <= 0
             or type(start_utc_ticks) is not int or start_utc_ticks <= 0
@@ -281,6 +299,7 @@ def observe_native_series(
     keyboard = keyboard_factory() if observe_manual_keys else None
     rows: list[dict] = []
     previous_owner: str | None = None
+    previous_zone_key: int | None = None
     previous_sample_time: float | None = None
     opts = {}
     if include_matrix_candidate:
@@ -289,6 +308,8 @@ def observe_native_series(
         opts["include_refresh_guard_candidate"] = True
     if include_actor_translation_candidate:
         opts["include_actor_translation_candidate"] = True
+    if include_zone_key_candidate:
+        opts["include_zone_key_candidate"] = True
 
     with open_session(pin) as session:
         if (not isinstance(session.pin, ProcessPin)
@@ -330,7 +351,8 @@ def observe_native_series(
             end = _valid_clock(clock())
             record = _row(raw, i + 1, matrix=include_matrix_candidate,
                           guard=include_refresh_guard_candidate,
-                          translation=include_actor_translation_candidate)
+                          translation=include_actor_translation_candidate,
+                           zone=include_zone_key_candidate)
             timestamp = _valid_clock(record["observedMonotonicSeconds"])
             if (not start <= timestamp <= end
                     or (previous_sample_time is not None and timestamp <= previous_sample_time)
@@ -339,6 +361,11 @@ def observe_native_series(
             if previous_owner is not None and record["ownerKeyDecimal"] != previous_owner:
                 raise SeriesUnavailable("player owner changed during native series")
             previous_owner = record["ownerKeyDecimal"]
+            if include_zone_key_candidate:
+                current_zone_key = record["zoneKeyEvidence"]["rawSelfZoneKey"]
+                if previous_zone_key is not None and current_zone_key != previous_zone_key:
+                    raise SeriesUnavailable("raw self-zone key changed during pinned series; no coherent zone report")
+                previous_zone_key = current_zone_key
             previous_sample_time = timestamp
             record["captureBracketSeconds"] = end - start
             if keyboard is not None:
@@ -407,6 +434,7 @@ def observe_native_series(
             "actorMatrix": include_matrix_candidate,
             "refreshGuard": include_refresh_guard_candidate,
             "actorTranslation": include_actor_translation_candidate,
+            "zoneKey": include_zone_key_candidate,
             "manualWindowsKeys": observe_manual_keys,
         },
         "qualifications": {
@@ -421,6 +449,8 @@ def observe_native_series(
             "gameInputSent": False,
             "playerBodyHeadingVerified": False,
             "nativeXYZPassiveFreshnessVerified": False,
+            "publicZoneIdVerified": False,
+            "worldInstanceVerified": False,
             "liveJourneyVerified": False,
         },
         "limitations": [
@@ -429,6 +459,7 @@ def observe_native_series(
             "The on-disk executable is checked before/after; loaded module bytes are not hashed.",
             "Foreground changes, process replacement, owner replacement or incomplete samples abort.",
             "Configured addon Inspect.Unit.Detail polling may refresh cached XYZ during sampling.",
+            "Optional raw self-zone key is not a public zone ID or same-world-instance proof.",
             "Even observed XYZ/yaw changes are not causally tied to an input without separate receipts.",
             "Optional Windows W/A/D polling reads GetAsyncKeyState; no key is inserted.",
             "Windows key-state snapshots may miss taps and cannot prove RIFT consumed input.",

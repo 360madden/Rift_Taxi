@@ -127,6 +127,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="also capture same-owner position-secondary and actor matrix raw bits; never qualified heading")
     candidate.add_argument("--include-refresh-guard-candidate", action="store_true",
         help="co-sampled cache refresh guard bytes; no writer-execution/freshness proof")
+    candidate.add_argument("--include-zone-key-candidate", action="store_true",
+        help="read current same-owner raw zone key; not public zone ID/world instance")
     candidate.add_argument("--include-actor-translation-candidate", action="store_true",
         help="same-owner secondary XYZ + actor offsets/render world translation; not live pose proof")
     burst = commands.add_parser("inspect-native-burst",
@@ -162,6 +164,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     series.add_argument("--include-matrix-candidate", action="store_true")
     series.add_argument("--include-refresh-guard-candidate", action="store_true")
     series.add_argument("--include-actor-translation-candidate", action="store_true")
+    series.add_argument("--include-zone-key-candidate", action="store_true",
+        help="read same-owner raw key at each sample; fail closed on changes")
     series.add_argument("--observe-manual-keys", action="store_true",
         help="read-only W/A/D high-bit polling while RIFT is foreground; no input sent")
     series.add_argument("--out", required=True, help="new JSON report; never overwrite")
@@ -290,6 +294,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 include_matrix_candidate=args.include_matrix_candidate,
                 include_refresh_guard_candidate=args.include_refresh_guard_candidate,
                 include_actor_translation_candidate=args.include_actor_translation_candidate,
+                include_zone_key_candidate=args.include_zone_key_candidate,
             )
             _write_or_print(report, args.out)
         elif args.command == "inspect-native-burst":
@@ -314,6 +319,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 include_matrix_candidate=args.include_matrix_candidate,
                 include_refresh_guard_candidate=args.include_refresh_guard_candidate,
                 include_actor_translation_candidate=args.include_actor_translation_candidate,
+                include_zone_key_candidate=args.include_zone_key_candidate,
                 observe_manual_keys=args.observe_manual_keys,
             )
             _write_or_print(report, args.out)
@@ -383,6 +389,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "nativeCandidateCaptureAvailable": True,
                 "nativeCandidateBurstAvailable": True,
                 "nativeCandidateSeriesAvailable": True,
+                "rawSelfZoneKeyCandidateAvailable": True,
+                "publicZoneIdAndWorldInstanceQualified": False,
                 "boundedADTurnCalibrationAvailable": True,
                 "boundedWForwardCalibrationAvailable": True,
                 "boundedCameraOrbitNegativeControlAvailable": True,

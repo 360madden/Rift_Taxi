@@ -40,6 +40,7 @@ def capture_native_candidate(
     include_matrix_candidate: bool = False,
     include_refresh_guard_candidate: bool = False,
     include_actor_translation_candidate: bool = False,
+    include_zone_key_candidate: bool = False,
     inspect: Callable = inspect_desktop,
     open_session: Callable = ReadOnlyNativeSession.open,
     decode: Callable = decode_current_build_candidate,
@@ -56,6 +57,8 @@ def capture_native_candidate(
         raise ValueError("include_refresh_guard_candidate must be bool")
     if type(include_actor_translation_candidate) is not bool:
         raise ValueError("include_actor_translation_candidate must be bool")
+    if type(include_zone_key_candidate) is not bool:
+        raise ValueError("include_zone_key_candidate must be bool")
     if type(start_utc_ticks) is not int or start_utc_ticks <= 0:
         raise ValueError("explicit positive process start UTC ticks are required")
     if type(window_handle) is not int or window_handle <= 0:
@@ -91,6 +94,8 @@ def capture_native_candidate(
             decode_options["include_refresh_guard_candidate"] = True
         if include_actor_translation_candidate:
             decode_options["include_actor_translation_candidate"] = True
+        if include_zone_key_candidate:
+            decode_options["include_zone_key_candidate"] = True
         raw: PositionFacingCandidate = decode(session, **decode_options)
     final: DesktopCandidate = inspect(pid, **options)
 
@@ -178,6 +183,29 @@ def capture_native_candidate(
             "authoritativePlayerPosition": False,
         }
 
+    zone = raw.zone_key_candidate
+    if include_zone_key_candidate and zone is None:
+        raise CandidateCaptureRefused("requested zone-key candidate missing")
+    if zone is not None and (
+        type(zone.raw_zone_key) is not int or not 0 <= zone.raw_zone_key <= 0xFFFFFFFF
+        or zone.authoritative_zone_qualified is not False
+        or zone.public_zone_id_status != "not-derived"
+        or zone.world_instance_status != "unavailable"
+        or zone.source_status != "same-owner-typed-raw-zone-key-candidate"
+    ):
+        raise CandidateCaptureRefused("zone-key candidate must remain raw/unqualified")
+    zone_evidence = None
+    if zone is not None:
+        zone_evidence = {
+            "rawSelfZoneKey": zone.raw_zone_key,
+            "rawSelfZoneKeyHex": f"0x{zone.raw_zone_key:08X}",
+            "sourceStatus": zone.source_status,
+            "publicZoneIdStatus": zone.public_zone_id_status,
+            "worldInstanceStatus": zone.world_instance_status,
+            "authoritativeZoneQualified": False,
+            "zeroKeyMeansNoZone": False,
+        }
+
     # Output is structured metadata, never a LivePose. No game response is inferred.
     return {
         "schema": "taxi.native-candidate/1",
@@ -186,6 +214,7 @@ def capture_native_candidate(
         "matrixEvidence": matrix_evidence,
         "refreshGuardEvidence": guard_evidence,
         "actorTranslationEvidence": actor_translation_evidence,
+        "zoneKeyEvidence": zone_evidence,
         "runtimeDependencies": "python-stdlib-only",
         "process": {
             "host": first.host,
@@ -209,6 +238,7 @@ def capture_native_candidate(
             "matrixEvidenceRequested": include_matrix_candidate,
             "refreshGuardEvidenceRequested": include_refresh_guard_candidate,
             "actorTranslationEvidenceRequested": include_actor_translation_candidate,
+            "zoneKeyEvidenceRequested": include_zone_key_candidate,
             "passivePositionFreshnessQualified": False,
             "liveInGameResponseVerified": False,
             "inputSent": False,
