@@ -95,11 +95,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     sim.add_argument("--max-yaw-rate", type=float, default=180.)
     sim.add_argument("--max-seconds", type=float, default=30.)
     sim.add_argument("--max-cross-track", type=float, default=2.)
-    sim.add_argument("--speed-policy", choices=("fixed", "turn-limited"), default="fixed")
+    sim.add_argument("--speed-policy", choices=("fixed", "turn-limited", "turn-limited-rejoin"), default="fixed")
     sim.add_argument("--out", help="write synthetic report to a NEW file")
     stress = commands.add_parser("stress-route", help="offline fixed 180-case synthetic sensitivity benchmark")
     stress.add_argument("trace", help="synthetic-local-xyz trace")
-    stress.add_argument("--speed-policy", choices=("fixed", "turn-limited"), default="fixed")
+    stress.add_argument("--speed-policy", choices=("fixed", "turn-limited", "turn-limited-rejoin"), default="fixed")
     stress.add_argument("--out", help="write benchmark report to a NEW file")
     policy = commands.add_parser("compare-speed-policies", help="offline paired comparison on the unchanged 180-case grid")
     policy.add_argument("trace", help="synthetic-local-xyz trace")
@@ -108,6 +108,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # no live client identity, map import or actuator parameters. Reports
     # use the same new-file-only output path as the other offline commands.
     holdout = commands.add_parser("evaluate-holdout", help="offline paired synthetic route-shape holdout v1")
+    holdout.add_argument("--include-rejoin", action="store_true", help="compare the experimental third policy on v1 scenarios")
     holdout.add_argument("--out", help="write holdout report to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
@@ -299,7 +300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "compare-speed-policies":
             _write_or_print(compare_speed_policies(load_trace(args.trace)), args.out)
         elif args.command == "evaluate-holdout":
-            _write_or_print(evaluate_holdout(), args.out)
+            _write_or_print(evaluate_holdout(include_rejoin=args.include_rejoin), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),

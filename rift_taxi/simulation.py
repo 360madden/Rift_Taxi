@@ -96,7 +96,8 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     dt: integration step (seconds); speed: nominal positive units/s;
     lookahead: route arc-length distance (units); max_yaw_rate: degrees/s;
     max_seconds: finite work/time budget; max_cross_track: local projection
-    error bound (units). speed_policy selects the experimental cap or baseline.
+    error bound (units). speed_policy selects the baseline, cap, or opt-in local
+    projection rejoin experiment.
     Invalid inputs raise TraceError; bounded tracking failures are returned as
     terminal statuses rather than falsely declaring arrival.
     """
@@ -104,7 +105,7 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("simulation accepts only synthetic-local-xyz traces")
     if any(p.kind in {"mandatory_passage", "hard_stop"} for p in trace.points):
         raise TraceError("constraint controller required for mandatory passages/hard stops")
-    if speed_policy not in ("fixed", "turn-limited"):
+    if speed_policy not in ("fixed", "turn-limited", "turn-limited-rejoin"):
         raise TraceError("unknown synthetic speed policy")
     dt = _bounded_number(dt, "dt", .01, .2)
     speed = _bounded_number(speed, "speed", .1, 20.)
@@ -140,6 +141,11 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     turn_signs = []
     frames = []
     max_error = 0.
+    # Recovery belongs to this synthetic experiment alone. Hysteresis prevents
+    # the target from flipping between normal lookahead and its local anchor
+    # every integration step as the vehicle approaches the route.
+    rejoining = False
+    rejoin_entries = 0
     goal = trace.points[-1].xyz
     status = "time-budget-exhausted"
     time = 0.
@@ -168,6 +174,26 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         target = _lookahead_point(trace.points, cumulative, min(total, progress+lookahead))
         dx, dz = target[0]-position[0], target[2]-position[2]
         chord = math.hypot(dx, dz)
+        if speed_policy == "turn-limited-rejoin":
+            # A short chord can occur even when substantial arc remains:
+            # closely spaced bends let the plant reach a future geometric
+            # target while its monotonic arc projection is still behind.
+            # With v <= omega/kappa and kappa proportional to 1/chord,
+            # velocity then collapses. Do not increase the progress budget
+            # or force a minimum speed through an ill-defined heading.
+            # Instead, temporarily target the already-admissible arc point.
+            # Entry/exit distances scale with lookahead; retain ordinary
+            # deviation/time limits and the original arrival test.
+            if rejoining and error <= .15 * lookahead:
+                rejoining = False
+            if (not rejoining and chord <= .20 * lookahead
+                    and error > .35 * lookahead):
+                rejoining = True
+                rejoin_entries += 1
+            if rejoining:
+                target = _lookahead_point(trace.points, cumulative, progress)
+                dx, dz = target[0]-position[0], target[2]-position[2]
+                chord = math.hypot(dx, dz)
         # A coincident target has no well-defined bearing. Keep the failure
         # explicit rather than guessing a yaw or skipping an unverified leg.
         # Holdout v1 exposes this limitation on tightly spaced zigzags.
@@ -179,7 +205,7 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         # not RIFT A/D or a physical steering calibration.
         yaw_rate = max(-max_yaw_rate, min(max_yaw_rate, 5.*heading_error))
         velocity = speed if abs(heading_error) < 85. else 0.
-        if speed_policy == "turn-limited" and velocity > 0.:
+        if speed_policy in ("turn-limited", "turn-limited-rejoin") and velocity > 0.:
             velocity = _turn_limited_speed(velocity, heading_error, chord, max_yaw_rate)
         # Terminal approach bounds the ideal step by remaining Euclidean
         # distance and reduces velocity near the goal. No coast/braking
@@ -191,6 +217,10 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                        "lookaheadXYZ": list(target), "headingErrorDegrees": heading_error,
                        "speed": velocity, "yawRateDegreesPerSecond": yaw_rate,
                        "stepSeconds": step})
+        # Only the recovery variant adds target-mode diagnostics, keeping
+        # prior policy reports byte-reproducible.
+        if speed_policy == "turn-limited-rejoin":
+            frames[-1]["targetMode"] = "local-projection-rejoin" if rejoining else "lookahead"
         # Midpoint integration of an ideal planar velocity/turn plant.
         delta_yaw = yaw_rate*step
         mid = math.radians(yaw+delta_yaw/2.)
@@ -216,7 +246,16 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     frames.append({"t": time, "xyz": list(position), "yawDegrees": yaw,
                    "progress": progress, "crossTrackErrorXZ": error,
                    "speed": 0., "yawRateDegreesPerSecond": 0., "stepSeconds": 0.})
+    # Add recovery diagnostics only to the new variant, preserving the
+    # original report schemas and exact baseline reproduction.
+    recovery = ({"syntheticRecovery": {"rejoinEntries": rejoin_entries,
+                                        "activeAtTermination": rejoining,
+                                        "entryChordFractionOfLookahead": .20,
+                                        "entryErrorFractionOfLookahead": .35,
+                                        "exitErrorFractionOfLookahead": .15}}
+                if speed_policy == "turn-limited-rejoin" else {})
     return {
+        **recovery,
         "schema": "taxi.synthetic-feedback/1",
         "classification": "SYNTHETIC_CLOSED_LOOP_ONLY",
         "status": status, "routeId": trace.route_id, "inputTraceSHA256": trace.trace_sha256,

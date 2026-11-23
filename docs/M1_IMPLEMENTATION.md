@@ -75,6 +75,12 @@ Run `python -B -m rift_taxi evaluate-holdout --out artifacts/new-holdout.json`. 
 
 The user also directed that scripts and code be heavily commented for future AI maintenance. This is a durable repository requirement in AGENTS.md and AUTONOMY_POLICY.md; the current simulator and benchmark modules received explanatory comments without changing policy behavior.
 
+## Synthetic local-projection rejoin experiment — November 23, 4:14 PM ET
+
+The original short-zigzag failure was reproduced on scenario 95: route progress 3.9231 of 12.7213 units, local projection deviation 1.1279 units, and the lookahead point essentially coincident with the vehicle. The curvature-based speed cap collapsed velocity below 1e-8 units/s while progress stayed unchanged. The third opt-in policy `turn-limited-rejoin` temporarily targets the already-admissible local arc projection when the lookahead chord is <=20% of lookahead and projection deviation >35% of lookahead; it exits that mode at <=15% deviation. Hysteresis avoids switching targets on every step. The existing time/deviation bounds, heading gate, displacement-derived arc-progress cap and arrival test remain unchanged. This is an idealized geometric recovery, not physical collision clearance or real game movement.
+
+Run `python -B -m rift_taxi evaluate-holdout --include-rejoin --out artifacts/new-rejoin-comparison.json` for the three-policy comparison. The two-policy default still reproduces the original report byte-for-byte, SHA-256 `1ec0b5f5bf2b2f097ddb1be4f18bf0a152981c8634fa777dd3a9420b10f75195`. Rejoin report: `artifacts/m2-m3-synthetic-rejoin-comparison-20261123.json`, SHA-256 `f6ecf0fece221f33c571cbd129b905f9ec24b25646466e599b9a01fd1997fb74`. It reaches all 162 destinations, rescues all 27 zigzag cases, loses no previous arrivals, retains 101/162 combined successes, and leaves mean time over the 135 common arrivals unchanged (8.5583 s). The prior 180-case development grid retains 180/180 combined successes; report `artifacts/m2-m3-synthetic-rejoin-dev-grid-20261123.json`, SHA-256 `c55d085bbe5985a34843322f774f2002fde5186bf973e33b41525fadd9525c60`. Three new tests; **404/404 regressions passed**. Do not treat the repaired v1 holdout as independent validation of the third policy. Future work should examine recovery efficiency and new synthetic conditions. No live qualification or default change.
+
 ## Historical LEGION RR2 source actually imported
 
 Original source: `C:\work\riftreader2\artifacts\waypoint-input-ae9c97f21e7d41f89c053249f03a2c4f.jsonl`.

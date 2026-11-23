@@ -69,14 +69,20 @@ def _case_trace(spec: dict) -> MovementTrace:
     )
 
 
-def evaluate_holdout() -> dict:
-    """Evaluate both unchanged policies on exactly the same 162 scenarios.
+def evaluate_holdout(*, include_rejoin: bool = False) -> dict:
+    """Evaluate baseline policies and optionally the rejoin variant on 162 cases.
 
     Each simulation has the same 40-second timeout, 2-unit cross-track limit,
     1.5-unit lookahead and 0.30-unit arrival tolerance. A modeled arrival
     plus >=95% positive-velocity duty is counted separately from arrival.
     Retain every failure and every parameter override for future AI diagnosis.
     """
+    # Default remains the original two-policy experiment. The opt-in third
+    # policy is tested on precisely the same scenarios and bounds; it is
+    # now a development/regression set for that variant, not a fresh holdout.
+    policies = ("fixed", "turn-limited")
+    if include_rejoin:
+        policies += ("turn-limited-rejoin",)
     cases = []
     for (name,xzs), offset, heading, (speed,rate,dt) in product(
             _ROUTES, _OFFSETS, _HEADINGS, _PROFILES):
@@ -96,7 +102,7 @@ def evaluate_holdout() -> dict:
         row = {"case":len(cases)+1, "scenarioSHA256":trace.trace_sha256, **spec}
         # Both policies receive the identical immutable trace and model
         # bounds. Keep per-case metrics, not only aggregate success rates.
-        for policy in ("fixed","turn-limited"):
+        for policy in policies:
             result = simulate_route(trace, speed=speed, max_yaw_rate=rate, dt=dt,
                                     max_seconds=40., speed_policy=policy)
             metrics = result["metrics"]
@@ -105,6 +111,10 @@ def evaluate_holdout() -> dict:
                 "arrivalAndDutyTarget": metrics["syntheticArrival"] and
                                         metrics["forwardDutyRatio"] >= .95,
             }
+            # Keep recovery counts in the candidate receipt without changing
+            # the two-policy baseline's result structure or scenario hashes.
+            if policy == "turn-limited-rejoin":
+                row[policy]["syntheticRecovery"] = result["syntheticRecovery"]
         cases.append(row)
 
     def summarize(rows, policy):
@@ -120,13 +130,42 @@ def evaluate_holdout() -> dict:
     # separate successful populations would confound timing with rescue/failure.
     common = [r for r in cases if all(r[p]["metrics"]["syntheticArrival"]
                                      for p in ("fixed","turn-limited"))]
+    # Preserve the original pairwise fields for baseline compatibility.
+    # Compare the experimental rejoin policy separately against turn-limited,
+    # and keep adverse duty or time effects even if all destinations arrive.
+    rejoin_comparison = {}
+    if include_rejoin:
+        prior = "turn-limited"
+        revised = "turn-limited-rejoin"
+        both = [r for r in cases if r[prior]["metrics"]["syntheticArrival"]
+                and r[revised]["metrics"]["syntheticArrival"]]
+        rejoin_comparison = {
+            "rejoinComparison": {
+                "newArrivals": sum(not r[prior]["metrics"]["syntheticArrival"]
+                                   and r[revised]["metrics"]["syntheticArrival"] for r in cases),
+                "lostArrivals": sum(r[prior]["metrics"]["syntheticArrival"]
+                                    and not r[revised]["metrics"]["syntheticArrival"] for r in cases),
+                "newCombinedSuccesses": sum(not r[prior]["arrivalAndDutyTarget"]
+                                            and r[revised]["arrivalAndDutyTarget"] for r in cases),
+                "lostCombinedSuccesses": sum(r[prior]["arrivalAndDutyTarget"]
+                                             and not r[revised]["arrivalAndDutyTarget"] for r in cases),
+                "commonArrivals": len(both),
+                "meanCommonArrivalSeconds": {
+                    p: mean(r[p]["metrics"]["elapsedSeconds"] for r in both) if both else None
+                    for p in (prior, revised)
+                },
+                "casesEnteringRejoin": sum(r[revised]["syntheticRecovery"]["rejoinEntries"] > 0
+                                           for r in cases),
+            },
+        }
     return {
-        "schema":"taxi.synthetic-holdout/1",
+        **rejoin_comparison,
+        "schema":("taxi.synthetic-rejoin-comparison/1" if include_rejoin else "taxi.synthetic-holdout/1"),
         "classification":"SYNTHETIC_CLOSED_LOOP_ONLY",
         "scenarioSet":"route-shape-holdout-v1",
         "fixedModel":{"lookahead":1.5,"maxSeconds":40.,"maxCrossTrack":2.,
                       "arrivalToleranceXZ":.3,"dutyTarget":.95},
-        "summary":{p:summarize(cases,p) for p in ("fixed","turn-limited")},
+        "summary":{p:summarize(cases,p) for p in policies},
         "paired":{
             "newArrivals":sum(not r["fixed"]["metrics"]["syntheticArrival"] and
                               r["turn-limited"]["metrics"]["syntheticArrival"] for r in cases),
@@ -141,13 +180,14 @@ def evaluate_holdout() -> dict:
                                         if common else None for p in ("fixed","turn-limited")},
         },
         "byRoute":[{"routeId":name, **{p:summarize([r for r in cases if r["routeId"]==name],p)
-                                     for p in ("fixed","turn-limited")}} for name,_ in _ROUTES],
+                                     for p in policies}} for name,_ in _ROUTES],
         "cases":cases,
         "gameInputSent":False, "liveArrivalVerified":False,
         "liveNavigabilityVerified":False,
         "limitations":[
             "Fixed authored synthetic holdout, not an independently sourced or randomized sample.",
-            "Both policies are unchanged from the preceding development grid.",
+            ("The two original policies remain unchanged; rejoin was developed against these scenarios."
+             if include_rejoin else "Both policies are unchanged from the preceding development grid."),
             "No physical game geometry, input, latency, collision or continuous speed capability is established.",
             "Combined target uses positive model velocity, not measured physical key duty.",
         ],
