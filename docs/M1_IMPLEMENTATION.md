@@ -54,6 +54,21 @@ Default 50 ms step, 3 synthetic units/s speed, 1.5-unit lookahead and 180 degree
 
 Run `python -B -m rift_taxi stress-route samples/synthetic_continuous.json --out artifacts/new-stress-report.json`. The benchmark reuses `simulate_route` unchanged and exhaustively combines lateral offsets −0.5/0/+0.5 units, initial yaw offsets −90/−45/0/+45/+90 degrees, speeds 2/3 units/s, yaw caps 60/120/180 degrees/s and timesteps 0.05/0.10 s (180 cases). All input overrides and per-case terminal status/metrics are retained. Fixed lookahead 1.5, time limit 30 s, cross-track limit 2 units and fixture arrival tolerance 0.30. Baseline: 165 arrivals, 131 arrivals with ≥95% forward duty, and 15 cross-track-limit failures. At the 60°/s cap, 45/60 arrive and 11/60 meet both metrics; at 120°/s and 180°/s, all 60 cases per cap meet both. The unchanged model has a measured synthetic low-turn-rate weakness; do not interpret the percentages as live success probabilities. Local ignored report `artifacts/m2-m3-synthetic-stress-20261123.json`, SHA-256 `54f951279066da5a17bf6c93c2dc0e13417bb15e3d5e711d49182fa35ce072d1`. Five new regressions, **390/390 full tests passed**. Next compare speed adaptation under limited turn rate on this same grid before considering actuator lag/disturbance modeling. No game input or physical M2/M3 qualification.
 
+## Paired synthetic speed-policy comparison — November 23, 3:20 PM ET
+
+`python -B -m rift_taxi compare-speed-policies samples/synthetic_continuous.json --out artifacts/new-speed-comparison.json` runs both controllers on the unchanged 180-case development grid. `simulate-route` and `stress-route` accept `--speed-policy turn-limited`; the default `fixed` preserves the original movement behavior. The idealized candidate limits positive forward velocity using a lookahead curvature estimate `2*abs(sin(heading error))/chord` and 80% of the synthetic maximum yaw rate in radians/s. Existing heading gate, yaw cap, terminal approach and cross-track/time bounds remain in force. The policy represents continuous synthetic velocity, not a demonstrated RIFT movement control.
+
+| Metric | Fixed | Turn-limited |
+|---|---:|---:|
+| Arrivals | 165/180 | 180/180 |
+| Arrival + at least 95% forward duty | 131/180 | 180/180 |
+| Cross-track-limit failures | 15 | 0 |
+| Worst cross-track error (synthetic units) | 2.0420 | 0.9357 |
+| Mean time across 165 common successful cases (s) | 9.4700 | 7.1755 |
+| Mean moving speed across common successful cases (synthetic units/s) | 2.2342 | 2.0887 |
+
+All 15 failed arrivals and 49 combined-target misses are rescued with zero lost successes. At 60 degrees/s, the candidate meets both targets in 60/60 cases versus 11/60 fixed. The two faster yaw caps retain 60/60 combined successes each. Full paired report in ignored `artifacts/m2-m3-synthetic-speed-comparison-20261123.json`, SHA-256 `34039d0dcae55bfee5faba50431d1ebe449bfb3201639932bf1717aa6856d46f`. Six new regressions; **396/396 full tests passed**. The tuning grid is not independent evidence, and the idealized policy has not been tested under actuator lag, collision, physical speed constraints or live movement. Next use independently defined synthetic holdouts before promoting any simulation default. No M1/M2/M3 physical completion claimed.
+
 ## Historical LEGION RR2 source actually imported
 
 Original source: `C:\work\riftreader2\artifacts\waypoint-input-ae9c97f21e7d41f89c053249f03a2c4f.jsonl`.

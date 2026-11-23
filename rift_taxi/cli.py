@@ -15,7 +15,7 @@ from .replay import analyze, compare
 from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .simulation import simulate_route
-from .simulation_stress import stress_route
+from .simulation_stress import stress_route, compare_speed_policies
 from .motion_timing import analyze_motion_timing
 from .forward_bearing import (
     analyze_forward_bearing, compare_two_forward_bearings, ForwardBearingError,
@@ -94,10 +94,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     sim.add_argument("--max-yaw-rate", type=float, default=180.)
     sim.add_argument("--max-seconds", type=float, default=30.)
     sim.add_argument("--max-cross-track", type=float, default=2.)
+    sim.add_argument("--speed-policy", choices=("fixed", "turn-limited"), default="fixed")
     sim.add_argument("--out", help="write synthetic report to a NEW file")
     stress = commands.add_parser("stress-route", help="offline fixed 180-case synthetic sensitivity benchmark")
     stress.add_argument("trace", help="synthetic-local-xyz trace")
+    stress.add_argument("--speed-policy", choices=("fixed", "turn-limited"), default="fixed")
     stress.add_argument("--out", help="write benchmark report to a NEW file")
+    policy = commands.add_parser("compare-speed-policies", help="offline paired comparison on the unchanged 180-case grid")
+    policy.add_argument("trace", help="synthetic-local-xyz trace")
+    policy.add_argument("--out", help="write comparison to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -281,9 +286,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 load_trace(args.trace), dt=args.dt, speed=args.speed,
                 lookahead=args.lookahead, max_yaw_rate=args.max_yaw_rate,
                 max_seconds=args.max_seconds, max_cross_track=args.max_cross_track,
+                speed_policy=args.speed_policy,
             ), args.out)
         elif args.command == "stress-route":
-            _write_or_print(stress_route(load_trace(args.trace)), args.out)
+            _write_or_print(stress_route(load_trace(args.trace), speed_policy=args.speed_policy), args.out)
+        elif args.command == "compare-speed-policies":
+            _write_or_print(compare_speed_policies(load_trace(args.trace)), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -437,6 +445,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineMotionTimingAvailable": True,
                 "offlineSyntheticFeedbackAvailable": True,
                 "offlineSyntheticStressBenchmarkAvailable": True,
+                "offlineSyntheticSpeedPolicyComparisonAvailable": True,
                 "offlinePhysicalForwardBearingComparisonAvailable": True,
                 "offlineTwoHeadingForwardComparisonAvailable": True,
                 "offlineRR2NativeZoneCorrelationAvailable": True,

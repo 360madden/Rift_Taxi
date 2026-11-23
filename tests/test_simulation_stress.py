@@ -9,7 +9,7 @@ import unittest
 
 from rift_taxi.cli import main
 from rift_taxi.contracts import TraceError, load_trace
-from rift_taxi.simulation_stress import stress_route
+from rift_taxi.simulation_stress import stress_route, compare_speed_policies
 
 SOURCE = Path(__file__).resolve().parents[1] / "samples" / "synthetic_continuous.json"
 
@@ -56,6 +56,37 @@ class StressTests(unittest.TestCase):
         with self.assertRaises(TraceError):
             stress_route(replace(self.trace,
                 poses=(replace(self.trace.poses[0], actor_yaw_deg=None),)))
+
+    def test_paired_policy_comparison_preserves_scenarios_and_baseline(self):
+        result = compare_speed_policies(self.trace)
+        self.assertEqual(result["baseline"], self.report)
+        candidate = result["candidate"]
+        self.assertEqual(candidate["fixedModel"]["speedPolicy"], "turn-limited")
+        self.assertEqual(candidate["summary"]["arrived"], 180)
+        self.assertEqual(candidate["summary"]["arrivalAndDutyTarget"], 180)
+        self.assertLess(candidate["summary"]["worstCrossTrackErrorXZ"], 1.)
+        for fixed, adapted in zip(result["baseline"]["cases"], candidate["cases"], strict=True):
+            for key in ("case", "initialXYZ", "initialYawDegrees", "speed", "maxYawRate", "dt"):
+                self.assertEqual(fixed[key], adapted[key])
+        paired = result["pairedSummary"]
+        self.assertEqual(paired["newArrivals"], 15)
+        self.assertEqual(paired["lostArrivals"], 0)
+        self.assertEqual(paired["newArrivalAndDutySuccesses"], 49)
+        self.assertEqual(paired["lostArrivalAndDutySuccesses"], 0)
+        self.assertEqual(paired["commonArrivalCases"], 165)
+        self.assertLess(paired["turnLimitedMeanCommonArrivalTimeSeconds"],
+                        paired["fixedMeanCommonArrivalTimeSeconds"])
+        self.assertFalse(result["gameInputSent"])
+        self.assertFalse(result["liveNavigabilityVerified"])
+
+    def test_cli_policy_comparison_retains_full_reports(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder)/"compare.json"
+            self.assertEqual(main(["compare-speed-policies", str(SOURCE), "--out", str(output)]), 0)
+            result = json.loads(output.read_text())
+            self.assertEqual(result["pairedSummary"]["caseCount"], 180)
+            self.assertEqual(len(result["baseline"]["cases"]), 180)
+            self.assertEqual(len(result["candidate"]["cases"]), 180)
 
     def test_cli_new_report_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as folder:

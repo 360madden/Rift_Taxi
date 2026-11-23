@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from rift_taxi.contracts import Point, TraceError, load_trace
-from rift_taxi.simulation import _project, simulate_route
+from rift_taxi.simulation import _project, _turn_limited_speed, simulate_route
 from rift_taxi.steering import _segments
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +41,36 @@ class FeedbackTests(unittest.TestCase):
     def test_result_does_not_replay_later_recorded_poses_or_inputs(self):
         changed = replace(self.trace, poses=(self.trace.poses[0],), events=())
         self.assertEqual(simulate_route(self.trace), simulate_route(changed))
+
+    def test_turn_limited_speed_respects_synthetic_curvature_envelope(self):
+        import math
+        self.assertEqual(_turn_limited_speed(3., 0., 1., 60.), 3.)
+        for heading in (-80., -45., 45., 80.):
+            curvature = 2.*abs(math.sin(math.radians(heading)))/1.5
+            limited = _turn_limited_speed(3., heading, 1.5, 60.)
+            self.assertGreater(limited, 0.)
+            self.assertLessEqual(limited, 3.)
+            self.assertLessEqual(limited*curvature, .8*math.radians(60.)+1e-12)
+
+    def test_explicit_fixed_policy_retains_default_baseline(self):
+        self.assertEqual(simulate_route(self.trace),
+                         simulate_route(self.trace, speed_policy="fixed"))
+
+    def test_turn_limited_model_respects_motion_bounds(self):
+        result = simulate_route(self.trace, max_yaw_rate=60., speed_policy="turn-limited")
+        self.assertEqual(result["status"], "synthetic-arrived")
+        self.assertEqual(result["model"]["speedPolicy"], "turn-limited")
+        self.assertGreaterEqual(result["metrics"]["forwardDutyRatio"], .95)
+        self.assertGreater(result["metrics"]["meanMovingSpeedSyntheticUnitsPerSecond"], 1.)
+        for frame in result["frames"]:
+            self.assertLessEqual(frame["speed"], 3.)
+            self.assertLessEqual(abs(frame["yawRateDegreesPerSecond"]), 60.)
+        self.assertFalse(result["gameInputSent"])
+        self.assertFalse(result["liveArrivalVerified"])
+
+    def test_unknown_speed_policy_refused(self):
+        with self.assertRaisesRegex(TraceError, "unknown synthetic speed policy"):
+            simulate_route(self.trace, speed_policy="unknown")
 
     def test_repeatability(self):
         self.assertEqual(simulate_route(self.trace), simulate_route(self.trace))

@@ -51,9 +51,18 @@ def _project(points, cumulative, position, low, high):
     return max(low, min(high, progress)), error
 
 
+def _turn_limited_speed(speed: float, heading_error: float, chord: float,
+                        max_yaw_rate: float) -> float:
+    """Ideal curvature envelope; units/s, not a game input or speed setting."""
+    curvature = 2. * abs(math.sin(math.radians(heading_error))) / chord
+    # Leave 20% angular-rate headroom for ideal feedback correction.
+    return min(speed, .8 * math.radians(max_yaw_rate) / curvature) if curvature > 1e-9 else speed
+
+
 def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                    lookahead: float = 1.5, max_yaw_rate: float = 180.,
-                   max_seconds: float = 30., max_cross_track: float = 2.) -> dict[str, Any]:
+                   max_seconds: float = 30., max_cross_track: float = 2.,
+                   speed_policy: str = "fixed") -> dict[str, Any]:
     """Run a deterministic ideal kinematic plant with feedback, no OS input.
 
     Units, speed, yaw rate, turn response and stopping are explicitly synthetic.
@@ -63,6 +72,8 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("simulation accepts only synthetic-local-xyz traces")
     if any(p.kind in {"mandatory_passage", "hard_stop"} for p in trace.points):
         raise TraceError("constraint controller required for mandatory passages/hard stops")
+    if speed_policy not in ("fixed", "turn-limited"):
+        raise TraceError("unknown synthetic speed policy")
     dt = _bounded_number(dt, "dt", .01, .2)
     speed = _bounded_number(speed, "speed", .1, 20.)
     lookahead = _bounded_number(lookahead, "lookahead", .1, 20.)
@@ -125,6 +136,8 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         # not RIFT A/D or a physical steering calibration.
         yaw_rate = max(-max_yaw_rate, min(max_yaw_rate, 5.*heading_error))
         velocity = speed if abs(heading_error) < 85. else 0.
+        if speed_policy == "turn-limited" and velocity > 0.:
+            velocity = _turn_limited_speed(velocity, heading_error, chord, max_yaw_rate)
         if total-progress <= lookahead:
             velocity = min(velocity, max(.15, 2.*distance), distance/step)
         frames.append({"t": time, "xyz": list(position), "yawDegrees": yaw,
@@ -159,10 +172,13 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         "model": {"dtSeconds": dt, "speedSyntheticUnitsPerSecond": speed,
                   "lookaheadSyntheticUnits": lookahead, "maxYawRateDegreesPerSecond": max_yaw_rate,
                   "maxSeconds": max_seconds, "maxCrossTrackSyntheticUnits": max_cross_track,
-                  "headingGainPerSecond": 5., "projectionAdvanceBudgetFactor": 2.},
+                  "headingGainPerSecond": 5., "projectionAdvanceBudgetFactor": 2.,
+                  "speedPolicy": speed_policy},
         "metrics": {"elapsedSeconds": time, "simulatedDistanceXZ": traveled,
                     "forwardSeconds": forward_time,
                     "forwardDutyRatio": forward_time/time if time else 0.,
+                    "meanSpeedSyntheticUnitsPerSecond": traveled/time if time else 0.,
+                    "meanMovingSpeedSyntheticUnitsPerSecond": traveled/forward_time if forward_time else 0.,
                     "turningWhileForwardSeconds": turning_forward_time,
                     "turnSignRuns": len(turn_signs), "maxCrossTrackErrorXZ": max_error,
                     "finalXZError": _xz_distance(position, goal), "routeLengthXZ": total,
