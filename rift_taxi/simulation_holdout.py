@@ -45,7 +45,7 @@ _HEADINGS = (-120., 25., 110.)
 _PROFILES = ((2.6,90.,.075), (3.6,45.,.125), (1.7,150.,.04))
 
 
-def _case_trace(spec: dict) -> MovementTrace:
+def _case_trace(spec: dict, *, generator: str = "taxi-holdout-v1") -> MovementTrace:
     """Build an in-memory synthetic trace without inventing recorded poses.
 
     The simulator consumes route geometry and one initial pose only. The
@@ -59,7 +59,9 @@ def _case_trace(spec: dict) -> MovementTrace:
     points = tuple(Point(f"p{i}", "destination" if i == len(xyzs)-1 else "guide", p)
                    for i,p in enumerate(xyzs))
     return MovementTrace(
-        source_type="synthetic", source={"generator":"taxi-holdout-v1"},
+        # Versioned generator identifies the scenario family. Keep the v1
+        # default for original report reproduction; newer suites pass their ID.
+        source_type="synthetic", source={"generator":generator},
         frame={"frameId":"synthetic-local-xyz","axisOrder":["x","y","z"],
                "upAxis":"y","units":"synthetic-units"},
         route_id=spec["routeId"], points=points, arrival_tolerance_xz=.3,
