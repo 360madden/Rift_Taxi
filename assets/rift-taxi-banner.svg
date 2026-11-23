@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="title desc">
+<title id="title">RIFT Taxi — destination-driven navigation</title>
+<desc id="desc">Gold taxi emblem crossing a violet rift above a winding road, with RIFT TAXI wordmark.</desc>
+<defs>
+  <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#090e1d"/><stop offset=".6" stop-color="#16132c"/><stop offset="1" stop-color="#101d32"/></linearGradient>
+  <linearGradient id="gold" x2=".15" y2="0" x1=".8" y1="1"><stop stop-color="#ffe3a1"/><stop offset=".45" stop-color="#ffc54f"/><stop offset="1" stop-color="#d68a2d"/></linearGradient>
+  <linearGradient id="violet" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#b09aff"/><stop offset="1" stop-color="#653dd8"/></linearGradient>
+  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="8"/></filter>
+  <pattern id="checks" width="24" height="16" patternUnits="userSpaceOnUse"><rect width="24" height="16" fill="#ffd36a"/><rect x="0" width="12" height="8" fill="#161527"/><rect x="12" y="8" width="12" height="8" fill="#161527"/></pattern>
+</defs>
+<rect width="1200" height="300" rx="22" fill="url(#bg)"/>
+<path d="M0 260Q140 222 300 270T650 260T1200 270" fill="none" stroke="#664aab" stroke-width="2" opacity=".3"/>
+<path d="M0 40H1200M0 260H1200" stroke="#997cda" stroke-width="1" opacity=".18"/>
+<g transform="translate(160 145)">
+ <circle r="106" fill="none" stroke="#8a59ff" stroke-width="28" opacity=".25" filter="url(#glow)"/>
+ <circle r="102" fill="none" stroke="url(#violet)" stroke-width="5" stroke-dasharray="188 32 112 22 86 24" transform="rotate(-18)"/>
+ <circle r="85" fill="none" stroke="#b39dff" stroke-width="1.5" opacity=".45"/>
+ <path d="M-120 110Q-50 83-14 52Q28 24 49-8" fill="none" stroke="#a892db" stroke-width="17" opacity=".18" stroke-linecap="round"/>
+ <path d="M-120 110Q-50 83-14 52Q28 24 49-8" fill="none" stroke="#f8cc6e" stroke-width="3" stroke-dasharray="10 12" stroke-linecap="round"/>
+ <g transform="translate(-56 -32)">
+  <path d="M8 30L23 3Q28-4 39-4H105Q118-4 123 6L139 30Z" fill="url(#gold)" stroke="#fff0bc" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="23" y="14" width="97" height="27" rx="5" fill="#171b2e" stroke="#ffe39a" stroke-width="3"/>
+  <path d="M42 14L52 0H91L106 14" fill="#9c7ee8" opacity=".85"/>
+  <rect x="53" y="-16" width="57" height="13" rx="3" fill="url(#checks)" stroke="#ffeab5" stroke-width="2"/>
+  <rect x="-1" y="29" width="149" height="34" rx="10" fill="url(#gold)"/>
+  <rect x="12" y="37" width="22" height="10" rx="3" fill="#fff5ce"/>
+  <rect x="113" y="37" width="22" height="10" rx="3" fill="#fff5ce"/>
+  <rect x="31" y="57" width="23" height="16" rx="7" fill="#151726" stroke="#ffc85b" stroke-width="3"/>
+  <rect x="93" y="57" width="23" height="16" rx="7" fill="#151726" stroke="#ffc85b" stroke-width="3"/>
+ </g>
+</g>
+<text x="310" y="134" font-family="Arial, Helvetica, sans-serif" font-size="82" font-weight="800" letter-spacing="4" fill="#f8e4b5">RIFT<tspan fill="#f5c35c"> TAXI</tspan></text>
+<path d="M314 158H1092" stroke="url(#gold)" stroke-width="3" opacity=".9"/>
+<text x="315" y="199" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="600" letter-spacing="4" fill="#c6badf">DESTINATION-FIRST  ·  CONTINUOUS MOTION  ·  LOCAL CONTROL</text>
+<text x="316" y="240" font-family="Arial, Helvetica, sans-serif" font-size="17" letter-spacing="1.8" fill="#8e96b5">A STANDALONE NAVIGATION PROJECT FOR RIFT MMORPG</text>
+</svg>
