@@ -15,6 +15,7 @@ from .replay import analyze, compare
 from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .motion_timing import analyze_motion_timing
+from .native_series import observe_native_series, SeriesUnavailable
 from .native_capture import capture_native_candidate, CandidateCaptureRefused
 from .native_burst import capture_native_burst
 from .native_pair import compare_native_candidates, NativePairError
@@ -122,6 +123,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     burst.add_argument("--include-refresh-guard-candidate", action="store_true",
         help="also compare sampled cached XYZ refresh guard bytes; not writer/freshness proof")
     burst.add_argument("--out", required=True, help="new JSON file; no overwrite")
+    series = commands.add_parser("observe-native-series",
+        help="one read-only pinned process handle, 3..128 owner-checked samples; no input")
+    series.add_argument("--pid", required=True, type=int)
+    series.add_argument("--start-ticks", required=True, type=int)
+    series.add_argument("--exe-path", required=True)
+    series.add_argument("--sha256", required=True)
+    series.add_argument("--hwnd", required=True, type=lambda raw: int(raw, 0))
+    series.add_argument("--host", required=True)
+    series.add_argument("--samples", type=int, default=16)
+    series.add_argument("--interval-ms", type=int, default=150)
+    series.add_argument("--max-total-seconds", type=float, default=20.0)
+    series.add_argument("--start-delay-seconds", type=float, default=0.0)
+    series.add_argument("--include-matrix-candidate", action="store_true")
+    series.add_argument("--include-refresh-guard-candidate", action="store_true")
+    series.add_argument("--include-actor-translation-candidate", action="store_true")
+    series.add_argument("--out", required=True, help="new JSON report; never overwrite")
     pair = commands.add_parser("compare-native-candidates",
         help="offline only: SHA-pinned same-process/owner XYZ/yaw/matrix/actor comparison")
     pair.add_argument("--before", required=True, help="original first one-shot JSON receipt")
@@ -178,6 +195,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 include_refresh_guard_candidate=args.include_refresh_guard_candidate,
             )
             _write_or_print(report, args.out)
+        elif args.command == "observe-native-series":
+            _capture_preflight(args.out, args.start_delay_seconds)
+            report = observe_native_series(
+                pid=args.pid, start_utc_ticks=args.start_ticks,
+                executable_path=args.exe_path, executable_sha256=args.sha256,
+                window_handle=args.hwnd, host=args.host,
+                samples=args.samples, interval_ms=args.interval_ms,
+                max_total_s=args.max_total_seconds,
+                include_matrix_candidate=args.include_matrix_candidate,
+                include_refresh_guard_candidate=args.include_refresh_guard_candidate,
+                include_actor_translation_candidate=args.include_actor_translation_candidate,
+            )
+            _write_or_print(report, args.out)
         elif args.command == "compare-native-candidates":
             report = compare_native_candidates(args.before, args.after)
             _write_or_print(report, args.out)
@@ -195,9 +225,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "python": sys.version.split()[0],
                 "runtime": "stdlib",
                 "gameInputEnabled": False,
+                # Legacy flag means qualified live pose provider, not raw candidates.
                 "nativeReaderImplemented": False,
+                "nativeReadOnlyCandidateReaderImplemented": True,
                 "nativeCandidateCaptureAvailable": True,
                 "nativeCandidateBurstAvailable": True,
+                "nativeCandidateSeriesAvailable": True,
                 "offlineFacingPhaseComparisonAvailable": True,
                 "offlineNativeCandidatePairComparisonAvailable": True,
                 "offlineMotionTimingAvailable": True,
