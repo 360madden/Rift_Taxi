@@ -2,7 +2,9 @@
 
 **November 23, 2026 · LEGION · Python 3.14.10 · 187/187 regressions**
 
-**Status:** Windows child-process lease and STOP/release prototype **implemented and test-verified using fake OS-input senders and dry-run child releases**. No W/A/D movement event was sent to RIFT during this cycle. **Not yet a crash-proof or physically verified game release path.** The running RIFT client is a separate, unmodified process. See [the earlier read-only live candidate capture](M1_LIVE_NATIVE_LEGION_2026-11-23.md) for native read-only evidence.
+**Status:** Windows child-process lease and STOP/release prototype **implemented and test-verified using fake OS-input senders and dry-run child releases**. No W/A/D movement event was sent to RIFT during this cycle. **Not yet a crash-proof or physically verified game release path.** The running RIFT client is a separate, unmodified process.
+
+**Later Nov 23 M1 continuation:** The child has now guarded two actual A/D pulses, one physical W pulse and one physically injected `MOUSE_LEFT` camera orbit; their **ordinary parent OS UP/CLEAR/STOP succeeded**, with 12-sample later stationary native studies for W and camera. The supervisor also supports emergency left-mouse UP for the separate camera diagnostic. **These experiments did not require the child to recover from a real parent crash**, so failover/game-consumed release remains unverified. Current full suite: **289/289**. [Physical W](M1_PHYSICAL_W_DISPLACEMENT_LEGION_2026-11-23.md) · [Physical camera negative control](M1_PHYSICAL_CAMERA_NEGATIVE_CONTROL_LEGION_2026-11-23.md). See [the earlier read-only live candidate capture](M1_LIVE_NATIVE_LEGION_2026-11-23.md) for native read-only evidence.
 
 ## What exists
 
@@ -34,7 +36,7 @@ Taxi steering / fresh qualified pose      External release child
     | parent blocks, pipe EOF, or TTL expires ->| Attempt all reserved UP
 ```
 
-Lease duration is configurable **0.10–2.0 seconds**, default 0.50s. The child checks its own monotonic deadline independently of the steering thread and attempts key-up for every still-reserved key (A, D, W in fixed order). It can attempt best-effort releases when the main process's pipe disappears. A bounded final retry is made for uncertain keys if an initial release was not accepted.
+Lease duration is configurable **0.10–2.0 seconds**, default 0.50s. The child checks its own monotonic deadline independently of the steering thread and attempts OS release for every still-reserved control (A, D, W and diagnostic-only MOUSE_LEFT in fixed order). It can attempt best-effort releases when the main process's pipe disappears. A bounded final retry is made for uncertain keys if an initial release was not accepted.
 
 The child's **cooperative named Windows mutex** is scoped to the exact game PID and process-start ticks: `Local\RiftTaxi-PID-StartTicks`. A second Taxi helper attempting the same game epoch is refused while the first holds it. This does **not** exclude RR2 or unrelated software that does not cooperate with Taxi's mutex.
 
@@ -49,7 +51,7 @@ The child's **cooperative named Windows mutex** is scoped to the exact game PID 
 
 This is a **prototype**, not an unconditional guarantee. OS job termination, blocked kernel calls, unavoidable focus/late-DOWN race windows despite a compensating UP attempt, UIPI restrictions, RIFT focus handling and the possibility that a background key-up is not consumed remain unproven. The supervisor child itself could crash. Its mutex covers cooperating Taxi children, not every process. Key-release packets are not independent game-state readback. No child heartbeat or release here was tested against actual RIFT key consumption.
 
-The actual sender and release child have **not** been armed against RIFT because the live native position and actor-angle samples are still **candidates**, not a verified `LivePose`. No physical movement test or arrival claim follows from these tests.
+At the original prototype stage, the production sender and release child had **not** been armed against RIFT, because the native pose samples were candidates. Later **separate bounded diagnostics** demonstrated normal physical A/D/W and camera mouse insertion and OS release, but the production controller still has no qualified `LivePose` and remains disarmed. Normal OS UP/child CLEAR is not physical crash-recovery proof; no autonomous arrival follows from these tests.
 
 ## Validation
 
@@ -68,8 +70,8 @@ The tests used **synthetic qualified poses, fake W/A/D senders, and dry-run chil
 ## Next M1 acceptance work
 
 1. Obtain **independent in-game changed-state** evidence that distinguishes cached XYZ, player-system scalar, position/actor matrices, camera movement and actual actor yaw. Confirm actor+zone and clock binding to the same physical game epoch.
-2. The new synthetic late-DOWN test shows the parent can attempt an immediate compensating UP after the lease expires. **Physical SendInput and game-consumption timing remain untested**; consider relocating OS key transitions into a single supervised input process if genuine timing evidence demands it.
+2. The new synthetic late-DOWN test shows the parent can attempt an immediate compensating UP after the lease expires. **Normal physical SendInput now has bounded A/D/W and left-mouse diagnostic receipts; actual game-consumed release during parent crash/late DOWN remains untested.** Consider relocating OS key transitions into a single supervised input process if genuine timing evidence demands it.
 3. The synthetic parent actually terminated via `os._exit(37)` and its separate dry-run child recorded release successfully. **Packaged runtime and physical key-up survival remain unverified**; validate actual process/job behavior before claiming dependable crash recovery.
-4. Only after fully qualifying pose and release, conduct a **short, explicit physical W/A/D calibration** with independent post-release game observations.
+4. Short physical A/D and W-only diagnostic calibration and independent later observations now exist. **Next:** independently qualify body heading, zone/native freshness and actual child emergency release under a controlled failure before arming continuous navigation.
 
 **Source boundary:** Taxi owns these standalone Python modules. RR2 and RiftWorld remain read-only references; `C:\work\telarafly` remains permanently unmodified and is never a Taxi runtime dependency.

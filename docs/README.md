@@ -1,6 +1,6 @@
 # RIFT Taxi documentation index
 
-**Status:** design and source-research foundation, as of 2026-11-23; **offline replay/control and a live-tested read-only RIFT candidate reader exist; two physical A/D pulses succeeded with OS release receipts, and one subsequent physical W-only 100 ms pulse changed native XZ by 0.6395 source units, with independently stable later readings; game-consumed release, time-resolved W response, actor-facing freshness, crash recovery and autonomous journeys remain incomplete**. Local project is `C:\work\Rift_Taxi` on LEGION.
+**Status:** design and source-research foundation, as of 2026-11-23; **offline replay/control and a live-tested read-only RIFT candidate reader exist; two physical A/D pulses succeeded with OS release receipts, and one subsequent physical W-only 100 ms pulse changed native XZ by 0.6395 source units, with independently stable later readings; a new physical camera-only orbit changed screen view while native XYZ/bearing/matrix candidates remained stable. All **289** regressions pass; game-consumed release under failure, time-resolved W response, authoritative body-facing and autonomous journeys remain incomplete**. Local project is `C:\work\Rift_Taxi` on LEGION.
 
 ## Start here (recommended reading order)
 
@@ -21,6 +21,8 @@
 | Has Taxi physically turned RIFT and released keys? | [First bounded A/D calibration](M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md) | Physical A/D down/up, separate release process, native angle delta and screen receipts; body yaw pending |
 | Is a supervised W-only movement experiment ready? | [Bounded W diagnostic](M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md) | Default dry-run, 60–160 ms W gate, delayed readback and supervised release tests; one physical W result now exists |
 | Did Taxi move during real W-only input? | [First physical W displacement](M1_PHYSICAL_W_DISPLACEMENT_LEGION_2026-11-23.md) | One 100 ms W pulse, native XYZ change, actual OS release and 12 stable later samples; no body-yaw promotion |
+| How can camera rotation be tested separately? | [Bounded camera-only diagnostic](M1_CAMERA_ONLY_ORBIT_PROBE_2026-11-23.md) | Left mouse only, supervised release, no W/A/D, default dry-run and active scene approval |
+| Did camera orbit alter native body-angle candidates? | [Physical camera negative control](M1_PHYSICAL_CAMERA_NEGATIVE_CONTROL_LEGION_2026-11-23.md) | Visible view change, unchanged native XYZ, scalar/matrix angles and release receipts |
 | How do we pin the Windows process and game window? | [M1 Windows identity](M1_WIN32_IDENTITY.md) | Read-only PID/start/path/hash/HWND inspection and limitations |
 | Can Taxi read native memory or decode XYZ/yaw? | [M1 native candidates](M1_NATIVE_READONLY.md) | Bounded read-only session, source-pinned candidate decoder and explicit one-shot/burst commands; not qualified for driving |
 | Do two position/actor matrices match in one capture? | [M1 matrix comparison](M1_MATRIX_CANDIDATE.md) | Optional owner-scoped raw float32 bit comparison and unqualified candidate planar angle |
@@ -31,7 +33,7 @@
 | What can historical key/pose timing really measure? | [M1 source timing + Telemetry audit](M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md) | Source-hashed RR2 sample-speed timing, 0.10s installed addon polling and evidence caveats |
 | Can Taxi sample native player data ~10 times a second? | [M1 pinned live native series](M1_LIVE_NATIVE_SERIES_LEGION_2026-11-23.md) | Source-hashed real 24-sample sessions, corrected cadence, exact identity and pending movement proof |
 | Can a person manually press W/A/D while Taxi observes native XYZ? | [M1 passive Windows key snapshots](M1_READONLY_MANUAL_KEY_OBSERVATION_LEGION_2026-11-23.md) | Optional sampled high-bit W/A/D states; physical read-only test and no game-consumption claims |
-| Is Taxi's production W/A/D backend armed? | [M1 Win32 scan-code backend](M1_WIN32_INPUT.md) | No; driver-neutral backend tested, with separate physically executed A/D diagnostics and W pending |
+| Is Taxi's production W/A/D backend armed? | [M1 Win32 scan-code backend](M1_WIN32_INPUT.md) | No; driver-neutral backend tested, with separate physically executed A/D and W diagnostics, and a left-mouse camera-only control |
 | Can key-release continue if steering stalls? | [M1 external supervisor](M1_RELEASE_SUPERVISOR.md) | Windows child process, lease, EOF and mutex regressions; real game release unverified |
 | What qualifies as a successful journey? | [Validation](VALIDATION.md) | Measured W duty, running turns, stops, clearance and final readback |
 | Which NPC/services are initially supported? | [Curated destinations](NPC_DESTINATIONS.md) | Porticulum, banker, healer, auctioneer, mailbox, story NPCs (travel-only) |

@@ -1,4 +1,4 @@
-"""Separate-process, release-only W/A/D lease supervisor (M1 prototype).
+"""Separate-process, release-only W/A/D + camera mouse lease (M1 prototype).
 
 A reserve ACK precedes any future controller key-down. On lease expiry, EOF,
 or explicit STOP, the child process attempts release for all reserved keys.
@@ -27,8 +27,9 @@ from typing import Callable
 from .control import ControlRefused, LivePose
 from .win32_identity import DesktopCandidate, ProcessInfo, Win32DesktopProbe, inspect_desktop
 from .win32_input import Win32ScanSender
+from .win32_mouse import Win32MouseSender
 
-_KEYS = ("A", "D", "W")
+_KEYS = ("A", "D", "W", "MOUSE_LEFT")
 _ERROR_ALREADY_EXISTS = 183
 
 
@@ -230,8 +231,10 @@ def _worker_entry(conn: Connection, pin: ReleaseLeasePin, ttl_s: float,
                 _audit(path, "release-not-sent-identity-unavailable",
                        {"key": key, "acceptedByOS": False})
                 return False
-            accepted = sender.send(key, False) is True
-            _audit(path, "native-key-up-attempt",
+            accepted = (Win32MouseSender().send(key, False)
+                        if key == "MOUSE_LEFT" else sender.send(key, False)) is True
+            _audit(path, "native-mouse-up-attempt" if key == "MOUSE_LEFT"
+                   else "native-key-up-attempt",
                    {"key": key, "acceptedByOS": accepted})
             return accepted
 
@@ -387,7 +390,7 @@ class ExternalReleaseSupervisor:
         ack_timeout_s: float = 4.0,
         admit: Callable = inspect_desktop,
     ) -> "ExternalReleaseSupervisor":
-        """Release-only child for one bounded A/D or W *diagnostic*; no navigation.
+        """Release-only child for one bounded A/D/W or left-mouse diagnostic; no navigation.
 
         Does not fabricate a LivePose. Physical release capability requires a
         fresh exact-PID/start/path/SHA/HWND/foreground check. The caller must

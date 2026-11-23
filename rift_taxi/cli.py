@@ -18,6 +18,7 @@ from .motion_timing import analyze_motion_timing
 from .native_series import observe_native_series, SeriesUnavailable
 from .release_supervisor import ReleaseLeasePin, SupervisorUnavailable
 from .turn_probe import run_turn_probe, run_forward_probe, TurnProbeRefused
+from .camera_probe import run_camera_orbit_probe, CameraProbeRefused
 from .native_capture import capture_native_candidate, CandidateCaptureRefused
 from .native_burst import capture_native_burst
 from .native_pair import compare_native_candidates, NativePairError
@@ -181,6 +182,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="SHA-256 of independently reviewed current clear-ground game scene")
     forward.add_argument("--execute-physical", action="store_true",
         help="Actually send one W DOWN/UP; otherwise dry-run only")
+    camera = commands.add_parser("probe-camera-orbit",
+        help="ONE bounded left-mouse camera-orbit negative control; dry-run by default")
+    camera.add_argument("--pid", required=True, type=int)
+    camera.add_argument("--start-ticks", required=True, type=int)
+    camera.add_argument("--exe-path", required=True)
+    camera.add_argument("--sha256", required=True)
+    camera.add_argument("--hwnd", required=True, type=lambda raw: int(raw, 0))
+    camera.add_argument("--host", required=True)
+    camera.add_argument("--owner-key", required=True, type=int)
+    camera.add_argument("--drag-px", type=int, default=60,
+        help="30..90 pixel bounded horizontal relative camera orbit")
+    camera.add_argument("--hold-ms", type=int, default=100,
+        help="80..160 ms one left-mouse-only gesture")
+    camera.add_argument("--cursor-x-fraction", type=float, required=True,
+        help="reviewed clear-ground screen X fraction, 0.2..0.7")
+    camera.add_argument("--cursor-y-fraction", type=float, required=True,
+        help="reviewed clear-ground screen Y fraction, 0.25..0.65")
+    camera.add_argument("--scene-image-sha256",
+        help="SHA-256 of freshly reviewed real game scene")
+    camera.add_argument("--audit", required=True, help="NEW release-only child JSONL audit")
+    camera.add_argument("--out", required=True, help="NEW candidate-only orbit JSON")
+    camera.add_argument("--execute-physical", action="store_true",
+        help="Actually inject one left-mouse drag with independent mouse UP; default is dry-run")
     pair = commands.add_parser("compare-native-candidates",
         help="offline only: SHA-pinned same-process/owner XYZ/yaw/matrix/actor comparison")
     pair.add_argument("--before", required=True, help="original first one-shot JSON receipt")
@@ -277,6 +301,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 dry_run=not args.execute_physical,
             )
             _write_or_print(report, args.out)
+        elif args.command == "probe-camera-orbit":
+            _capture_preflight(args.out, 0.)
+            report = run_camera_orbit_probe(
+                pin=ReleaseLeasePin(
+                    args.host, args.pid, args.start_ticks, args.hwnd,
+                    args.exe_path, args.sha256,
+                ),
+                expected_owner_key=args.owner_key,
+                horizontal_drag_px=args.drag_px,
+                hold_ms=args.hold_ms,
+                cursor_x_fraction=args.cursor_x_fraction,
+                cursor_y_fraction=args.cursor_y_fraction,
+                audit_path=args.audit,
+                scene_image_sha256=args.scene_image_sha256,
+                dry_run=not args.execute_physical,
+            )
+            _write_or_print(report, args.out)
         elif args.command == "compare-native-candidates":
             report = compare_native_candidates(args.before, args.after)
             _write_or_print(report, args.out)
@@ -302,6 +343,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "nativeCandidateSeriesAvailable": True,
                 "boundedADTurnCalibrationAvailable": True,
                 "boundedWForwardCalibrationAvailable": True,
+                "boundedCameraOrbitNegativeControlAvailable": True,
                 "readOnlyManualKeyObservationAvailable": True,
                 "offlineFacingPhaseComparisonAvailable": True,
                 "offlineNativeCandidatePairComparisonAvailable": True,
@@ -313,7 +355,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (TraceError, ValueError, OSError, IdentityUnavailable,
             NativeReadUnavailable, NativeCandidateUnavailable, CandidateCaptureRefused,
             FacingSignatureError, NativePairError, SupervisorUnavailable,
-            TurnProbeRefused) as error:
+            TurnProbeRefused, CameraProbeRefused) as error:
         print(f"rift-taxi: {error}", file=sys.stderr)
         return 2
 
