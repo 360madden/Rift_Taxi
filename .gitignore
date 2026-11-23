@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Native builds, IDE
+bin/
+obj/
+.vs/
+.idea/
+.vscode/
+*.pdb
+
+# Runtime/state, local game and captured artifacts
+.local/
+artifacts/
+captures/
+logs/
+*.log
+*.dmp
+*.mp4
+*.rrd
+*.sqlite3
+*.db
+
+# Host-specific calibration and secrets
+.env
+.env.*
+!.env.example
+config/local/
+config/*.local.json
+*.key
+*.pfx
+*.pem
+
+# OS
+Thumbs.db
+.DS_Store
