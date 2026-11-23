@@ -1,4 +1,4 @@
-"""Offline-only CLI for trace validation, analysis and comparison."""
+"""RIFT Taxi CLI: offline replay and explicit read-only native candidate capture."""
 
 from __future__ import annotations
 
@@ -13,6 +13,10 @@ from .contracts import TraceError, load_trace
 from .replay import analyze, compare
 from .import_rr2 import import_rr2
 from .steering import preview_steering
+from .native_capture import capture_native_candidate, CandidateCaptureRefused
+from .native_candidate import NativeCandidateUnavailable
+from .native_memory import NativeReadUnavailable
+from .win32_identity import IdentityUnavailable
 
 
 def _write_or_print(result: dict, output: str | None) -> None:
@@ -34,7 +38,7 @@ def _write_or_print(result: dict, output: str | None) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="rift-taxi",
-        description="RIFT Taxi offline replay; no live client access or game input",
+        description="RIFT Taxi offline replay and explicit read-only candidate observation; no game input",
     )
     commands = parser.add_subparsers(dest="command", required=True)
     replay = commands.add_parser("replay", help="analyze a versioned offline motion trace")
@@ -53,6 +57,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     steering.add_argument("--lookahead", type=float, default=2.0)
     steering.add_argument("--deadband-degrees", type=float, default=4.0)
     steering.add_argument("--out", help="write report to a NEW file")
+    candidate = commands.add_parser("inspect-native-candidate",
+        help="one explicit pinned read-only RIFT candidate capture; NEVER sends input")
+    candidate.add_argument("--pid", required=True, type=int)
+    candidate.add_argument("--start-ticks", required=True, type=int,
+        help="exact process creation epoch in .NET UTC ticks")
+    candidate.add_argument("--exe-path", required=True, help="absolute expected executable path")
+    candidate.add_argument("--sha256", required=True, help="trusted on-disk executable SHA-256")
+    candidate.add_argument("--hwnd", required=True, type=lambda raw: int(raw, 0),
+        help="exact window handle (decimal or 0x hex)")
+    candidate.add_argument("--host", required=True, help="expected Windows machine name")
+    candidate.add_argument("--out", required=True, help="NEW local JSON report; never overwrite")
+    candidate.add_argument("--max-capture-seconds", type=float, default=3.0)
     commands.add_parser("doctor", help="offline environment check; never selects RIFT")
     args = parser.parse_args(argv)
     try:
@@ -66,6 +82,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "preview-steering":
             _write_or_print(preview_steering(load_trace(args.trace), lookahead=args.lookahead,
                                             deadband_degrees=args.deadband_degrees), args.out)
+        elif args.command == "inspect-native-candidate":
+            report = capture_native_candidate(
+                pid=args.pid, start_utc_ticks=args.start_ticks,
+                executable_path=args.exe_path, executable_sha256=args.sha256,
+                window_handle=args.hwnd, host=args.host,
+                max_capture_s=args.max_capture_seconds,
+            )
+            _write_or_print(report, args.out)
         else:
             _write_or_print({
                 "schema": "taxi.doctor/1",
@@ -74,10 +98,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "runtime": "stdlib",
                 "gameInputEnabled": False,
                 "nativeReaderImplemented": False,
+                "nativeCandidateCaptureAvailable": True,
+                "nativeCandidateQualifiedForMovement": False,
                 "siblingRepositoryRequired": False,
             }, None)
         return 0
-    except (TraceError, ValueError, OSError) as error:
+    except (TraceError, ValueError, OSError, IdentityUnavailable,
+            NativeReadUnavailable, NativeCandidateUnavailable, CandidateCaptureRefused) as error:
         print(f"rift-taxi: {error}", file=sys.stderr)
         return 2
 

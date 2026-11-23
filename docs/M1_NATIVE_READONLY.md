@@ -55,7 +55,7 @@ python -B -m unittest discover -s tests -v
 **November 23, 2026 on LEGION:**
 - 11 native-memory tests, including actual Windows read-only self-process buffer access.
 - 13 candidate-decoder tests using deliberately constructed, bounded **synthetic memory fixtures**: two recognized source hashes, owner/backlink/vtable validation, chain cycles, signed table hashing, nonfinite data, changing payloads, wrong build and malformed module.
-- **98/98 total regression tests passed**, Python 3.14, without reading or moving RIFT.
+- **98/98 regression tests passed** at this initial decoder slice; subsequently **110/110** after the opt-in capture CLI, Python 3.14, without reading or moving RIFT.
 
 ## Not yet proved or implemented
 
@@ -65,3 +65,36 @@ python -B -m unittest discover -s tests -v
 - No consumer contract from `PositionFacingCandidate` to `HeldInputController.LivePose`. This remains intentionally blocked until native field semantics and freshness are independently demonstrated.
 
 **Next M1 experiment:** on a physical, explicitly identified current-build client, confirm the exact on-disk SHA, PID/process epoch/HWND, current actor and zone; run a **read-only** bounded candidate capture with no W/A/D input; correlate XYZ/yaw with independent game-state evidence and the same actor before authorizing any motion.
+
+## Explicit pinned candidate capture CLI (M1 diagnostic only)
+
+`rift_taxi/native_capture.py` and the `inspect-native-candidate` command add a **single opt-in, read-only observation**. It requires all of the following caller-supplied values: PID, .NET UTC process-start ticks, absolute executable path, trusted on-disk SHA-256, HWND, and machine name. There is **no automatic process selection** and no key injection. A fresh `win32_identity.inspect_desktop` check occurs **before and after** the native read; if identity, foreground, source timestamps, or capture duration disagree, the report is refused.
+
+On an explicitly verified physical Windows RIFT session, use **PowerShell in the Taxi repository**:
+
+```powershell
+cd C:\work\Rift_Taxi
+
+# Review candidates only. Select an exact intended PID yourself.
+Get-Process | Where-Object { $_.ProcessName -match 'rift' } |
+    Select-Object Id, ProcessName, Path, StartTime, MainWindowHandle
+
+# Enter the verified RIFT game PID at the prompt; do not use stale values.
+$rift = Get-Process -Id (Read-Host 'Verified RIFT game PID')
+$exe = $rift.Path
+$exeHash = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+$startTicks = $rift.StartTime.ToUniversalTime().Ticks
+$hwnd = $rift.MainWindowHandle
+$computer = $env:COMPUTERNAME
+
+# Only after independently verifying the exact process/build/window:
+python -B -m rift_taxi inspect-native-candidate `
+    --pid $rift.Id --start-ticks $startTicks `
+    --exe-path $exe --sha256 $exeHash `
+    --hwnd $hwnd --host $computer `
+    --out .\artifacts\native-candidate-unique.json
+```
+
+Use a **new report filename each time**: the command refuses overwriting existing evidence. If no RIFT process exists, if focus/window identity changes, if the executable does not match one of the two pinned historical builds, or if native bytes are inconsistent, the command fails without producing a completed report. Successful capture still means **candidate only**; there is no qualified body heading, proven passive XYZ freshness, or physical game-response proof.
+
+On November 23, the `test_native_capture.py` suite added **12 synthetic bracketing/CLI tests** (pre/post owner continuity, foreground, process epoch, timing, new output, and failure paths); **110/110 total tests passed**. The CLI was **not executed against RIFT** because no matching client process was running on LEGION at that check.
