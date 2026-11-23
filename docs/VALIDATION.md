@@ -1,5 +1,5 @@
 # Verification and navigation-quality benchmark
-**Physical movement metrics below remain proposed acceptance criteria**, not verified Taxi live results. As of 2026-11-23, the M1 offline suite has **63 passing tests**, including the driver-neutral W/A/D and watchdog STOP gate, and a source-hashed historical RR2 receipt was imported. **Taxi has sent no game input.** [Control gate](M1_CONTROL_BOUNDARY.md). [M1 evidence](M1_IMPLEMENTATION.md).
+**Physical movement metrics below remain proposed acceptance criteria**, not verified Taxi live results. As of 2026-11-23, the repository has **169 passing regression tests**, including an inert-tested Win32 W/A/D scan-code backend. **Taxi itself obtained a real read-only native XYZ/yaw and matrix candidate capture on LEGION**, but it has **sent no game input**; actor yaw, passive XYZ refresh and physical movement remain unverified. [Control gate](M1_CONTROL_BOUNDARY.md) · [First live candidate evidence](M1_LIVE_NATIVE_LEGION_2026-11-23.md) · [Win32 backend](M1_WIN32_INPUT.md).
 
 ## Prove the behavior the user actually wants
 

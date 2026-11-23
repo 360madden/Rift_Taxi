@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-154%20passing-27ae80?style=for-the-badge)](docs/M1_FACING_SIGNATURE.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-169%20passing-27ae80?style=for-the-badge)](docs/M1_WIN32_INPUT.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,7 +40,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** Offline replay, RR2 evidence import, synthetic steering and a driver-neutral STOP/input gate exist. Taxi-owned **Windows process identity**, **bounded read-only memory access** and **exact-build XYZ/yaw candidate decoding** are implemented and tested; **154 regression tests passed on Nov 23**. There is **no independently qualified RIFT-live actor XYZ/yaw, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
+> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, 9/9 raw actor/position matrix bits and a 4-sample stationary burst). A separate **Win32 W/A/D scan-code backend** is implemented but tested only with inert input fakes; **169 regression tests passed on Nov 23**. Actor-heading semantics, passive XYZ freshness, independently supervised release, physical game-input response, completed journeys and desktop packaging remain **unverified or incomplete**.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -50,12 +50,13 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Synthetic continuous-steering preview | ✅ Implemented offline | Produces steering intent, not physical movement |
 | Driver-neutral W/A/D and watchdog STOP gate | ✅ Implemented offline | [M1 control-boundary tests](docs/M1_CONTROL_BOUNDARY.md); no game input |
 | Read-only Win32 process/window identity candidate | ✅ Implemented and OS smoke-tested | [M1 identity tests](docs/M1_WIN32_IDENTITY.md); actor/zone not yet verified |
-| Bounded native memory, candidate decoder and one-shot capture CLI | ✅ Implemented, candidate-only | [Native-read evidence](docs/M1_NATIVE_READONLY.md); real OS self-process smoke test + synthetic fields |
-| Read-only multi-sample candidate burst | ✅ Implemented, synthetic-tested | [Burst verification](docs/M1_NATIVE_READONLY.md#repeated-read-only-candidate-burst); does not verify physical movement |
-| Optional same-owner position/actor matrix comparison | ✅ Implemented, candidate-only | [Matrix diagnostic](docs/M1_MATRIX_CANDIDATE.md); 9 raw float32 comparisons are not verified body yaw |
+| Bounded native memory, candidate decoder and one-shot capture CLI | ✅ Live read-only candidate captured | [LEGION physical native evidence](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md); player semantics still candidate-only |
+| Read-only multi-sample candidate burst | ✅ Four live stationary candidates captured | [Original source-hashed evidence](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md); static readings cannot prove freshness |
+| Optional same-owner position/actor matrix comparison | ✅ 9/9 live raw bits matched | [Matrix diagnostic](docs/M1_MATRIX_CANDIDATE.md); still not verified body yaw |
 | Matrix-enabled bursts + five-phase offline comparison | ✅ Synthetic-tested | [Facing signature](docs/M1_FACING_SIGNATURE.md); source-hashed comparisons without action/heading claims |
 | Taxi-owned fresh XYZ and actor-facing reader | 🔧 Next | Process/build/actor binding and observation freshness |
-| Native Windows W/A/D backend and independently supervised release | 🔧 Next | Physical confirmation of actual game response and settled release |
+| Native Windows W/A/D scan-code backend | ✅ Implemented, fake-sender tested | [M1 Windows input](docs/M1_WIN32_INPUT.md); no physical key injected |
+| Independently supervised release and live movement acceptance | 🔧 Next | Cross-process release, exclusive ownership and fresh game-response evidence |
 | Smooth multi-bend live journey | ⏳ Not verified | Measured course with continuous forward travel |
 | Desktop UI and portable distribution | ⏳ Planned | PySide6 target after the control milestones |
 
@@ -158,6 +159,8 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [🔍 M1 native candidates](docs/M1_NATIVE_READONLY.md) | Read-only memory sessions, exact-build owner/XYZ/yaw decoding and unresolved live semantics |
 | [🧭 M1 matrix comparison](docs/M1_MATRIX_CANDIDATE.md) | Source-pinned position/actor raw matrix comparison; no body-heading promotion |
 | [📐 M1 facing signature](docs/M1_FACING_SIGNATURE.md) | Optional matrix bursts and five-phase source-verified offline comparison |
+| [🧪 First live native capture](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md) | Source-hashed physical XYZ/yaw and 9/9 matrix evidence; explicit limitations |
+| [⌨️ Win32 input backend](docs/M1_WIN32_INPUT.md) | Standard scan-code W/A/D adapter, explicit arming and incomplete release supervision |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |
 | [📖 Documentation hub](docs/README.md) | Index of research, handoffs and architecture notes |
 | [📝 Durable decisions](docs/DECISIONS.md) | Project decisions and non-negotiable boundaries |

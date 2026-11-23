@@ -1,6 +1,6 @@
 # M1 driver-neutral control boundary — November 23, 2026
 
-**Project:** Rift_Taxi on LEGION · **Status:** implemented and offline-tested protocol/gate, **NOT** a working RIFT input driver or current-build live pose reader.
+**Project:** Rift_Taxi on LEGION · **Status:** driver-neutral gate offline-tested. A later Taxi-owned read-only candidate reader has succeeded against live RIFT, and a separate Win32 scan-code input adapter is inert-tested. **Neither qualifies a working RIFT controller or physical game input.**
 
 ## Delivered
 
@@ -22,15 +22,15 @@ python -B -m unittest discover -s tests -v
 
 **The original 63/63 offline regression tests passed on November 23, 2026 (Python 3.14).** A separate Win32 identity slice added 11 tests, bringing the later suite to **74/74 passing**; see [M1 Windows identity](M1_WIN32_IDENTITY.md). The **29** control-gate tests cover forward-key continuity across turn changes, A/D reversal ordering, STOP/retry, worker-initiated release, expiry ordering, exact session binding, stale/duplicate/out-of-order source data, invalid key sets, immutable pose coordinates, and injected backend faults.
 
-Tests use an inert `RecordingBackend`. No OS input is inserted; no RIFT client is opened, moved or queried; no new XYZ/yaw evidence is collected. Backend acceptance means only **test driver acceptance**, not a game-observed key transition or proof of movement.
+The original gate tests use an inert `RecordingBackend`: they insert no OS input. Since that historical slice, Taxi's **separate read-only native reader** has collected real candidate XYZ/yaw and matrix values on LEGION; the **new Win32 key backend is still tested only with inert SendInput fakes**. None of those later observations establishes game movement, heading semantics or an accepted physical input event.
 
 ## Explicit safety/implementation gaps
 
 | Boundary | Present | Still required for live M1 |
 |---|---|---|
 | Same-client process/window/player binding | OS PID/start/path/hash/HWND read-only candidate inspector plus exact session-contract equality | Bind that candidate to independently verified RIFT actor/zone and fresh pose |
-| Pose freshness/yaw | Same-clock sequence, timestamp and qualification gating | Taxi-owned native Win32 read-only acquisition; establish actor-facing source and true clock alignment |
-| Held W/A/D | Driver-neutral, sequential edge state and audit receipts | Taxi-owned native Windows backend, bounded calls, exact foreground ownership and physical calibration |
+| Pose freshness/yaw | Same-clock gating + real exact-build read-only XYZ/yaw **candidates** | Prove live passive refresh and qualified body heading/actor/zone before motion |
+| Held W/A/D | Driver-neutral gate + **Win32 scan-code backend** with fake-sender acceptance tests | Qualify and measure bounded physical OS/game response after verified pose |
 | STOP and timeout | Latched STOP, daemon watchdog and accepted-UP accounting | Independently supervised release even if the native backend blocks; OS/game post-release readback |
 | Exclusive ownership | Single in-process lock | Cross-process actuator-owner arbitration and safe crash/restart behavior |
 | Verification | 29 fake-driver tests plus historical/offline suite | Read actual observed game response and fresh independently settled final pose |
@@ -38,12 +38,12 @@ Tests use an inert `RecordingBackend`. No OS input is inserted; no RIFT client i
 
 **Critical distinction:** a Python watchdog cannot guarantee release when a foreign driver call hangs under the shared controller lock, when the process exits, or when RIFT ignores a key-up despite OS insertion. Those require a short bounded native backend and independently supervised release/physical test. `potentially_held_keys` is an uncertainty ledger, **not** a claim that RIFT is still physically holding those keys.
 
-This module has **no automatic process discovery, no SendInput invocation, no native memory read, and no capability to start a journey**. Do not change the README milestone to complete on the strength of these tests.
+The `control.py` module itself has no automatic process discovery, native reads or SendInput; the separately implemented `win32_input.py` can issue SendInput **only if explicitly armed with independently qualified pose**. The physical RIFT session has not met that gate. Do not mark M1 complete from synthetic sender tests or real candidate reads alone. [Input evidence boundary](M1_WIN32_INPUT.md).
 
 ## Next most valuable development steps
 
-1. Reinspect RR2's exact native XYZ + actor-facing reader, build-1179 evidence and post-patch offsets/identity; build a **Taxi-owned** read-only observer with current session and observed monotonic timestamps.
-2. Build a bounded Windows W/A/D backend with exclusive ownership and a release path that can outlive/interrupt the normal controller loop. Distinguish OS insertion from independently observed game response.
+1. Correlate the already-acquired Taxi-owned current-build XYZ/yaw/matrix candidates with independent actual game-state changes, verified actor/zone and same-clock timestamps; no automatic promotion from stationary data.
+2. Complete **independently supervised release, exclusive actuator ownership**, and measured physical acceptance for the new bounded Win32 W/A/D backend. Distinguish OS insertion from independently observed game response.
 3. Run a short **authorized physical** clear-ground probe: one qualified actor, same verified build and foreground, an actual timed W press/release, resulting XYZ/yaw and settled state. Preserve a source-hashed receipt; test lost focus/restart as negative cases.
 4. Only then tune sustained straight motion (M2) and measured multi-bend smooth steering (M3).
 

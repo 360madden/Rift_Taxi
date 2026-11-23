@@ -131,7 +131,7 @@ On November 23, 2026, the installed `C:\Program Files (x86)\Glyph\Games\RIFT\Liv
 
 That hash exactly matches the **updated historical executable layout** in the source-pinned decoder, but this does **not** establish that the client is currently running, that loaded module bytes are identical, that the memory offsets are still behaving as expected in-game, or that the candidate values have independently qualified gameplay semantics. Rehash the executable and rebind the exact session before each actual live experiment.
 
-No RIFT process matching the expected names was running on LEGION during the check; no game memory was read or keys sent.
+During the **earlier** pre-launch check, no RIFT process matched and no game memory was read. A **later live LEGION process was found** and successfully captured using Taxi's native read-only code. See [physical native evidence, exact process identity and source-hashed receipts](M1_LIVE_NATIVE_LEGION_2026-11-23.md). No game input or process-memory writes occurred.
 
 ## Optional same-owner actor/position matrix diagnostic
 
