@@ -58,6 +58,18 @@ class MatrixCopyCandidate:
 
 
 @dataclass(frozen=True)
+class RefreshGuardCandidate:
+    """Source-pinned top-level cache-refresh branch inputs, never execution proof."""
+
+    handle_decimal: str
+    handle_hex: str
+    flag_raw: int
+    top_level_branch: str
+    known_writer_executed: bool = False
+    passive_xyz_freshness_qualified: bool = False
+
+
+@dataclass(frozen=True)
 class PositionFacingCandidate:
     process_id: int
     process_start_utc_ticks: int
@@ -71,6 +83,7 @@ class PositionFacingCandidate:
     actor_heading_qualified: bool = False
     passive_position_freshness_qualified: bool = False
     matrix_copy_candidate: MatrixCopyCandidate | None = None
+    refresh_guard_candidate: RefreshGuardCandidate | None = None
 
 
 def _matrix_descriptor(raw: bytes) -> tuple[tuple[int, ...], float | None, str]:
@@ -133,6 +146,7 @@ def decode_current_build_candidate(
     *,
     clock: Callable[[], float] = time.monotonic,
     include_matrix_candidate: bool = False,
+    include_refresh_guard_candidate: bool = False,
 ) -> PositionFacingCandidate:
     """Read an exact-known-build owner/XYZ/yaw candidate without game actions.
 
@@ -141,6 +155,8 @@ def decode_current_build_candidate(
     """
     if type(include_matrix_candidate) is not bool:
         raise ValueError("include_matrix_candidate must be bool")
+    if type(include_refresh_guard_candidate) is not bool:
+        raise ValueError("include_refresh_guard_candidate must be bool")
     if not isinstance(source.pin, ProcessPin) or not isinstance(source.module, MainModule):
         raise NativeCandidateUnavailable("pinned process and module identity required")
     pin = source.pin
@@ -232,6 +248,21 @@ def decode_current_build_candidate(
         raise NativeCandidateUnavailable("player-system yaw nonfinite")
     bearing = ((math.degrees(yaw_rad) + 180.0) % 360.0) - 180.0
 
+    guard = None
+    if include_refresh_guard_candidate:
+        # RR2 CurrentBuildPositionSampleCommand.cs co-samples these raw bytes
+        # from the existing 0x110 position component payload, without a getter.
+        # The two known conditional writers may still be bypassed by another
+        # writer or source. Guard eligibility is not writer execution.
+        handle = _u64(payload[0x100:0x108])
+        flag = payload[0x108]
+        branch = ("handle-present-guard-candidate" if handle != 0
+                  else "alternate-flag-guard-candidate" if flag != 0
+                  else "both-known-top-level-routes-ineligible-candidate")
+        guard = RefreshGuardCandidate(
+            str(handle), f"0x{handle:016X}", flag, branch,
+        )
+
     matrix_copy = None
     if include_matrix_candidate:
         # RR2 CurrentBuildActorPoseCandidateReader resolves the actor component
@@ -266,4 +297,5 @@ def decode_current_build_candidate(
     return PositionFacingCandidate(
         pin.pid, pin.start_utc_ticks, build_sha, key,
         xyz, yaw_rad, bearing, observed, matrix_copy_candidate=matrix_copy,
+        refresh_guard_candidate=guard,
     )

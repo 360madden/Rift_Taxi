@@ -112,6 +112,52 @@ class DecoderTests(unittest.TestCase):
                 self.assertEqual(sample.observed_monotonic_s, 90)
                 self.assertGreater(fixture.calls, 20)
 
+    def test_opt_in_refresh_guard_diagnostics_from_same_component(self) -> None:
+        for build in (OLD, NEW):
+            with self.subTest(build=build[:8]):
+                fixture = MemoryFixture(build)
+                ordinary = decode_current_build_candidate(fixture)
+                self.assertIsNone(ordinary.refresh_guard_candidate)
+                guard = decode_current_build_candidate(
+                    fixture, include_refresh_guard_candidate=True
+                ).refresh_guard_candidate
+                self.assertEqual(guard.handle_decimal, "0")
+                self.assertEqual(guard.flag_raw, 0)
+                self.assertEqual(guard.top_level_branch,
+                                 "both-known-top-level-routes-ineligible-candidate")
+                self.assertFalse(guard.known_writer_executed)
+                self.assertFalse(guard.passive_xyz_freshness_qualified)
+
+    def test_refresh_handle_precedes_flag_and_never_claims_writer(self) -> None:
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.component + 0x100, struct.pack("<Q", 0x12345678))
+        fixture.overwrite(fixture.component + 0x108, b"\x07")
+        guard = decode_current_build_candidate(
+            fixture, include_refresh_guard_candidate=True
+        ).refresh_guard_candidate
+        self.assertEqual(guard.handle_decimal, str(0x12345678))
+        self.assertEqual(guard.handle_hex, "0x0000000012345678")
+        self.assertEqual(guard.flag_raw, 7)
+        self.assertEqual(guard.top_level_branch, "handle-present-guard-candidate")
+        self.assertFalse(guard.known_writer_executed)
+
+    def test_nonzero_flag_without_handle_is_only_branch_candidate(self) -> None:
+        fixture = MemoryFixture()
+        fixture.overwrite(fixture.component + 0x108, b"\x02")
+        guard = decode_current_build_candidate(
+            fixture, include_refresh_guard_candidate=True
+        ).refresh_guard_candidate
+        self.assertEqual(guard.top_level_branch, "alternate-flag-guard-candidate")
+        self.assertEqual(guard.flag_raw, 2)
+        self.assertFalse(guard.passive_xyz_freshness_qualified)
+
+    def test_refresh_guard_option_requires_boolean(self) -> None:
+        fixture = MemoryFixture()
+        with self.assertRaisesRegex(ValueError, "refresh_guard"):
+            decode_current_build_candidate(
+                fixture, include_refresh_guard_candidate=1
+            )
+
     def test_opt_in_same_owner_matrix_bits_and_planar_angle(self) -> None:
         for build in (OLD, NEW):
             with self.subTest(build=build[:8]):

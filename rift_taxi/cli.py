@@ -90,6 +90,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="optional 0..15 sec to switch foreground back to RIFT before reading")
     candidate.add_argument("--include-matrix-candidate", action="store_true",
         help="also capture same-owner position-secondary and actor matrix raw bits; never qualified heading")
+    candidate.add_argument("--include-refresh-guard-candidate", action="store_true",
+        help="co-sampled cache refresh guard bytes; no writer-execution/freshness proof")
     burst = commands.add_parser("inspect-native-burst",
         help="2..8 fully pinned read-only candidate captures for manual change analysis; no input")
     burst.add_argument("--pid", required=True, type=int)
@@ -105,6 +107,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="optional 0..15 sec to restore RIFT foreground before burst")
     burst.add_argument("--include-matrix-candidate", action="store_true",
         help="also compare exact-build actor/position matrix raw bits in each sample; heading unverified")
+    burst.add_argument("--include-refresh-guard-candidate", action="store_true",
+        help="also compare sampled cached XYZ refresh guard bytes; not writer/freshness proof")
     burst.add_argument("--out", required=True, help="new JSON file; no overwrite")
     phases = commands.add_parser("compare-facing-phases",
         help="offline only: compare five manually labeled matrix-enabled candidate bursts")
@@ -133,6 +137,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 window_handle=args.hwnd, host=args.host,
                 max_capture_s=args.max_capture_seconds,
                 include_matrix_candidate=args.include_matrix_candidate,
+                include_refresh_guard_candidate=args.include_refresh_guard_candidate,
             )
             _write_or_print(report, args.out)
         elif args.command == "inspect-native-burst":
@@ -143,6 +148,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 window_handle=args.hwnd, host=args.host, samples=args.samples,
                 interval_ms=args.interval_ms, max_total_s=args.max_total_seconds,
                 include_matrix_candidate=args.include_matrix_candidate,
+                include_refresh_guard_candidate=args.include_refresh_guard_candidate,
             )
             _write_or_print(report, args.out)
         elif args.command == "compare-facing-phases":

@@ -41,6 +41,7 @@ class BurstFixture:
         self.mutate = None
         self.exceptions_at = None
         self.matrix_angles = [175.0, -175.0, -170.0, -160.0]
+        self.refresh_guard_inputs = [(0, 0)]
         self.options = dict(pid=4, start_utc_ticks=START, executable_path=EXE,
                             executable_sha256=SHA, window_handle=1234, host="LEGION")
 
@@ -49,6 +50,7 @@ class BurstFixture:
         assert kwargs["pid"] == 4
         assert kwargs["max_capture_s"] == 3.0
         want_matrix = kwargs.get("include_matrix_candidate", False)
+        want_guard = kwargs.get("include_refresh_guard_candidate", False)
         if self.exceptions_at == self.calls:
             raise CandidateCaptureRefused("injected inner failure")
         self.clock.t += .10
@@ -74,6 +76,7 @@ class BurstFixture:
                 "liveInGameResponseVerified": False,
                 "inputSent": False, "arrivalVerified": False,
                 "matrixEvidenceRequested": want_matrix,
+                "refreshGuardEvidenceRequested": want_guard,
             }
         }
         if want_matrix:
@@ -94,6 +97,24 @@ class BurstFixture:
             }
         else:
             doc["matrixEvidence"] = None
+        handle, flag = self.refresh_guard_inputs[
+            (self.calls - 1) % len(self.refresh_guard_inputs)
+        ]
+        if want_guard:
+            status = ("handle-present-guard-candidate" if handle
+                      else "alternate-flag-guard-candidate" if flag
+                      else "both-known-top-level-routes-ineligible-candidate")
+            doc["refreshGuardEvidence"] = {
+                "refreshHandleDecimal": str(handle),
+                "refreshHandleHex": f"0x{handle:016X}",
+                "refreshFlagRaw": flag,
+                "topLevelBranchCandidate": status,
+                "knownWriterExecuted": False,
+                "passiveXyzFreshnessQualified": False,
+                "apiGetterMayRefreshCache": True,
+            }
+        else:
+            doc["refreshGuardEvidence"] = None
         if self.mutate:
             self.mutate(doc, self.calls)
         return doc
@@ -200,6 +221,59 @@ class BurstTests(unittest.TestCase):
             self.fixture.run()
         self.assertEqual(self.fixture.calls, 1)
 
+    def test_refresh_guard_burst_all_ineligible_but_not_proof_of_stale_xyz(self):
+        report = self.fixture.run(include_refresh_guard_candidate=True)
+        self.assertTrue(report["refreshGuardEvidenceRequested"])
+        changes = report["refreshGuardChanges"]
+        self.assertTrue(changes["allKnownTopLevelRoutesIneligible"])
+        self.assertFalse(changes["anyRefreshHandleChanged"])
+        self.assertFalse(changes["anyRefreshFlagChanged"])
+        self.assertFalse(changes["knownWriterExecutionVerified"])
+        self.assertFalse(changes["passiveXyzFreshnessVerified"])
+        for sample in report["observations"]:
+            self.assertEqual(sample["refreshGuardEvidence"]["refreshHandleDecimal"], "0")
+            self.assertEqual(sample["refreshGuardEvidence"]["refreshFlagRaw"], 0)
+
+    def test_refresh_guard_changes_are_reported_without_writer_claim(self):
+        self.fixture.refresh_guard_inputs = [(0, 0), (0, 1), (99, 0), (99, 1)]
+        report = self.fixture.run(include_refresh_guard_candidate=True)
+        changes = report["refreshGuardChanges"]
+        self.assertFalse(changes["allKnownTopLevelRoutesIneligible"])
+        self.assertTrue(changes["anyRefreshHandleChanged"])
+        self.assertTrue(changes["anyRefreshFlagChanged"])
+        self.assertFalse(changes["knownWriterExecutionVerified"])
+
+    def test_refresh_guard_bad_status_flag_hex_or_qualification_refused(self):
+        cases = (
+            ("hex", lambda g: g.__setitem__("refreshHandleHex", "0xFFFFFF")),
+            ("status", lambda g: g.__setitem__("topLevelBranchCandidate", "fresh")),
+            ("writer", lambda g: g.__setitem__("knownWriterExecuted", True)),
+            ("freshness", lambda g: g.__setitem__("passiveXyzFreshnessQualified", True)),
+            ("flag", lambda g: g.__setitem__("refreshFlagRaw", True)),
+            ("request", lambda d: d["evidence"].__setitem__("refreshGuardEvidenceRequested", False)),
+        )
+        for name, modify in cases:
+            self.fixture = BurstFixture()
+            def change(doc, i):
+                if i == 1:
+                    if name == "request":
+                        modify(doc)
+                    else:
+                        modify(doc["refreshGuardEvidence"])
+            self.fixture.mutate = change
+            with self.subTest(name=name), self.assertRaises(CandidateCaptureRefused):
+                self.fixture.run(include_refresh_guard_candidate=True)
+
+    def test_unrequested_refresh_guard_rejected(self):
+        def change(doc, i):
+            if i == 1:
+                doc["refreshGuardEvidence"] = {
+                    "refreshHandleDecimal": "0", "refreshFlagRaw": 0,
+                }
+        self.fixture.mutate = change
+        with self.assertRaisesRegex(CandidateCaptureRefused, "unsolicited"):
+            self.fixture.run()
+
     def test_stationary_values_dont_establish_freshness(self):
         self.fixture.changes = [(12., 3., -9., 45.)]
         report = self.fixture.run(samples=3)
@@ -287,7 +361,8 @@ class BurstTests(unittest.TestCase):
                 ("max_total_s", float("inf")), ("max_total_s", 1),
                 ("per_capture_s", 11), ("pid", 0), ("window_handle", True),
                 ("executable_sha256", "bad"), ("executable_path", "RIFT.exe"),
-                ("include_matrix_candidate", 1)):
+                ("include_matrix_candidate", 1),
+                ("include_refresh_guard_candidate", 1)):
             self.fixture = BurstFixture()
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.fixture.run(**{key: value})
@@ -325,6 +400,22 @@ class BurstTests(unittest.TestCase):
             saved = json.loads(out.read_text())
             self.assertTrue(saved["matrixEvidenceRequested"])
             self.assertFalse(saved["matrixCandidateChanges"]["headingVerified"])
+
+    def test_refresh_guard_cli_flag_forwarded(self):
+        report = self.fixture.run(samples=2, include_refresh_guard_candidate=True)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "guard-burst.json"
+            argv = [
+                "inspect-native-burst", "--pid", "4", "--start-ticks", str(START),
+                "--exe-path", EXE, "--sha256", SHA, "--hwnd", "1234",
+                "--host", "LEGION", "--samples", "2",
+                "--include-refresh-guard-candidate", "--out", str(output),
+            ]
+            with patch("rift_taxi.cli.capture_native_burst", return_value=report) as native:
+                self.assertEqual(main(argv), 0)
+                self.assertTrue(native.call_args.kwargs["include_refresh_guard_candidate"])
+            saved = json.loads(output.read_text())
+            self.assertTrue(saved["refreshGuardChanges"]["allKnownTopLevelRoutesIneligible"])
 
     def test_cli_doctor_declares_candidate_burst_not_live_reader(self):
         with contextlib.redirect_stdout(io.StringIO()) as output:

@@ -121,12 +121,56 @@ def _validate_matrix_evidence(doc: dict, *, requested: bool) -> dict | None:
     return normalized
 
 
+def _validate_refresh_guard(doc: dict, *, requested: bool) -> dict | None:
+    """Validate co-sampled branch inputs, never promote writer/freshness claims."""
+    evidence = doc["evidence"]
+    payload = doc.get("refreshGuardEvidence")
+    request_flag = evidence.get("refreshGuardEvidenceRequested", False)
+    if type(request_flag) is not bool or request_flag != requested:
+        raise CandidateCaptureRefused("refresh guard request flag mismatch")
+    if not requested:
+        if payload is not None:
+            raise CandidateCaptureRefused("unsolicited refresh guard evidence")
+        return None
+    if not isinstance(payload, dict) or payload.get("knownWriterExecuted") is not False \
+            or payload.get("passiveXyzFreshnessQualified") is not False \
+            or payload.get("apiGetterMayRefreshCache") is not True:
+        raise CandidateCaptureRefused("refresh guard cannot claim writer execution or freshness")
+    decimal, hex_text, flag = (
+        payload.get("refreshHandleDecimal"), payload.get("refreshHandleHex"),
+        payload.get("refreshFlagRaw")
+    )
+    if (not isinstance(decimal, str) or not re.fullmatch(r"0|[1-9][0-9]*", decimal)
+            or not isinstance(hex_text, str)
+            or not re.fullmatch(r"0x[0-9A-F]{16}", hex_text)
+            or type(flag) is not int or not 0 <= flag <= 255):
+        raise CandidateCaptureRefused("invalid cached position refresh guard format")
+    handle = int(decimal)
+    if handle > 0xFFFFFFFFFFFFFFFF or f"0x{handle:016X}" != hex_text:
+        raise CandidateCaptureRefused("refresh guard handle/hex inconsistency")
+    expected = ("handle-present-guard-candidate" if handle != 0
+                else "alternate-flag-guard-candidate" if flag != 0
+                else "both-known-top-level-routes-ineligible-candidate")
+    if payload.get("topLevelBranchCandidate") != expected:
+        raise CandidateCaptureRefused("refresh guard status contradicts raw source bytes")
+    return {
+        "refreshHandleDecimal": decimal,
+        "refreshHandleHex": hex_text,
+        "refreshFlagRaw": flag,
+        "topLevelBranchCandidate": expected,
+        "knownWriterExecuted": False,
+        "passiveXyzFreshnessQualified": False,
+        "apiGetterMayRefreshCache": True,
+    }
+
+
 def capture_native_burst(
     *, pid: int, start_utc_ticks: int, executable_path: str,
     executable_sha256: str, window_handle: int, host: str,
     samples: int = 4, interval_ms: int = 250, max_total_s: float = 30.0,
     per_capture_s: float = 3.0,
     include_matrix_candidate: bool = False,
+    include_refresh_guard_candidate: bool = False,
     capture: Callable = capture_native_candidate,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
@@ -138,6 +182,8 @@ def capture_native_burst(
     """
     if type(include_matrix_candidate) is not bool:
         raise ValueError("include_matrix_candidate must be bool")
+    if type(include_refresh_guard_candidate) is not bool:
+        raise ValueError("include_refresh_guard_candidate must be bool")
     if type(samples) is not int or not 2 <= samples <= 8:
         raise ValueError("samples must be between 2 and 8")
     if type(interval_ms) is not int or not 0 <= interval_ms <= 1500:
@@ -170,10 +216,15 @@ def capture_native_burst(
     for i in range(samples):
         if _number(clock(), "burst clock") - begin > max_total_s:
             raise CandidateCaptureRefused("native burst duration exceeded budget")
-        report = capture(**pinned, max_capture_s=per_capture_s,
-                         **({"include_matrix_candidate": True} if include_matrix_candidate else {}))
+        decode_options = {}
+        if include_matrix_candidate:
+            decode_options["include_matrix_candidate"] = True
+        if include_refresh_guard_candidate:
+            decode_options["include_refresh_guard_candidate"] = True
+        report = capture(**pinned, max_capture_s=per_capture_s, **decode_options)
         owner, xyz, bearing, ts, bracket = _validate_sample(report, **pinned)
         matrix = _validate_matrix_evidence(report, requested=include_matrix_candidate)
+        guard = _validate_refresh_guard(report, requested=include_refresh_guard_candidate)
         if owner_key is not None and owner != owner_key:
             raise CandidateCaptureRefused("candidate player owner changed during burst")
         if prior_timestamp is not None and ts <= prior_timestamp:
@@ -184,6 +235,7 @@ def capture_native_burst(
             "xyzCandidate": list(xyz), "playerSystemBearingDegreesCandidate": bearing,
             "captureBracketSeconds": bracket,
             **({"matrixEvidence": matrix} if matrix is not None else {}),
+            **({"refreshGuardEvidence": guard} if guard is not None else {}),
         })
         if _number(clock(), "burst clock") - begin > max_total_s:
             raise CandidateCaptureRefused("native burst duration exceeded budget")
@@ -220,6 +272,26 @@ def capture_native_burst(
             "headingVerified": False,
             "sourceFreshnessVerified": False,
         }
+    refresh_changes = None
+    if include_refresh_guard_candidate:
+        records = [row["refreshGuardEvidence"] for row in readings]
+        reference = records[0]
+        refresh_changes = {
+            "allKnownTopLevelRoutesIneligible": all(
+                row["topLevelBranchCandidate"]
+                == "both-known-top-level-routes-ineligible-candidate" for row in records
+            ),
+            "anyRefreshHandleChanged": any(
+                row["refreshHandleDecimal"] != reference["refreshHandleDecimal"]
+                for row in records[1:]
+            ),
+            "anyRefreshFlagChanged": any(
+                row["refreshFlagRaw"] != reference["refreshFlagRaw"]
+                for row in records[1:]
+            ),
+            "knownWriterExecutionVerified": False,
+            "passiveXyzFreshnessVerified": False,
+        }
     return {
         "schema": "taxi.native-candidate-burst/1",
         "status": "candidate-only",
@@ -235,6 +307,8 @@ def capture_native_burst(
         "totalElapsedSeconds": total,
         "matrixEvidenceRequested": include_matrix_candidate,
         "matrixCandidateChanges": matrix_changes,
+        "refreshGuardEvidenceRequested": include_refresh_guard_candidate,
+        "refreshGuardChanges": refresh_changes,
         "observations": readings,
         "candidateChanges": {
             "firstToLastXzDistanceSourceUnits": math.hypot(delta[0], delta[2]),
@@ -261,5 +335,6 @@ def capture_native_burst(
             "Each capture independently rechecks executable, PID epoch and HWND; no atomic multi-frame guarantee.",
             "Samples may be spaced farther apart than requested due to repeated hash/read overhead.",
             "Optional actor/position matrix bit agreement is not independently verified body heading.",
+            "Cached XYZ guard eligibility does not prove writer execution or passive freshness.",
         ],
     }

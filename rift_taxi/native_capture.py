@@ -38,6 +38,7 @@ def capture_native_candidate(
     host: str,
     max_capture_s: float = 3.0,
     include_matrix_candidate: bool = False,
+    include_refresh_guard_candidate: bool = False,
     inspect: Callable = inspect_desktop,
     open_session: Callable = ReadOnlyNativeSession.open,
     decode: Callable = decode_current_build_candidate,
@@ -50,6 +51,8 @@ def capture_native_candidate(
     """
     if type(include_matrix_candidate) is not bool:
         raise ValueError("include_matrix_candidate must be bool")
+    if type(include_refresh_guard_candidate) is not bool:
+        raise ValueError("include_refresh_guard_candidate must be bool")
     if type(start_utc_ticks) is not int or start_utc_ticks <= 0:
         raise ValueError("explicit positive process start UTC ticks are required")
     if type(window_handle) is not int or window_handle <= 0:
@@ -78,10 +81,12 @@ def capture_native_candidate(
         executable_sha256=first.executable_sha256,
     )
     with open_session(pin) as session:
-        raw: PositionFacingCandidate = (
-            decode(session, include_matrix_candidate=True) if include_matrix_candidate
-            else decode(session)
-        )
+        decode_options = {}
+        if include_matrix_candidate:
+            decode_options["include_matrix_candidate"] = True
+        if include_refresh_guard_candidate:
+            decode_options["include_refresh_guard_candidate"] = True
+        raw: PositionFacingCandidate = decode(session, **decode_options)
     final: DesktopCandidate = inspect(pid, **options)
 
     if not isinstance(final, DesktopCandidate):
@@ -120,12 +125,32 @@ def capture_native_candidate(
             "actorHeadingQualified": False,
         }
 
+    guard = raw.refresh_guard_candidate
+    if include_refresh_guard_candidate and guard is None:
+        raise CandidateCaptureRefused("requested refresh-guard evidence missing")
+    if guard is not None and (
+        guard.known_writer_executed or guard.passive_xyz_freshness_qualified
+    ):
+        raise CandidateCaptureRefused("refresh guard cannot establish writer execution")
+    guard_evidence = None
+    if guard is not None:
+        guard_evidence = {
+            "refreshHandleDecimal": guard.handle_decimal,
+            "refreshHandleHex": guard.handle_hex,
+            "refreshFlagRaw": guard.flag_raw,
+            "topLevelBranchCandidate": guard.top_level_branch,
+            "knownWriterExecuted": False,
+            "passiveXyzFreshnessQualified": False,
+            "apiGetterMayRefreshCache": True,
+        }
+
     # Output is structured metadata, never a LivePose. No game response is inferred.
     return {
         "schema": "taxi.native-candidate/1",
         "status": "candidate-only",
         "qualification": raw.qualification,
         "matrixEvidence": matrix_evidence,
+        "refreshGuardEvidence": guard_evidence,
         "runtimeDependencies": "python-stdlib-only",
         "process": {
             "host": first.host,
@@ -147,6 +172,7 @@ def capture_native_candidate(
             "captureBracketSeconds": elapsed,
             "actorHeadingQualified": False,
             "matrixEvidenceRequested": include_matrix_candidate,
+            "refreshGuardEvidenceRequested": include_refresh_guard_candidate,
             "passivePositionFreshnessQualified": False,
             "liveInGameResponseVerified": False,
             "inputSent": False,

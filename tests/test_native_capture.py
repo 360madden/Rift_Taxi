@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from rift_taxi.native_capture import CandidateCaptureRefused, capture_native_candidate
-from rift_taxi.native_candidate import PositionFacingCandidate, MatrixCopyCandidate, NativeCandidateUnavailable
+from rift_taxi.native_candidate import PositionFacingCandidate, MatrixCopyCandidate, RefreshGuardCandidate, NativeCandidateUnavailable
 from rift_taxi.win32_identity import DesktopCandidate
 from rift_taxi.cli import main
 
@@ -36,6 +36,8 @@ class CaptureFixture:
             "structural-y-planar-matrix-candidate",
             "structural-y-planar-matrix-candidate"
         )
+        self.guard = RefreshGuardCandidate("0", "0x0000000000000000", 0,
+                            "both-known-top-level-routes-ineligible-candidate")
         self.inspects = 0
         self.opened = 0
         self.closed = 0
@@ -66,9 +68,10 @@ class CaptureFixture:
         return self._Session(self)
 
     def decode(self, _: object, **kwargs: object) -> PositionFacingCandidate:
-        if kwargs.get("include_matrix_candidate") is True:
-            return replace(self.result, matrix_copy_candidate=self.matrix)
-        return self.result
+        return replace(self.result,
+            matrix_copy_candidate=self.matrix if kwargs.get("include_matrix_candidate") is True else None,
+            refresh_guard_candidate=self.guard if kwargs.get("include_refresh_guard_candidate") is True else None,
+        )
 
     def capture(self, **kwargs: object) -> dict:
         return capture_native_candidate(
@@ -226,6 +229,45 @@ class ReadOnlyCaptureTests(unittest.TestCase):
                 self.assertEqual(main(argv), 0)
                 self.assertTrue(call.call_args.kwargs["include_matrix_candidate"])
             self.assertTrue(json.loads(output.read_text())["matrixEvidence"]["exactRawBitsMatch"])
+
+    def test_opt_in_refresh_guard_record_unqualified(self) -> None:
+        data = self.fixture.capture(include_refresh_guard_candidate=True)
+        evidence = data["refreshGuardEvidence"]
+        self.assertEqual(evidence["refreshHandleDecimal"], "0")
+        self.assertEqual(evidence["refreshFlagRaw"], 0)
+        self.assertEqual(evidence["topLevelBranchCandidate"],
+                         "both-known-top-level-routes-ineligible-candidate")
+        self.assertFalse(evidence["knownWriterExecuted"])
+        self.assertFalse(evidence["passiveXyzFreshnessQualified"])
+        self.assertTrue(evidence["apiGetterMayRefreshCache"])
+        self.assertTrue(data["evidence"]["refreshGuardEvidenceRequested"])
+        self.assertFalse(data["evidence"]["passivePositionFreshnessQualified"])
+
+    def test_missing_refresh_guard_refused(self) -> None:
+        self.fixture.guard = None
+        with self.assertRaisesRegex(CandidateCaptureRefused, "refresh-guard evidence missing"):
+            self.fixture.capture(include_refresh_guard_candidate=True)
+
+    def test_refresh_guard_not_allowed_to_claim_freshness(self) -> None:
+        self.fixture.guard = replace(self.fixture.guard, known_writer_executed=True)
+        with self.assertRaisesRegex(CandidateCaptureRefused, "writer execution"):
+            self.fixture.capture(include_refresh_guard_candidate=True)
+
+    def test_cli_refresh_guard_flag_opt_in_forwarded(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "refresh-guard.json"
+            argv = [
+                "inspect-native-candidate", "--pid", "7",
+                "--start-ticks", str(self.fixture.windows[0].start_utc_ticks),
+                "--exe-path", EXE, "--sha256", SHA, "--hwnd", "9999",
+                "--host", "LEGION", "--out", str(output),
+                "--include-refresh-guard-candidate",
+            ]
+            simulated = self.fixture.capture(include_refresh_guard_candidate=True)
+            with patch("rift_taxi.cli.capture_native_candidate", return_value=simulated) as capture:
+                self.assertEqual(main(argv), 0)
+                self.assertTrue(capture.call_args.kwargs["include_refresh_guard_candidate"])
+            self.assertEqual(json.loads(output.read_text())["refreshGuardEvidence"]["refreshFlagRaw"], 0)
 
     def test_cli_doctor_still_does_not_auto_select_game(self) -> None:
         with contextlib.redirect_stdout(io.StringIO()) as output:
