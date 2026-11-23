@@ -17,7 +17,7 @@ from .steering import preview_steering
 from .motion_timing import analyze_motion_timing
 from .native_series import observe_native_series, SeriesUnavailable
 from .release_supervisor import ReleaseLeasePin, SupervisorUnavailable
-from .turn_probe import run_turn_probe, TurnProbeRefused
+from .turn_probe import run_turn_probe, run_forward_probe, TurnProbeRefused
 from .native_capture import capture_native_candidate, CandidateCaptureRefused
 from .native_burst import capture_native_burst
 from .native_pair import compare_native_candidates, NativePairError
@@ -60,7 +60,7 @@ def _capture_preflight(output: str, delay_seconds: float) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="rift-taxi",
-        description="RIFT Taxi offline replay and explicit read-only candidate observation; no game input",
+        description="RIFT Taxi offline replay, read-only native observation and opt-in bounded calibration",
     )
     commands = parser.add_subparsers(dest="command", required=True)
     replay = commands.add_parser("replay", help="analyze a versioned offline motion trace")
@@ -162,6 +162,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="SHA-256 of freshly reviewed actual game-screen image")
     turn.add_argument("--execute-physical", action="store_true",
         help="Actually send one A or D DOWN/UP; otherwise dry-run only")
+    forward = commands.add_parser("probe-w-forward",
+        help="ONE bounded W-only forward calibration; dry-run unless explicitly physical")
+    forward.add_argument("--pid", required=True, type=int)
+    forward.add_argument("--start-ticks", required=True, type=int)
+    forward.add_argument("--exe-path", required=True)
+    forward.add_argument("--sha256", required=True)
+    forward.add_argument("--hwnd", required=True, type=lambda raw: int(raw, 0))
+    forward.add_argument("--host", required=True)
+    forward.add_argument("--owner-key", required=True, type=int,
+        help="exact current self owner-key decimal, independently observed")
+    forward.add_argument("--hold-ms", type=int, default=100,
+        help="60..160 ms single W pulse; separate post-release readback")
+    forward.add_argument("--audit", required=True,
+        help="NEW external release child audit JSONL")
+    forward.add_argument("--out", required=True, help="NEW forward probe JSON report")
+    forward.add_argument("--scene-image-sha256",
+        help="SHA-256 of independently reviewed current clear-ground game scene")
+    forward.add_argument("--execute-physical", action="store_true",
+        help="Actually send one W DOWN/UP; otherwise dry-run only")
     pair = commands.add_parser("compare-native-candidates",
         help="offline only: SHA-pinned same-process/owner XYZ/yaw/matrix/actor comparison")
     pair.add_argument("--before", required=True, help="original first one-shot JSON receipt")
@@ -245,6 +264,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                 dry_run=not args.execute_physical,
             )
             _write_or_print(report, args.out)
+        elif args.command == "probe-w-forward":
+            _capture_preflight(args.out, 0.)
+            report = run_forward_probe(
+                pin=ReleaseLeasePin(
+                    args.host, args.pid, args.start_ticks, args.hwnd,
+                    args.exe_path, args.sha256,
+                ),
+                expected_owner_key=args.owner_key,
+                hold_ms=args.hold_ms, audit_path=args.audit,
+                scene_image_sha256=args.scene_image_sha256,
+                dry_run=not args.execute_physical,
+            )
+            _write_or_print(report, args.out)
         elif args.command == "compare-native-candidates":
             report = compare_native_candidates(args.before, args.after)
             _write_or_print(report, args.out)
@@ -269,6 +301,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "nativeCandidateBurstAvailable": True,
                 "nativeCandidateSeriesAvailable": True,
                 "boundedADTurnCalibrationAvailable": True,
+                "boundedWForwardCalibrationAvailable": True,
                 "readOnlyManualKeyObservationAvailable": True,
                 "offlineFacingPhaseComparisonAvailable": True,
                 "offlineNativeCandidatePairComparisonAvailable": True,

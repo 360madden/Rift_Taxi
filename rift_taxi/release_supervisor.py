@@ -387,11 +387,11 @@ class ExternalReleaseSupervisor:
         ack_timeout_s: float = 4.0,
         admit: Callable = inspect_desktop,
     ) -> "ExternalReleaseSupervisor":
-        """Release-only child for a brief A/D *diagnostic*, not live navigation.
+        """Release-only child for one bounded A/D or W *diagnostic*; no navigation.
 
         Does not fabricate a LivePose. Physical release capability requires a
         fresh exact-PID/start/path/SHA/HWND/foreground check. The caller must
-        use only A or D with a bounded input duration and independent checks.
+        independently constrain the key, duration, current scene and release.
         """
         if not isinstance(pin, ReleaseLeasePin) or type(dry_run) is not bool:
             raise ValueError("validated pin and explicit dry_run bool required")

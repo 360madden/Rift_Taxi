@@ -1,7 +1,7 @@
-"""Single bounded A/D turn *calibration probe*, separate from Taxi navigation.
+"""Bounded A/D turn and W-only *calibration probes*, separate from Taxi navigation.
 
 Purpose: learn whether current native yaw and actor matrix candidates respond
-to a short physical character TURN. It NEVER runs continuous W/navigation.
+to one short physical turn or forward pulse. It NEVER runs route navigation.
 
 The production WindowsScanKeyBackend still requires independently qualified
 LivePose. This diagnostic does not fake one. It requires exact OS PID/epoch/
@@ -119,8 +119,8 @@ def _wrap(delta: float) -> float:
     return (delta + 180) % 360 - 180
 
 
-def run_turn_probe(
-    *, pin: ReleaseLeasePin, expected_owner_key: int,
+def _run_calibration_probe(
+    *, probe_kind: str, pin: ReleaseLeasePin, expected_owner_key: int,
     key: str, hold_ms: int = 100, audit_path: str,
     scene_image_sha256: str | None = None,
     dry_run: bool = True,
@@ -132,7 +132,7 @@ def run_turn_probe(
     clock: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> dict:
-    """One A or D press, always attempts UP, never a live steering loop.
+    """One strictly scoped W/A/D diagnostic pulse, always attempts UP.
 
     Dry-run is the default. In physical mode an actual JPEG/PNG source SHA is
     required for the already inspected open-ground scene. The image must be
@@ -142,8 +142,12 @@ def run_turn_probe(
         raise ValueError("ReleaseLeasePin required")
     if type(expected_owner_key) is not int or expected_owner_key <= 0:
         raise ValueError("explicit positive self owner key required")
-    if type(key) is not str or key not in ("A", "D"):
-        raise ValueError("only A or D is permitted in the calibration probe")
+    if probe_kind not in ("turn", "forward"):
+        raise ValueError("unknown calibration probe kind")
+    permitted = ("A", "D") if probe_kind == "turn" else ("W",)
+    if type(key) is not str or key not in permitted:
+        raise ValueError("only A or D is permitted in the calibration probe" if probe_kind == "turn"
+                         else "forward calibration permits W only")
     if type(hold_ms) is not int or not 60 <= hold_ms <= 160:
         raise ValueError("single diagnostic hold must be 60..160 ms")
     if type(dry_run) is not bool:
@@ -191,11 +195,19 @@ def run_turn_probe(
             # foreground or stale epoch must refuse the actual key DOWN.
             _identity(pin, inspect)
             if any(validate_key_snapshot(key_reader.snapshot()).values()):
-                raise TurnProbeRefused("W/A/D changed before turn DOWN")
+                raise TurnProbeRefused("W/A/D changed before diagnostic DOWN")
+            if probe_kind == "forward":
+                try:
+                    lease = worker.renew()
+                except SupervisorUnavailable as error:
+                    raise TurnProbeRefused("forward release lease expired before DOWN") from error
+                if (not isinstance(lease, dict) or lease.get("stopped") is not False
+                        or key not in lease.get("possibleHeld", ())):
+                    raise TurnProbeRefused("forward release lease was not live at DOWN")
             down_at = float(clock())
             physical_down = sender.send(key, True) is True
             if not physical_down:
-                raise TurnProbeRefused("A/D key DOWN not accepted")
+                raise TurnProbeRefused("calibration key DOWN not accepted")
             sleeper(hold_ms / 1000.)
             sampled_down = validate_key_snapshot(key_reader.snapshot())
         finally:
@@ -224,14 +236,27 @@ def run_turn_probe(
     _identity(pin, inspect)
     post_key_states = validate_key_snapshot(key_reader.snapshot())
     if any(post_key_states.values()):
-        raise TurnProbeRefused("W/A/D high bit remains down after turn probe")
+        raise TurnProbeRefused("W/A/D high bit remains down after calibration probe")
     after = _capture(pin, expected_owner_key, capture)
     _identity(pin, inspect)
+    # Forward calibration includes an additional read after an explicit pause.
+    # A delayed candidate is not proof that RIFT consumed release or updated
+    # native XYZ passively; no pose qualification is granted here.
+    settled = None
+    if probe_kind == "forward":
+        sleeper(.20)
+        _identity(pin, inspect)
+        if any(validate_key_snapshot(key_reader.snapshot()).values()):
+            raise TurnProbeRefused("W/A/D re-engaged after forward key release")
+        settled = _capture(pin, expected_owner_key, capture)
+        _identity(pin, inspect)
     xdelta = [
         to - fr for fr, to in zip(before["xyzCandidate"], after["xyzCandidate"])
     ]
     return {
-        "schema": "taxi.m1-bounded-turn-probe/1",
+        "schema": ("taxi.m1-bounded-turn-probe/1" if probe_kind == "turn"
+                   else "taxi.m1-bounded-forward-probe/1"),
+        "probeKind": probe_kind,
         "status": "calibration-candidate-only",
         "dryRun": dry_run,
         "source": {
@@ -260,7 +285,13 @@ def run_turn_probe(
         },
         "candidateBefore": before,
         "candidateAfter": after,
+        "candidateSettledAfterRelease": settled,
         "candidateChanges": {
+            "planarDistanceXZCandidate": math.hypot(xdelta[0], xdelta[2]),
+            "settledDeltaXYZCandidate": (
+                [to - fr for fr, to in zip(before["xyzCandidate"], settled["xyzCandidate"])]
+                if settled is not None else None
+            ),
             "deltaXYZ": xdelta,
             "playerSystemYawDeltaDegrees": _wrap(
                 after["playerSystemBearingDegreesCandidate"]
@@ -286,3 +317,55 @@ def run_turn_probe(
             "Native XYZ can be refreshed by installed addon Inspect.Unit.Detail polling.",
         ],
     }
+
+
+def run_turn_probe(
+    *, pin: ReleaseLeasePin, expected_owner_key: int,
+    key: str, hold_ms: int = 100, audit_path: str,
+    scene_image_sha256: str | None = None,
+    dry_run: bool = True,
+    inspect: Callable = inspect_desktop,
+    capture: Callable = capture_native_candidate,
+    key_factory: Callable = Win32KeySnapshot,
+    sender_factory: Callable = Win32ScanSender,
+    release_start: Callable = ExternalReleaseSupervisor.start_turn_probe,
+    clock: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> dict:
+    """Strictly A/D only; no W or navigation can be requested via this entry."""
+    return _run_calibration_probe(
+        probe_kind="turn", pin=pin, expected_owner_key=expected_owner_key,
+        key=key, hold_ms=hold_ms, audit_path=audit_path,
+        scene_image_sha256=scene_image_sha256, dry_run=dry_run,
+        inspect=inspect, capture=capture, key_factory=key_factory,
+        sender_factory=sender_factory, release_start=release_start,
+        clock=clock, sleeper=sleeper,
+    )
+
+
+def run_forward_probe(
+    *, pin: ReleaseLeasePin, expected_owner_key: int,
+    hold_ms: int = 100, audit_path: str,
+    scene_image_sha256: str | None = None,
+    dry_run: bool = True,
+    inspect: Callable = inspect_desktop,
+    capture: Callable = capture_native_candidate,
+    key_factory: Callable = Win32KeySnapshot,
+    sender_factory: Callable = Win32ScanSender,
+    release_start: Callable = ExternalReleaseSupervisor.start_turn_probe,
+    clock: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> dict:
+    """One W-only pulse, with external release and 200ms delayed readback.
+
+    This is a candidate acquisition experiment, never a qualified LivePose
+    and never an autonomously repeated forward action.
+    """
+    return _run_calibration_probe(
+        probe_kind="forward", pin=pin, expected_owner_key=expected_owner_key,
+        key="W", hold_ms=hold_ms, audit_path=audit_path,
+        scene_image_sha256=scene_image_sha256, dry_run=dry_run,
+        inspect=inspect, capture=capture, key_factory=key_factory,
+        sender_factory=sender_factory, release_start=release_start,
+        clock=clock, sleeper=sleeper,
+    )

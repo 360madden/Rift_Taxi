@@ -15,7 +15,7 @@ import unittest
 from rift_taxi.release_supervisor import (
     ExternalReleaseSupervisor, ReleaseLeasePin, SupervisorUnavailable,
 )
-from rift_taxi.turn_probe import TurnProbeRefused, run_turn_probe
+from rift_taxi.turn_probe import TurnProbeRefused, run_turn_probe, run_forward_probe
 from rift_taxi.cli import main
 from rift_taxi.win32_identity import DesktopCandidate
 
@@ -51,6 +51,10 @@ class FakeWorker:
     def reserve(self, key):
         self.events.append(("reserve", key))
         self.keys.add(key)
+        return {"stopped": False, "possibleHeld": list(self.keys)}
+
+    def renew(self):
+        self.events.append(("renew", None))
         return {"stopped": False, "possibleHeld": list(self.keys)}
 
     def clear(self, key):
@@ -275,6 +279,123 @@ class TurnProbeTests(unittest.TestCase):
         log = [json.loads(line) for line in Path(self.h.audit).read_text().splitlines()]
         self.assertIn("simulated-key-up", [line["event"] for line in log])
         self.assertNotIn("native-key-up-attempt", [line["event"] for line in log])
+
+
+
+class ForwardProbeTests(unittest.TestCase):
+    """W-only diagnostic is independent from route navigation; fake senders only."""
+
+    def setUp(self):
+        self.h = TurnHarness()
+        self.addCleanup(self.h.close)
+
+    def forward(self, **kwargs):
+        opts = dict(
+            pin=self.h.pin, expected_owner_key=OWNER, hold_ms=100,
+            audit_path=self.h.audit, scene_image_sha256=self.h.scene_sha,
+            dry_run=True, inspect=self.h.inspect, capture=self.h.capture,
+            key_factory=FakeReader, sender_factory=lambda: self.h.sender,
+            release_start=self.h.release_start, clock=self.h.clock,
+            sleeper=self.h.clock.sleep,
+        )
+        opts.update(kwargs)
+        return run_forward_probe(**opts)
+
+    def test_forward_default_dryrun_three_candidate_samples_and_no_input(self):
+        result = self.forward()
+        self.assertEqual(result["schema"], "taxi.m1-bounded-forward-probe/1")
+        self.assertEqual(result["probeKind"], "forward")
+        self.assertTrue(result["dryRun"])
+        self.assertEqual(result["action"]["requestedKey"], "W")
+        self.assertFalse(result["action"]["osKeyDownAccepted"])
+        self.assertFalse(result["action"]["inputInjectedByTaxi"])
+        self.assertEqual(result["candidateChanges"]["planarDistanceXZCandidate"], 1.)
+        self.assertEqual(result["candidateChanges"]["settledDeltaXYZCandidate"], [2., 0., 0.])
+        self.assertIsNotNone(result["candidateSettledAfterRelease"])
+        self.assertEqual(self.h.reads, 3)
+        self.assertEqual(self.h.worker.events, [
+            ("reserve", "W"), ("renew", None), ("clear", "W"), ("stop", None)
+        ])
+        self.assertEqual(self.h.sender.events, [])
+        self.assertFalse(result["candidateChanges"]["gameMotionIndependentlyVerified"])
+
+    def test_fake_physical_sender_brackets_only_w_and_releases(self):
+        report = self.forward(dry_run=False)
+        self.assertEqual(self.h.sender.events, [("W", True), ("W", False)])
+        self.assertTrue(report["action"]["osKeyUpAccepted"])
+        self.assertEqual(report["action"]["sampledAfterKeyUp"],
+                         {"W": False, "A": False, "D": False})
+        self.assertFalse(report["action"]["gameInputConsumptionVerified"])
+
+    def test_forward_refuses_missing_scene_wrong_hold_and_bad_actor(self):
+        for override in (
+            {"dry_run": False, "scene_image_sha256": None},
+            {"hold_ms": 200}, {"hold_ms": 0}, {"hold_ms": True},
+        ):
+            with self.subTest(override=override):
+                h = TurnHarness()
+                self.addCleanup(h.close)
+                with self.assertRaises(ValueError):
+                    self.forward(**override)
+        self.h.after_owner = OWNER + 5
+        with self.assertRaisesRegex(TurnProbeRefused, "actor, session"):
+            self.forward()
+        self.assertIsNotNone(self.h.worker)
+
+    def test_expired_release_lease_refuses_w_down(self):
+        class ExpiredWorker(FakeWorker):
+            def renew(self):
+                self.events.append(("renew", None))
+                return {"stopped": True, "possibleHeld": []}
+        def start(pin, **kwargs):
+            self.h.worker = ExpiredWorker(dry_run=kwargs["dry_run"])
+            return self.h.worker
+        with self.assertRaisesRegex(TurnProbeRefused, "lease was not live"):
+            self.forward(dry_run=False, release_start=start)
+        self.assertNotIn(("W", True), self.h.sender.events)
+        self.assertIn(("W", False), self.h.sender.events)
+
+    def test_sender_up_failure_refuses_finished_receipt(self):
+        self.h.sender = FakeSender(accept_up=False)
+        with self.assertRaisesRegex(TurnProbeRefused, "UP not accepted"):
+            self.forward(dry_run=False)
+        self.assertEqual(self.h.sender.events, [("W", True), ("W", False)])
+
+    def test_cli_dryrun_default_and_explicit_physical_flag(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = [
+                "probe-w-forward", "--pid", str(self.h.pin.pid),
+                "--start-ticks", str(self.h.pin.start_utc_ticks),
+                "--exe-path", PATH, "--sha256", SHA,
+                "--hwnd", str(self.h.pin.hwnd), "--host", "LEGION",
+                "--owner-key", str(OWNER), "--hold-ms", "100",
+                "--audit", str(Path(folder) / "release.jsonl"),
+                "--scene-image-sha256", self.h.scene_sha,
+                "--out", str(Path(folder) / "dry.json"),
+            ]
+            with patch("rift_taxi.cli.run_forward_probe",
+                       return_value=self.forward()) as probe:
+                self.assertEqual(main(base), 0)
+                self.assertTrue(probe.call_args.kwargs["dry_run"])
+            physical = base.copy()
+            physical[-1] = str(Path(folder) / "physical.json")
+            physical.append("--execute-physical")
+            with patch("rift_taxi.cli.run_forward_probe",
+                       return_value=self.forward()) as probe:
+                self.assertEqual(main(physical), 0)
+                self.assertFalse(probe.call_args.kwargs["dry_run"])
+
+    @unittest.skipUnless(__import__("sys").platform == "win32",
+                         "Windows external release child only")
+    def test_real_external_child_can_reserve_w_in_dry_mode(self):
+        with ExternalReleaseSupervisor.start_turn_probe(
+            self.h.pin, dry_run=True, ttl_s=.45, audit_path=self.h.audit,
+        ) as worker:
+            reserved = worker.reserve("W")
+            self.assertIn("W", reserved["possibleHeld"])
+            self.assertTrue(worker.stop()["stopped"])
+        log = [json.loads(line) for line in Path(self.h.audit).read_text().splitlines()]
+        self.assertIn("simulated-key-up", [event["event"] for event in log])
 
 
 if __name__ == "__main__":

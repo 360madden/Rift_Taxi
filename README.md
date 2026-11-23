@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-271%20passing-27ae80?style=for-the-badge)](docs/M1_READONLY_MANUAL_KEY_OBSERVATION_LEGION_2026-11-23.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-278%20passing-27ae80?style=for-the-badge)](docs/M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -42,7 +42,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, matching actor/position matrix bits, and an actor-world translation reconstruction). Two original captures also show **changed XYZ and orientation values in the same process/owner epoch**, without a synchronized action timeline. A new **24-sample, ~100 ms read-only native series** also succeeded on the physical client using one pinned process handle. A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **271 regression tests passed on Nov 23**. Two 100 ms **physical A/D turn tests** now show complementary orientation changes, screenshot scene rotation/return, and accepted OS key-up with a supervised release child. **Camera-only separation, passive XYZ freshness, actual W translation, game-consumed release after failure, journeys and packaging** remain unverified or incomplete.
+> **M1 is in progress, not complete.** A Taxi-owned **read-only physical RIFT capture succeeded on LEGION** (same-owner XYZ/yaw candidates, matching actor/position matrix bits, and an actor-world translation reconstruction). Two original captures also show **changed XYZ and orientation values in the same process/owner epoch**, without a synchronized action timeline. A new **24-sample, ~100 ms read-only native series** also succeeded on the physical client using one pinned process handle. A separate **Win32 W/A/D scan-code backend** and **external release-supervisor prototype** are implemented and tested with fake input; **278 regression tests passed on Nov 23**. A **bounded W-only forward probe** has now passed dry-run/fake-sender and external-child tests, but **no physical W input has been recorded**. Two 100 ms **physical A/D turn tests** now show complementary orientation changes, screenshot scene rotation/return, and accepted OS key-up with a supervised release child. **Camera-only separation, passive XYZ freshness, actual W translation, game-consumed release after failure, journeys and packaging** remain unverified or incomplete.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -53,6 +53,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Synthetic continuous-steering preview | ✅ Implemented offline | Produces steering intent, not physical movement |
 | Driver-neutral W/A/D and watchdog STOP gate | ✅ Implemented offline | [M1 control-boundary tests](docs/M1_CONTROL_BOUNDARY.md); production input still gated |
 | Single bounded A/D turn calibration | ✅ Two physical pulses, OS release observed | [Original visual/native/action evidence](docs/M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md); body heading not yet fully qualified |
+| Bounded W-only forward calibration | ✅ Dry-run/injected-sender tests; physical pending | [W probe boundary and release tests](docs/M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md); extra delayed read, **no real W pulse yet** |
 | Read-only Win32 process/window identity candidate | ✅ Implemented and OS smoke-tested | [M1 identity tests](docs/M1_WIN32_IDENTITY.md); actor/zone not yet verified |
 | Bounded native memory, candidate decoder and one-shot capture CLI | ✅ Live read-only candidate captured | [LEGION physical native evidence](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md); player semantics still candidate-only |
 | Read-only multi-sample candidate burst | ✅ Four live stationary candidates captured | [Original source-hashed evidence](docs/M1_LIVE_NATIVE_LEGION_2026-11-23.md); static readings cannot prove freshness |
@@ -155,6 +156,8 @@ python -B -m unittest discover -s tests -v
 
 The **opt-in, read-only** `inspect-native-candidate`, `inspect-native-burst` and `observe-native-series` commands require exact PID, process creation ticks, executable path/hash, window handle and host. `observe-native-series` acquires 3–128 owner-checked candidates from one pinned read-only process handle, recording observed sample timing and enforcing foreground/identity on every sample. Its opt-in `--observe-manual-keys` switch also polls Windows W/A/D high-bit states before/after native reads **without inserting any keys**; these snapshots are not proof of RIFT input consumption. See the [physical sampler evidence](docs/M1_LIVE_NATIVE_SERIES_LEGION_2026-11-23.md) and [key-observation experiment](docs/M1_READONLY_MANUAL_KEY_OBSERVATION_LEGION_2026-11-23.md). Both commands support `--include-matrix-candidate` and `--include-refresh-guard-candidate`: the burst compares 2–8 XYZ/yaw observations, optional matrices and source-pinned cached-XYZ refresh guards. Guard eligibility never establishes writer execution or passive freshness. The one-shot command also supports `--include-actor-translation-candidate` to reconstruct the source-pinned model-world translation; it is **not** an independent position provider. `compare-native-candidates` compares two exact-source, same-session saved one-shot reports **offline**. `compare-facing-phases` analyzes five complete, separately labeled matrix bursts **offline**. The native commands also offer `--start-delay-seconds` (0–15) to switch focus back to RIFT before reading, and refuse occupied output paths before capture. **No analysis establishes true game movement, passive freshness or qualified body heading.** None of the commands auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
 
+The diagnostic commands `probe-ad-turn` and `probe-w-forward` are **separate from route navigation**. Both default to dry-run; physical input additionally requires explicit opt-in, a fresh independently reviewed suitable scene, exact process/actor pins, a short bounded action and an external key-release lease. Only A/D has physical results so far. See [A/D evidence](docs/M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md) and [W-only implementation](docs/M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md).
+
 The historical RR2 import includes a **72-position / 14-key-event** original-source receipt. Taxi's source-aware timing analysis found **6.63 source units/s median sampled speed during recorded W-held intervals**, but this is **not a qualified RIFT speed model or a new Taxi journey**. The installed Telemetry addon contains two 0.10-second `Inspect.Unit.Detail` polling paths, making naive API-quiet claims unreliable when active. See the [motion timing and producer audit](docs/M1_MOTION_TIMING_AND_TELEMETRY_AUDIT_2026-11-23.md) and [original M1 implementation handoff](docs/M1_IMPLEMENTATION.md).
 
 ## 📚 Documentation
@@ -180,6 +183,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [⌨️ Win32 input backend](docs/M1_WIN32_INPUT.md) | Standard scan-code W/A/D adapter and explicit arming |
 | [🛟 External release supervisor](docs/M1_RELEASE_SUPERVISOR.md) | Separate-process lease, mutex and dry-run failure/release tests; not crash-proof physical release |
 | [🎮 First physical A/D turn calibration](docs/M1_PHYSICAL_AD_TURN_CALIBRATION_2026-11-23.md) | Real 100 ms A/D actions, native angle changes, screenshots and actual OS DOWN/UP receipts |
+| [🚶 Bounded W-only calibration](docs/M1_BOUNDED_W_FORWARD_PROBE_2026-11-23.md) | New fail-closed forward-pulse code, three candidate reads and fake-sender release tests; no real W yet |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |
 | [📖 Documentation hub](docs/README.md) | Index of research, handoffs and architecture notes |
 | [📝 Durable decisions](docs/DECISIONS.md) | Project decisions and non-negotiable boundaries |
@@ -188,7 +192,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 
 ## 🔭 What's next?
 
-1. **Finish M1:** independently validate native XYZ freshness and body-heading semantics on the current RIFT client, account for addon API polling, and physically qualify the already implemented—but currently unarmed—Win32 input and external-release prototypes.
+1. **Finish M1:** camera-only negative control, bounded physical W-only translation/readback when a suitable scene is freshly verified, current actor/zone/native XYZ and body-heading qualification, and independent release recovery beyond the completed A/D pulses.
 2. **Measure real behavior:** verify yaw response, movement latency, coast and post-release evidence rather than extrapolating from synthetic traces.
 3. **Prove M2–M3:** achieve a measured straight arrival, then a qualified multi-bend journey with no unnecessary stops at guide points.
 4. **Expand only on evidence:** introduce local world packages, recovery and UI after the movement foundation is dependable.
