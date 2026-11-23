@@ -16,6 +16,7 @@ from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .simulation import simulate_route
 from .simulation_stress import stress_route, compare_speed_policies
+from .simulation_holdout import evaluate_holdout
 from .motion_timing import analyze_motion_timing
 from .forward_bearing import (
     analyze_forward_bearing, compare_two_forward_bearings, ForwardBearingError,
@@ -103,6 +104,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     policy = commands.add_parser("compare-speed-policies", help="offline paired comparison on the unchanged 180-case grid")
     policy.add_argument("trace", help="synthetic-local-xyz trace")
     policy.add_argument("--out", help="write comparison to a NEW file")
+    # Fixed synthetic holdout is intentionally self-contained; it accepts
+    # no live client identity, map import or actuator parameters. Reports
+    # use the same new-file-only output path as the other offline commands.
+    holdout = commands.add_parser("evaluate-holdout", help="offline paired synthetic route-shape holdout v1")
+    holdout.add_argument("--out", help="write holdout report to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -292,6 +298,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_or_print(stress_route(load_trace(args.trace), speed_policy=args.speed_policy), args.out)
         elif args.command == "compare-speed-policies":
             _write_or_print(compare_speed_policies(load_trace(args.trace)), args.out)
+        elif args.command == "evaluate-holdout":
+            _write_or_print(evaluate_holdout(), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -446,6 +454,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineSyntheticFeedbackAvailable": True,
                 "offlineSyntheticStressBenchmarkAvailable": True,
                 "offlineSyntheticSpeedPolicyComparisonAvailable": True,
+                "offlineSyntheticRouteHoldoutAvailable": True,
                 "offlinePhysicalForwardBearingComparisonAvailable": True,
                 "offlineTwoHeadingForwardComparisonAvailable": True,
                 "offlineRR2NativeZoneCorrelationAvailable": True,

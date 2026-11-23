@@ -1,4 +1,13 @@
-"""Deterministic offline sensitivity grid for the existing synthetic plant."""
+"""Deterministic offline sensitivity grid for the existing synthetic plant.
+
+Entry points: stress_route() and compare_speed_policies(). Each consumes a
+synthetic MovementTrace and returns a JSON-serializable report. No OS/game
+calls, external data, file writes or live pose promotion occur here.
+
+The fixed grid is the original 180-case development set, not a holdout or
+a probability distribution. Preserve its values and order for reproducible
+comparisons. Separate holdout scenarios live in simulation_holdout.py.
+"""
 from __future__ import annotations
 
 from collections import Counter
@@ -9,6 +18,10 @@ import math
 from .contracts import MovementTrace, TraceError
 from .simulation import simulate_route
 
+# Lateral offsets in XZ units, heading offsets in degrees, velocity in
+# units/s, angular cap in degrees/s, integration step in seconds. The
+# Cartesian product gives 3*5*2*3*2 = 180 cases; stable ordering allows
+# pairing each outcome with its exact counterpart from another policy.
 _OFFSETS = (-.5, 0., .5)
 _HEADINGS = (-90., -45., 0., 45., 90.)
 _SPEEDS = (2., 3.)
@@ -35,6 +48,8 @@ def stress_route(trace: MovementTrace, *, speed_policy: str = "fixed") -> dict:
         raise TraceError("first route segment must have finite horizontal extent")
     # Offset in the perpendicular direction of the first route segment.
     nx, nz = -dz/length, dx/length
+    # Retain the supplied base source hash separately from initial overrides.
+    # Never imply that an overridden pose is a captured historical sample.
     cases = []
     for offset, heading, speed, rate, dt in product(
             _OFFSETS, _HEADINGS, _SPEEDS, _RATES, _STEPS):
@@ -56,6 +71,7 @@ def stress_route(trace: MovementTrace, *, speed_policy: str = "fixed") -> dict:
         })
 
     def summarize(rows):
+        """Retain failures in counts; arrival-time averages exclude failures."""
         completed = [r for r in rows if r["metrics"]["syntheticArrival"]]
         arrived = len(completed)
         return {
@@ -101,6 +117,9 @@ def compare_speed_policies(trace: MovementTrace) -> dict:
     baseline = stress_route(trace, speed_policy="fixed")
     candidate = stress_route(trace, speed_policy="turn-limited")
     pairs = list(zip(baseline["cases"], candidate["cases"], strict=True))
+    # Restrict timing/speed comparison to common arrivals to avoid comparing
+    # different populations when the candidate rescues formerly failed cases.
+    # Lost arrivals and lost combined-target successes are still counted.
     common = [(a,b) for a,b in pairs if a["metrics"]["syntheticArrival"]
               and b["metrics"]["syntheticArrival"]]
     def mean_metric(index, key):

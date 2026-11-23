@@ -16,6 +16,10 @@ AI should take work to an actual verified outcome, not merely suggest commands o
 5. Preserve originals, establish hashes and source provenance, run focused and full regressions as appropriate, then commit/push and independently verify the actual remote state.
 6. Publish a timestamped accurate SITREP with measured outcomes, limitations and the next genuine blocker. Do not promise work outside the current tool execution.
 
+## Durable AI-maintainability policy
+
+**User direction, November 23, 2026:** heavily comment scripts and code to assist future AI development. Follow the detailed commentary standard in [AGENTS.md](../AGENTS.md) on every implementation cycle. Explain module boundaries, algorithms and rationale, units, assumptions, provenance, side effects, contracts, failure modes, and test intent. For script entry points, document invocation and prerequisites. Keep comments accurate as behavior changes; backfill existing Taxi-owned code when touched, with the highest-impact files first. Do not change sibling repositories or manufacture evidence to satisfy this requirement.
+
 ## User interaction policy
 
 **Avoid manual intervention by default.** Do not reflexively tell the user to open RIFT, press a key, copy a file, fetch a hash, run a test, restart a program or inspect an image if the current tools can reasonably accomplish it. First investigate and use the available automation and source evidence.

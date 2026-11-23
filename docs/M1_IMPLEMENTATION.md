@@ -69,6 +69,12 @@ Run `python -B -m rift_taxi stress-route samples/synthetic_continuous.json --out
 
 All 15 failed arrivals and 49 combined-target misses are rescued with zero lost successes. At 60 degrees/s, the candidate meets both targets in 60/60 cases versus 11/60 fixed. The two faster yaw caps retain 60/60 combined successes each. Full paired report in ignored `artifacts/m2-m3-synthetic-speed-comparison-20261123.json`, SHA-256 `34039d0dcae55bfee5faba50431d1ebe449bfb3201639932bf1717aa6856d46f`. Six new regressions; **396/396 full tests passed**. The tuning grid is not independent evidence, and the idealized policy has not been tested under actuator lag, collision, physical speed constraints or live movement. Next use independently defined synthetic holdouts before promoting any simulation default. No M1/M2/M3 physical completion claimed.
 
+## Untuned route-shape holdout v1 — November 23, 4:08 PM ET
+
+Run `python -B -m rift_taxi evaluate-holdout --out artifacts/new-holdout.json`. Six authored flat synthetic route shapes and out-of-grid starting conditions/model profiles yield 162 matched scenarios. Both policies retain their original behavior; all scenario definitions, hashes, terminal statuses and metrics are preserved. Fixed: 112 arrivals, 80 combined arrival/duty successes. Turn-limited: 135 arrivals, 101 combined successes, 38 rescued arrivals and 15 lost baseline arrivals. The candidate fails all 27 short-zigzag cases with coincident lookahead; the other five shapes reach 135/135. Mean matched-arrival time over 97 cases: 8.1207 versus 8.2423 simulated seconds. The candidate remains opt-in. Original local report SHA-256 `1ec0b5f5bf2b2f097ddb1be4f18bf0a152981c8634fa777dd3a9420b10f75195` (`artifacts/m2-m3-synthetic-holdout-v1-20261123.json`). Five new tests; **401/401 full regressions passed**. No physical RIFT capability is inferred.
+
+The user also directed that scripts and code be heavily commented for future AI maintenance. This is a durable repository requirement in AGENTS.md and AUTONOMY_POLICY.md; the current simulator and benchmark modules received explanatory comments without changing policy behavior.
+
 ## Historical LEGION RR2 source actually imported
 
 Original source: `C:\work\riftreader2\artifacts\waypoint-input-ae9c97f21e7d41f89c053249f03a2c4f.jsonl`.
