@@ -14,6 +14,7 @@ from .contracts import TraceError, load_trace
 from .replay import analyze, compare
 from .import_rr2 import import_rr2
 from .steering import preview_steering
+from .simulation import simulate_route
 from .motion_timing import analyze_motion_timing
 from .forward_bearing import (
     analyze_forward_bearing, compare_two_forward_bearings, ForwardBearingError,
@@ -84,6 +85,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     steering.add_argument("--lookahead", type=float, default=2.0)
     steering.add_argument("--deadband-degrees", type=float, default=4.0)
     steering.add_argument("--out", help="write report to a NEW file")
+    sim = commands.add_parser("simulate-route", help="offline ideal synthetic feedback experiment; no game input")
+    sim.add_argument("trace", help="synthetic-local-xyz trace; only route and initial pose used")
+    sim.add_argument("--dt", type=float, default=.05)
+    sim.add_argument("--speed", type=float, default=3.)
+    sim.add_argument("--lookahead", type=float, default=1.5)
+    sim.add_argument("--max-yaw-rate", type=float, default=180.)
+    sim.add_argument("--max-seconds", type=float, default=30.)
+    sim.add_argument("--max-cross-track", type=float, default=2.)
+    sim.add_argument("--out", help="write synthetic report to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -262,6 +272,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "preview-steering":
             _write_or_print(preview_steering(load_trace(args.trace), lookahead=args.lookahead,
                                             deadband_degrees=args.deadband_degrees), args.out)
+        elif args.command == "simulate-route":
+            _write_or_print(simulate_route(
+                load_trace(args.trace), dt=args.dt, speed=args.speed,
+                lookahead=args.lookahead, max_yaw_rate=args.max_yaw_rate,
+                max_seconds=args.max_seconds, max_cross_track=args.max_cross_track,
+            ), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -413,6 +429,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineFacingPhaseComparisonAvailable": True,
                 "offlineNativeCandidatePairComparisonAvailable": True,
                 "offlineMotionTimingAvailable": True,
+                "offlineSyntheticFeedbackAvailable": True,
                 "offlinePhysicalForwardBearingComparisonAvailable": True,
                 "offlineTwoHeadingForwardComparisonAvailable": True,
                 "offlineRR2NativeZoneCorrelationAvailable": True,
