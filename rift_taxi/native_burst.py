@@ -71,11 +71,62 @@ def _validate_sample(doc: dict, *, pid: int, start_utc_ticks: int,
     return (owner, (x, y, z), yaw, ts, bracket)
 
 
+def _validate_matrix_evidence(doc: dict, *, requested: bool) -> dict | None:
+    """Validate raw evidence consistency; never infer verified actor heading."""
+    evidence = doc["evidence"]
+    matrix = doc.get("matrixEvidence")
+    request_flag = evidence.get("matrixEvidenceRequested", False)
+    if type(request_flag) is not bool or request_flag != requested:
+        raise CandidateCaptureRefused("matrix evidence request flag mismatch")
+    if not requested:
+        if matrix is not None:
+            raise CandidateCaptureRefused("unsolicited matrix evidence in ordinary burst")
+        return None
+    if not isinstance(matrix, dict) or matrix.get("actorHeadingQualified") is not False:
+        raise CandidateCaptureRefused("requested unqualified matrix evidence missing")
+    fields = ("positionSecondaryRawBits", "actorRawBits")
+    normalized = {}
+    for field in fields:
+        bits = matrix.get(field)
+        if (not isinstance(bits, list) or len(bits) != 9
+                or any(type(x) is not int or not 0 <= x <= 0xFFFFFFFF for x in bits)):
+            raise CandidateCaptureRefused(f"{field} must have 9 unsigned float32 bit patterns")
+        normalized[field] = bits[:]
+    same = matrix.get("exactRawBitsMatch")
+    if type(same) is not bool or same != (normalized[fields[0]] == normalized[fields[1]]):
+        raise CandidateCaptureRefused("matrix raw-bit match flag contradicts source bytes")
+    normalized["exactRawBitsMatch"] = same
+    for prefix, status_field, angle_field in (
+        ("position", "positionMatrixStatus", "positionSecondaryPlanarAngleDegreesCandidate"),
+        ("actor", "actorMatrixStatus", "actorPlanarAngleDegreesCandidate"),
+    ):
+        status = matrix.get(status_field)
+        if status not in (
+            "structural-y-planar-matrix-candidate", "unqualified-matrix-shape", "nonfinite-matrix"
+        ):
+            raise CandidateCaptureRefused(f"{prefix} matrix status unrecognized")
+        angle = matrix.get(angle_field)
+        if status == "structural-y-planar-matrix-candidate":
+            if angle is None or not -180 <= _number(angle, f"{prefix} planar angle") <= 180:
+                raise CandidateCaptureRefused(f"{prefix} structural matrix requires bounded planar angle")
+        elif angle is not None:
+            raise CandidateCaptureRefused(f"{prefix} unqualified matrix cannot claim planar angle")
+        normalized[status_field] = status
+        normalized[angle_field] = angle
+    if same and (normalized["positionMatrixStatus"] != normalized["actorMatrixStatus"]
+                 or normalized["positionSecondaryPlanarAngleDegreesCandidate"]
+                 != normalized["actorPlanarAngleDegreesCandidate"]):
+        raise CandidateCaptureRefused("identical raw matrix bits contradict matrix interpretation")
+    normalized["actorHeadingQualified"] = False
+    return normalized
+
+
 def capture_native_burst(
     *, pid: int, start_utc_ticks: int, executable_path: str,
     executable_sha256: str, window_handle: int, host: str,
     samples: int = 4, interval_ms: int = 250, max_total_s: float = 30.0,
     per_capture_s: float = 3.0,
+    include_matrix_candidate: bool = False,
     capture: Callable = capture_native_candidate,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
@@ -85,6 +136,8 @@ def capture_native_burst(
     The repeated in-file EXE hashes and OS checks add overhead; interval_ms is
     the minimum delay *after* an individual capture, not a promised sample rate.
     """
+    if type(include_matrix_candidate) is not bool:
+        raise ValueError("include_matrix_candidate must be bool")
     if type(samples) is not int or not 2 <= samples <= 8:
         raise ValueError("samples must be between 2 and 8")
     if type(interval_ms) is not int or not 0 <= interval_ms <= 1500:
@@ -117,8 +170,10 @@ def capture_native_burst(
     for i in range(samples):
         if _number(clock(), "burst clock") - begin > max_total_s:
             raise CandidateCaptureRefused("native burst duration exceeded budget")
-        report = capture(**pinned, max_capture_s=per_capture_s)
+        report = capture(**pinned, max_capture_s=per_capture_s,
+                         **({"include_matrix_candidate": True} if include_matrix_candidate else {}))
         owner, xyz, bearing, ts, bracket = _validate_sample(report, **pinned)
+        matrix = _validate_matrix_evidence(report, requested=include_matrix_candidate)
         if owner_key is not None and owner != owner_key:
             raise CandidateCaptureRefused("candidate player owner changed during burst")
         if prior_timestamp is not None and ts <= prior_timestamp:
@@ -128,6 +183,7 @@ def capture_native_burst(
             "index": i + 1, "observationMonotonicSeconds": ts,
             "xyzCandidate": list(xyz), "playerSystemBearingDegreesCandidate": bearing,
             "captureBracketSeconds": bracket,
+            **({"matrixEvidence": matrix} if matrix is not None else {}),
         })
         if _number(clock(), "burst clock") - begin > max_total_s:
             raise CandidateCaptureRefused("native burst duration exceeded budget")
@@ -142,6 +198,28 @@ def capture_native_burst(
     total = _number(clock(), "burst clock") - begin
     if not 0 <= total <= max_total_s:
         raise CandidateCaptureRefused("native burst duration exceeded budget")
+    matrix_changes = None
+    if include_matrix_candidate:
+        raw_matrices = [row["matrixEvidence"] for row in readings]
+        a_matrix, b_matrix = raw_matrices[0], raw_matrices[-1]
+        angle_a = a_matrix["actorPlanarAngleDegreesCandidate"]
+        angle_b = b_matrix["actorPlanarAngleDegreesCandidate"]
+        matrix_changes = {
+            "allPositionActorRawBitsMatch": all(row["exactRawBitsMatch"] for row in raw_matrices),
+            "anyPositionSecondaryMatrixBitsChanged": any(
+                row["positionSecondaryRawBits"] != a_matrix["positionSecondaryRawBits"]
+                for row in raw_matrices[1:]
+            ),
+            "anyActorMatrixBitsChanged": any(
+                row["actorRawBits"] != a_matrix["actorRawBits"] for row in raw_matrices[1:]
+            ),
+            "firstToLastActorPlanarAngleDegreesDeltaCandidate": (
+                ((angle_b - angle_a + 180) % 360) - 180
+                if angle_a is not None and angle_b is not None else None
+            ),
+            "headingVerified": False,
+            "sourceFreshnessVerified": False,
+        }
     return {
         "schema": "taxi.native-candidate-burst/1",
         "status": "candidate-only",
@@ -155,6 +233,8 @@ def capture_native_burst(
         "completedSamples": len(readings),
         "requestedMinGapMs": interval_ms,
         "totalElapsedSeconds": total,
+        "matrixEvidenceRequested": include_matrix_candidate,
+        "matrixCandidateChanges": matrix_changes,
         "observations": readings,
         "candidateChanges": {
             "firstToLastXzDistanceSourceUnits": math.hypot(delta[0], delta[2]),
@@ -180,5 +260,6 @@ def capture_native_burst(
             "Observed yaw is player-system candidate, not qualified actor-facing yaw.",
             "Each capture independently rechecks executable, PID epoch and HWND; no atomic multi-frame guarantee.",
             "Samples may be spaced farther apart than requested due to repeated hash/read overhead.",
+            "Optional actor/position matrix bit agreement is not independently verified body heading.",
         ],
     }

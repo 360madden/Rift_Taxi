@@ -4,6 +4,8 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import math
+import struct
 from pathlib import Path
 import tempfile
 import unittest
@@ -38,6 +40,7 @@ class BurstFixture:
                         (4., 3., 8., -178.), (4., 3., 8., -177.)]
         self.mutate = None
         self.exceptions_at = None
+        self.matrix_angles = [175.0, -175.0, -170.0, -160.0]
         self.options = dict(pid=4, start_utc_ticks=START, executable_path=EXE,
                             executable_sha256=SHA, window_handle=1234, host="LEGION")
 
@@ -45,6 +48,7 @@ class BurstFixture:
         self.calls += 1
         assert kwargs["pid"] == 4
         assert kwargs["max_capture_s"] == 3.0
+        want_matrix = kwargs.get("include_matrix_candidate", False)
         if self.exceptions_at == self.calls:
             raise CandidateCaptureRefused("injected inner failure")
         self.clock.t += .10
@@ -69,8 +73,27 @@ class BurstFixture:
                 "passivePositionFreshnessQualified": False,
                 "liveInGameResponseVerified": False,
                 "inputSent": False, "arrivalVerified": False,
+                "matrixEvidenceRequested": want_matrix,
             }
         }
+        if want_matrix:
+            angle = self.matrix_angles[(self.calls - 1) % len(self.matrix_angles)]
+            rad = math.radians(angle)
+            c, s = math.cos(rad), math.sin(rad)
+            values = (c, 0., -s, 0., 1., 0., s, 0., c)
+            bits = list(struct.unpack("<9I", struct.pack("<9f", *values)))
+            doc["matrixEvidence"] = {
+                "positionSecondaryRawBits": bits[:],
+                "actorRawBits": bits[:],
+                "exactRawBitsMatch": True,
+                "positionSecondaryPlanarAngleDegreesCandidate": angle,
+                "actorPlanarAngleDegreesCandidate": angle,
+                "positionMatrixStatus": "structural-y-planar-matrix-candidate",
+                "actorMatrixStatus": "structural-y-planar-matrix-candidate",
+                "actorHeadingQualified": False,
+            }
+        else:
+            doc["matrixEvidence"] = None
         if self.mutate:
             self.mutate(doc, self.calls)
         return doc
@@ -102,6 +125,80 @@ class BurstTests(unittest.TestCase):
         self.assertFalse(report["candidateChanges"]["freshnessVerified"])
         self.assertFalse(report["evidence"]["inputSent"])
         self.assertFalse(report["evidence"]["independentPositionSourceCompared"])
+
+    def test_matrix_burst_compares_bits_and_yaw_but_never_verifies_heading(self):
+        report = self.fixture.run(include_matrix_candidate=True)
+        self.assertEqual(self.fixture.calls, 4)
+        self.assertTrue(report["matrixEvidenceRequested"])
+        matrix = report["matrixCandidateChanges"]
+        self.assertTrue(matrix["allPositionActorRawBitsMatch"])
+        self.assertTrue(matrix["anyPositionSecondaryMatrixBitsChanged"])
+        self.assertTrue(matrix["anyActorMatrixBitsChanged"])
+        self.assertAlmostEqual(
+            matrix["firstToLastActorPlanarAngleDegreesDeltaCandidate"], 25.0
+        )
+        self.assertFalse(matrix["headingVerified"])
+        self.assertFalse(matrix["sourceFreshnessVerified"])
+        self.assertEqual(len(report["observations"][0]["matrixEvidence"]["actorRawBits"]), 9)
+        self.assertFalse(report["candidateChanges"]["movementVerified"])
+        self.assertFalse(report["evidence"]["inputSent"])
+
+    def test_matrix_mismatch_remains_diagnostic_not_motion_proof(self):
+        def change(doc, index):
+            if index == 2:
+                doc["matrixEvidence"]["actorRawBits"][0] ^= 1
+                doc["matrixEvidence"]["exactRawBitsMatch"] = False
+        self.fixture.mutate = change
+        report = self.fixture.run(include_matrix_candidate=True, samples=2)
+        self.assertFalse(report["matrixCandidateChanges"]["allPositionActorRawBitsMatch"])
+        self.assertFalse(report["matrixCandidateChanges"]["headingVerified"])
+
+    def test_matrix_optional_reports_no_angle_for_nonstructural_sources(self):
+        def change(doc, index):
+            doc["matrixEvidence"]["actorMatrixStatus"] = "nonfinite-matrix"
+            doc["matrixEvidence"]["positionMatrixStatus"] = "nonfinite-matrix"
+            doc["matrixEvidence"]["actorPlanarAngleDegreesCandidate"] = None
+            doc["matrixEvidence"]["positionSecondaryPlanarAngleDegreesCandidate"] = None
+        self.fixture.mutate = change
+        report = self.fixture.run(include_matrix_candidate=True, samples=2)
+        self.assertIsNone(
+            report["matrixCandidateChanges"]["firstToLastActorPlanarAngleDegreesDeltaCandidate"]
+        )
+        self.assertFalse(report["matrixCandidateChanges"]["headingVerified"])
+
+    def test_burst_refuses_invalid_optional_matrix_evidence(self):
+        cases = [
+            ("missing", lambda m: m.pop("matrixEvidence")),
+            ("bad_raw_bits", lambda m: m["matrixEvidence"].__setitem__("actorRawBits", [0] * 8)),
+            ("bool_bit", lambda m: m["matrixEvidence"]["actorRawBits"].__setitem__(0, True)),
+            ("range", lambda m: m["matrixEvidence"]["actorRawBits"].__setitem__(0, 2**32)),
+            ("mismatch_flag", lambda m: m["matrixEvidence"].__setitem__("exactRawBitsMatch", False)),
+            ("qualified", lambda m: m["matrixEvidence"].__setitem__("actorHeadingQualified", True)),
+            ("missing_angle", lambda m: m["matrixEvidence"].__setitem__("actorPlanarAngleDegreesCandidate", None)),
+            ("nan_angle", lambda m: m["matrixEvidence"].__setitem__("actorPlanarAngleDegreesCandidate", float("nan"))),
+            ("bad_status", lambda m: m["matrixEvidence"].__setitem__("actorMatrixStatus", "verified")),
+            ("wrong_request_flag", lambda m: m["evidence"].__setitem__("matrixEvidenceRequested", False)),
+        ]
+        for name, mutate in cases:
+            self.fixture = BurstFixture()
+            def change(doc, index):
+                if index == 1:
+                    mutate(doc)
+            self.fixture.mutate = change
+            with self.subTest(name=name), self.assertRaises(CandidateCaptureRefused):
+                self.fixture.run(include_matrix_candidate=True)
+            self.assertEqual(self.fixture.calls, 1)
+
+    def test_unsolicited_matrix_evidence_rejected_in_ordinary_burst(self):
+        def change(doc, index):
+            if index == 1:
+                doc["matrixEvidence"] = {
+                    "actorRawBits": [0] * 9, "positionSecondaryRawBits": [0] * 9
+                }
+        self.fixture.mutate = change
+        with self.assertRaisesRegex(CandidateCaptureRefused, "unsolicited"):
+            self.fixture.run()
+        self.assertEqual(self.fixture.calls, 1)
 
     def test_stationary_values_dont_establish_freshness(self):
         self.fixture.changes = [(12., 3., -9., 45.)]
@@ -189,7 +286,8 @@ class BurstTests(unittest.TestCase):
                 ("interval_ms", -1), ("interval_ms", 1501),
                 ("max_total_s", float("inf")), ("max_total_s", 1),
                 ("per_capture_s", 11), ("pid", 0), ("window_handle", True),
-                ("executable_sha256", "bad"), ("executable_path", "RIFT.exe")):
+                ("executable_sha256", "bad"), ("executable_path", "RIFT.exe"),
+                ("include_matrix_candidate", 1)):
             self.fixture = BurstFixture()
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.fixture.run(**{key: value})
@@ -210,6 +308,23 @@ class BurstTests(unittest.TestCase):
                 self.assertEqual(json.loads(out.read_text())["completedSamples"], 2)
                 with contextlib.redirect_stderr(io.StringIO()):
                     self.assertEqual(main(argv), 2)
+
+    def test_matrix_cli_flag_is_forwarded_and_stored(self):
+        report = self.fixture.run(samples=2, include_matrix_candidate=True)
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "matrix-burst.json"
+            argv = [
+                "inspect-native-burst", "--pid", "4", "--start-ticks", str(START),
+                "--exe-path", EXE, "--sha256", SHA, "--hwnd", "1234",
+                "--host", "LEGION", "--samples", "2", "--include-matrix-candidate",
+                "--out", str(out),
+            ]
+            with patch("rift_taxi.cli.capture_native_burst", return_value=report) as capture:
+                self.assertEqual(main(argv), 0)
+                self.assertTrue(capture.call_args.kwargs["include_matrix_candidate"])
+            saved = json.loads(out.read_text())
+            self.assertTrue(saved["matrixEvidenceRequested"])
+            self.assertFalse(saved["matrixCandidateChanges"]["headingVerified"])
 
     def test_cli_doctor_declares_candidate_burst_not_live_reader(self):
         with contextlib.redirect_stdout(io.StringIO()) as output:

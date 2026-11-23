@@ -48,12 +48,12 @@ python -B -m rift_taxi inspect-native-candidate `
     --out .\artifacts\native-matrices-unique.json
 ```
 
-Reports use the existing `taxi.native-candidate/1` record and an optional `matrixEvidence` member: both 9-word raw arrays, bitwise match flag, separately calculated planar candidate angles (or null), per-matrix status and an explicitly **false** body-heading-qualification flag. The legacy one-shot command without the option does not require matrix values to be readable. The burst command is unchanged; do not infer matrix observations from ordinary burst XYZ/yaw data.
+Reports use the existing `taxi.native-candidate/1` record and an optional `matrixEvidence` member: both 9-word raw arrays, bitwise match flag, separately calculated planar candidate angles (or null), per-matrix status and an explicitly **false** body-heading-qualification flag. The legacy one-shot command without the option does not require matrix values to be readable. `inspect-native-burst` now also offers an explicit `--include-matrix-candidate` flag; ordinary bursts **do not** contain matrix evidence. See [M1 facing signature](M1_FACING_SIGNATURE.md) for matrix-enabled burst and five-phase offline analysis.
 
 **Output files must be new paths**: existing evidence is never overwritten. A successful return only certifies that the expected pinned candidate structure was read without observed inconsistencies in the capture bracket. The on-disk executable SHA does not prove in-memory module bytes, and sequentially acquired values are not atomic.
 
 ## Verification and remaining barrier
 
-On LEGION, **132/132 regression tests passed** under Python 3.14.10, including 6 new decoder matrix tests and 3 capture/CLI tests. Fixtures cover both known SHA layouts, exact raw-byte matching, nonplanar and nonfinite matrices, invalid/missing actor selectors, aliasing, concurrent mutations and CLI opt-in behavior. **No RIFT process was running; all matrix values in these tests are synthetic.**
+On LEGION, **132/132 regression tests passed** under Python 3.14.10, including 6 new decoder matrix tests and 3 capture/CLI tests. Fixtures cover both known SHA layouts, exact raw-byte matching, nonplanar and nonfinite matrices, invalid/missing actor selectors, aliasing, concurrent mutations and CLI opt-in behavior. **No RIFT process was running; all matrix values in these tests are synthetic.** The later multi-sample facing-comparison cycle passed **154/154 tests**; it remains candidate-only.
 
 **Next meaningful physical experiment:** record position, player-system yaw and both matrices at one stationary settled posture; compare after a controlled A/D turn with an independently observed visual response, a camera-only negative control, and readback after settling. Repeat on a second heading and after a full process restart before concluding any native number is actionable body heading.

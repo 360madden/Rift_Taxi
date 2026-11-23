@@ -92,10 +92,11 @@ python -B -m rift_taxi inspect-native-candidate `
     --pid $rift.Id --start-ticks $startTicks `
     --exe-path $exe --sha256 $exeHash `
     --hwnd $hwnd --host $computer `
+    --start-delay-seconds 5 `
     --out .\artifacts\native-candidate-unique.json
 ```
 
-Use a **new report filename each time**: the command refuses overwriting existing evidence. If no RIFT process exists, if focus/window identity changes, if the executable does not match one of the two pinned historical builds, or if native bytes are inconsistent, the command fails without producing a completed report. Successful capture still means **candidate only**; there is no qualified body heading, proven passive XYZ freshness, or physical game-response proof.
+Use a **new report filename each time**: the command refuses overwriting existing evidence **before** beginning native capture. The optional `--start-delay-seconds` (0–15) gives time to return the RIFT window to the foreground after launching from PowerShell; it does not activate/focus RIFT automatically, and foreground verification still occurs before and after native reads. If no RIFT process exists, if focus/window identity changes, if the executable does not match one of the two pinned historical builds, or if native bytes are inconsistent, the command fails without producing a completed report. Successful capture still means **candidate only**; there is no qualified body heading, proven passive XYZ freshness, or physical game-response proof.
 
 On November 23, the `test_native_capture.py` suite added **12 synthetic bracketing/CLI tests** (pre/post owner continuity, foreground, process epoch, timing, new output, and failure paths); **110/110 tests passed** at that stage. The CLI was **not executed against RIFT** because no matching client process was running on LEGION at that check.
 
@@ -114,6 +115,7 @@ python -B -m rift_taxi inspect-native-burst `
     --exe-path $exe --sha256 $exeHash `
     --hwnd $hwnd --host $computer `
     --samples 4 --interval-ms 250 `
+    --start-delay-seconds 5 `
     --out .\artifacts\native-burst-unique.json
 ```
 
@@ -133,4 +135,4 @@ No RIFT process matching the expected names was running on LEGION during the che
 
 ## Optional same-owner actor/position matrix diagnostic
 
-The one-shot `inspect-native-candidate` command now accepts `--include-matrix-candidate`. It reads source-pinned position-secondary and actor matrices from the same owner, compares their 9 original float32 bit patterns, and reports separate structural planar-angle candidates without qualifying body yaw. The default capture and multi-sample XYZ/yaw burst remain unchanged. Details, source file hashes, semantics and 132-test evidence: [M1 matrix candidate comparison](M1_MATRIX_CANDIDATE.md).
+The one-shot `inspect-native-candidate` command now accepts `--include-matrix-candidate`. It reads source-pinned position-secondary and actor matrices from the same owner, compares their 9 original float32 bit patterns, and reports separate structural planar-angle candidates without qualifying body yaw. The default one-shot and multi-sample XYZ/yaw captures still omit matrix evidence, but bursts can explicitly opt in with the same flag. Details, source file hashes and initial 132-test evidence: [M1 matrix candidate comparison](M1_MATRIX_CANDIDATE.md). Matrix-enabled bursts and five-phase analysis passed 154/154 tests: [M1 facing signature](M1_FACING_SIGNATURE.md).

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+import math
 from pathlib import Path
 import sys
+import time
 from typing import Sequence
 
 from .contracts import TraceError, load_trace
@@ -15,6 +16,7 @@ from .import_rr2 import import_rr2
 from .steering import preview_steering
 from .native_capture import capture_native_candidate, CandidateCaptureRefused
 from .native_burst import capture_native_burst
+from .facing_signature import compare_facing_phases, FacingSignatureError
 from .native_candidate import NativeCandidateUnavailable
 from .native_memory import NativeReadUnavailable
 from .win32_identity import IdentityUnavailable
@@ -34,6 +36,20 @@ def _write_or_print(result: dict, output: str | None) -> None:
             writer.write(encoded)
     except FileExistsError as error:
         raise TraceError("refusing to overwrite existing report") from error
+
+
+def _capture_preflight(output: str, delay_seconds: float) -> None:
+    """Reject unusable output/delay before touching a live target."""
+    target = Path(output)
+    if target.exists() or target.is_symlink():
+        raise TraceError("refusing to overwrite existing report")
+    if not target.parent.is_dir():
+        raise TraceError("output parent directory does not exist")
+    if (isinstance(delay_seconds, bool) or not isinstance(delay_seconds, (int, float))
+            or not math.isfinite(delay_seconds) or not 0 <= delay_seconds <= 15):
+        raise ValueError("start delay must be finite and within 0..15 seconds")
+    if delay_seconds:
+        time.sleep(delay_seconds)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -70,6 +86,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     candidate.add_argument("--host", required=True, help="expected Windows machine name")
     candidate.add_argument("--out", required=True, help="NEW local JSON report; never overwrite")
     candidate.add_argument("--max-capture-seconds", type=float, default=3.0)
+    candidate.add_argument("--start-delay-seconds", type=float, default=0.0,
+        help="optional 0..15 sec to switch foreground back to RIFT before reading")
     candidate.add_argument("--include-matrix-candidate", action="store_true",
         help="also capture same-owner position-secondary and actor matrix raw bits; never qualified heading")
     burst = commands.add_parser("inspect-native-burst",
@@ -83,7 +101,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     burst.add_argument("--samples", type=int, default=4)
     burst.add_argument("--interval-ms", type=int, default=250)
     burst.add_argument("--max-total-seconds", type=float, default=30.0)
+    burst.add_argument("--start-delay-seconds", type=float, default=0.0,
+        help="optional 0..15 sec to restore RIFT foreground before burst")
+    burst.add_argument("--include-matrix-candidate", action="store_true",
+        help="also compare exact-build actor/position matrix raw bits in each sample; heading unverified")
     burst.add_argument("--out", required=True, help="new JSON file; no overwrite")
+    phases = commands.add_parser("compare-facing-phases",
+        help="offline only: compare five manually labeled matrix-enabled candidate bursts")
+    for phase in ("baseline", "camera-only", "turn-left", "turn-right", "forward"):
+        phases.add_argument("--" + phase, required=True,
+            help="local matrix-enabled candidate burst JSON (phase label not action proof)")
+    phases.add_argument("--out", help="save JSON to NEW file; never overwrite")
     commands.add_parser("doctor", help="offline environment check; never selects RIFT")
     args = parser.parse_args(argv)
     try:
@@ -98,6 +126,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_or_print(preview_steering(load_trace(args.trace), lookahead=args.lookahead,
                                             deadband_degrees=args.deadband_degrees), args.out)
         elif args.command == "inspect-native-candidate":
+            _capture_preflight(args.out, args.start_delay_seconds)
             report = capture_native_candidate(
                 pid=args.pid, start_utc_ticks=args.start_ticks,
                 executable_path=args.exe_path, executable_sha256=args.sha256,
@@ -107,11 +136,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             _write_or_print(report, args.out)
         elif args.command == "inspect-native-burst":
+            _capture_preflight(args.out, args.start_delay_seconds)
             report = capture_native_burst(
                 pid=args.pid, start_utc_ticks=args.start_ticks,
                 executable_path=args.exe_path, executable_sha256=args.sha256,
                 window_handle=args.hwnd, host=args.host, samples=args.samples,
                 interval_ms=args.interval_ms, max_total_s=args.max_total_seconds,
+                include_matrix_candidate=args.include_matrix_candidate,
+            )
+            _write_or_print(report, args.out)
+        elif args.command == "compare-facing-phases":
+            report = compare_facing_phases(
+                baseline=args.baseline, camera_only=args.camera_only,
+                turn_left=args.turn_left, turn_right=args.turn_right,
+                forward=args.forward,
             )
             _write_or_print(report, args.out)
         else:
@@ -124,12 +162,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "nativeReaderImplemented": False,
                 "nativeCandidateCaptureAvailable": True,
                 "nativeCandidateBurstAvailable": True,
+                "offlineFacingPhaseComparisonAvailable": True,
                 "nativeCandidateQualifiedForMovement": False,
                 "siblingRepositoryRequired": False,
             }, None)
         return 0
     except (TraceError, ValueError, OSError, IdentityUnavailable,
-            NativeReadUnavailable, NativeCandidateUnavailable, CandidateCaptureRefused) as error:
+            NativeReadUnavailable, NativeCandidateUnavailable, CandidateCaptureRefused,
+            FacingSignatureError) as error:
         print(f"rift-taxi: {error}", file=sys.stderr)
         return 2
 

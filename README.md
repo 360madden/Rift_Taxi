@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-132%20passing-27ae80?style=for-the-badge)](docs/M1_MATRIX_CANDIDATE.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-154%20passing-27ae80?style=for-the-badge)](docs/M1_FACING_SIGNATURE.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,7 +40,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 ## 📍 Current state
 
 > [!IMPORTANT]
-> **M1 is in progress, not complete.** Offline replay, RR2 evidence import, synthetic steering and a driver-neutral STOP/input gate exist. Taxi-owned **Windows process identity**, **bounded read-only memory access** and **exact-build XYZ/yaw candidate decoding** are implemented and tested; **132 regression tests passed on Nov 23**. There is **no independently qualified RIFT-live actor XYZ/yaw, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
+> **M1 is in progress, not complete.** Offline replay, RR2 evidence import, synthetic steering and a driver-neutral STOP/input gate exist. Taxi-owned **Windows process identity**, **bounded read-only memory access** and **exact-build XYZ/yaw candidate decoding** are implemented and tested; **154 regression tests passed on Nov 23**. There is **no independently qualified RIFT-live actor XYZ/yaw, Windows game-input backend, completed Taxi journey or packaged desktop application yet**.
 
 | Component | Status | Evidence / next gate |
 |:---|:---|:---|
@@ -53,6 +53,7 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 | Bounded native memory, candidate decoder and one-shot capture CLI | ✅ Implemented, candidate-only | [Native-read evidence](docs/M1_NATIVE_READONLY.md); real OS self-process smoke test + synthetic fields |
 | Read-only multi-sample candidate burst | ✅ Implemented, synthetic-tested | [Burst verification](docs/M1_NATIVE_READONLY.md#repeated-read-only-candidate-burst); does not verify physical movement |
 | Optional same-owner position/actor matrix comparison | ✅ Implemented, candidate-only | [Matrix diagnostic](docs/M1_MATRIX_CANDIDATE.md); 9 raw float32 comparisons are not verified body yaw |
+| Matrix-enabled bursts + five-phase offline comparison | ✅ Synthetic-tested | [Facing signature](docs/M1_FACING_SIGNATURE.md); source-hashed comparisons without action/heading claims |
 | Taxi-owned fresh XYZ and actor-facing reader | 🔧 Next | Process/build/actor binding and observation freshness |
 | Native Windows W/A/D backend and independently supervised release | 🔧 Next | Physical confirmation of actual game response and settled release |
 | Smooth multi-bend live journey | ⏳ Not verified | Measured course with continuous forward travel |
@@ -139,7 +140,7 @@ python -B -m rift_taxi preview-steering samples\synthetic_continuous.json
 python -B -m unittest discover -s tests -v
 ```
 
-The **opt-in, read-only** `inspect-native-candidate` and `inspect-native-burst` subcommands require exact PID, process creation ticks, executable path/hash, window handle and host. The burst command compares 2–8 candidate XYZ/yaw samples; the one-shot command also accepts `--include-matrix-candidate` to compare separately acquired position/actor orientation bytes. **Neither analysis establishes true game movement, passive freshness or qualified body heading.** Neither command auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
+The **opt-in, read-only** `inspect-native-candidate` and `inspect-native-burst` subcommands require exact PID, process creation ticks, executable path/hash, window handle and host. Both commands support `--include-matrix-candidate`: the burst compares 2–8 XYZ/yaw and optional position/actor matrix samples. `compare-facing-phases` analyzes five complete, separately labeled matrix bursts **offline**. The native commands also offer `--start-delay-seconds` (0–15) to switch focus back to RIFT before reading, and refuse occupied output paths before capture. **No analysis establishes true game movement, passive freshness or qualified body heading.** None of the commands auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
 
 The historical RR2 import includes a **72-position / 14-key-event** original-source receipt. Its source and limitations are explained in [M1 implementation](docs/M1_IMPLEMENTATION.md); it does **not** establish a Taxi-owned live journey.
 
@@ -156,6 +157,7 @@ The historical RR2 import includes a **72-position / 14-key-event** original-sou
 | [🪟 M1 Windows identity](docs/M1_WIN32_IDENTITY.md) | Read-only PID/start/hash/HWND qualification and test evidence |
 | [🔍 M1 native candidates](docs/M1_NATIVE_READONLY.md) | Read-only memory sessions, exact-build owner/XYZ/yaw decoding and unresolved live semantics |
 | [🧭 M1 matrix comparison](docs/M1_MATRIX_CANDIDATE.md) | Source-pinned position/actor raw matrix comparison; no body-heading promotion |
+| [📐 M1 facing signature](docs/M1_FACING_SIGNATURE.md) | Optional matrix bursts and five-phase source-verified offline comparison |
 | [🔌 Integration contracts](docs/INTEGRATION_CONTRACTS.md) | Existing upstream formats versus proposed Taxi formats |
 | [📖 Documentation hub](docs/README.md) | Index of research, handoffs and architecture notes |
 | [📝 Durable decisions](docs/DECISIONS.md) | Project decisions and non-negotiable boundaries |
