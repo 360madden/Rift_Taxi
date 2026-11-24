@@ -114,6 +114,43 @@ class VerifyPatchCheckTests(unittest.TestCase):
         self.assertFalse(result["production_input_authorized"])
         self.assertFalse(result["live_compatibility_verified"])
 
+    def make_v2(self):
+        # Bind the required saved bytes, excluding the separately pinned receipt.
+        self.receipt["schema"] = "taxi.patch-check/2"
+        self.receipt["file_sha256"] = {
+            path.name: p.digest(path.read_bytes()) for path in self.folder.iterdir()
+            if path.name != "receipt.json"}
+        self.repin()
+
+    def test_v2_binds_all_artifacts(self):
+        self.make_bundle()
+        self.make_v2()
+        report = self.verify()
+        self.assertEqual(report["receipt_schema"], "taxi.patch-check/2")
+        self.assertFalse(report["git_logs_internally_consistent_only"])
+        self.assertEqual(len(self.receipt["file_sha256"]), 28)
+
+    def test_v2_rejects_self_consistent_rewritten_git_logs(self):
+        self.make_bundle()
+        self.make_v2()
+        # Both Git roots are internally consistent but do not match the pin.
+        for stage in ("start", "finish"):
+            self.command(stage + "-root", ["git", "--no-optional-locks",
+                         "rev-parse", "--show-toplevel"], "C:/other/checkout\n")
+        with self.assertRaisesRegex(ValueError, "V2 bound artifact"):
+            self.verify()
+
+    def test_v2_missing_or_extra_hash_keys_rejected(self):
+        self.make_bundle()
+        self.make_v2()
+        original = dict(self.receipt["file_sha256"])
+        for changed in ({k: v for k, v in original.items() if k != "start-head.json"},
+                        {**original, "../outside": "a" * 64}):
+            self.receipt["file_sha256"] = changed
+            self.repin()
+            with self.assertRaisesRegex(ValueError, "V2 bound artifact"):
+                self.verify()
+
     def test_preflight_bundle(self):
         self.make_bundle(post=False)
         result = self.verify()

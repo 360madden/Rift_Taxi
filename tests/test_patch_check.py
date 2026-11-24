@@ -45,17 +45,32 @@ class PatchCheckTests(unittest.TestCase):
         return path
 
     def fake_command(self, repo, folder, name, argv, timeout=30):
-        # Simulate only known diagnostic commands; unexpected dispatch is a bug.
+        # Simulate the actual producer's command artifacts, without running Git,
+        # invoking a nested suite, or reading the game. The real tracking logic
+        # must verify these bytes rather than treating mocks as trusted metadata.
+        out, err = "", ""
         if name == "doctor":
-            return json.dumps(self.doctor), "", {"exit_code": 0}
-        if name == "tests":
-            return "", "Ran 457 tests in 55.0s\n\nOK\n", {"exit_code": 0}
-        raise AssertionError(f"unexpected command: {name}")
+            out = json.dumps(self.doctor)
+        elif name == "tests":
+            err = "Ran 457 tests in 55.0s\n\nOK\n"
+        elif name in ("start-root", "finish-root"):
+            out = str(repo) + "\n"
+        elif name in ("start-head", "finish-head"):
+            out = self.heads[0 if name.startswith("start") else 1] + "\n"
+        elif name not in ("start-status", "finish-status"):
+            raise AssertionError(f"unexpected command: {name}")
+        meta = {"exit_code": 0, "argv": argv,
+                "stdout_sha256": p.digest(out.encode("utf-8")),
+                "stderr_sha256": p.digest(err.encode("utf-8"))}
+        p.publish(folder / (name + ".stdout.txt"), out.encode("utf-8"))
+        p.publish(folder / (name + ".stderr.txt"), err.encode("utf-8"))
+        p.publish(folder / (name + ".json"), p.json_bytes(meta))
+        return out, err, meta
 
     def run_mocked(self, run_id, after_a=None, after_b=None, heads=None,
                    runner=None, minimum=457):
-        with mock.patch.object(p, "git_identity", side_effect=heads or ["a" * 40] * 2), \
-                mock.patch.object(p, "command", side_effect=runner or self.fake_command) as cmd:
+        self.heads = heads or ["a" * 40] * 2
+        with mock.patch.object(p, "command", side_effect=runner or self.fake_command) as cmd:
             result, folder = p.run(self.repo, run_id, self.host, self.before,
                                    self.pin, minimum, after_a, after_b)
         return result, folder, cmd
@@ -68,7 +83,11 @@ class PatchCheckTests(unittest.TestCase):
         self.assertEqual(result["test_count"], 457)
         self.assertEqual((folder / "before.json").read_bytes(), self.before.read_bytes())
         self.assertEqual(json.loads((folder / "receipt.json").read_bytes()), result)
-        self.assertEqual(cmd.call_count, 2)
+        self.assertEqual(cmd.call_count, 8)
+        self.assertEqual(result["schema"], "taxi.patch-check/2")
+        self.assertEqual(len(result["file_sha256"]), 26)
+        for name, expected in result["file_sha256"].items():
+            self.assertEqual(p.digest((folder / name).read_bytes()), expected)
 
     def test_postcheck_reports_changed_executable_without_live_claim(self):
         a, b = self.snapshot("a", "after", 1, "b"), self.snapshot("b", "after", 2, "b")
@@ -85,7 +104,7 @@ class PatchCheckTests(unittest.TestCase):
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["stage"], "evidence")
         self.assertTrue((folder / "receipt.json").is_file())
-        cmd.assert_not_called()
+        self.assertEqual(cmd.call_count, 3)  # Start Git identity only.
 
     def test_changed_head_and_changed_source_block_final_receipt(self):
         result, _, _ = self.run_mocked("head-drift", heads=["a" * 40, "b" * 40])
@@ -110,7 +129,7 @@ class PatchCheckTests(unittest.TestCase):
         self.doctor.pop("gameInputEnabled")
         result, _, cmd = self.run_mocked("doctor-fail")
         self.assertEqual(result["stage"], "doctor")
-        self.assertEqual(cmd.call_count, 1)
+        self.assertEqual(cmd.call_count, 4)  # Start Git identity plus doctor.
 
     def test_incomplete_skipped_and_shrunken_suites_refused(self):
         for log in ("", "Ran 0 tests in 0.0s\n\nOK\n",
@@ -122,6 +141,37 @@ class PatchCheckTests(unittest.TestCase):
         result, _, _ = self.run_mocked("minimum", minimum=458)
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["stage"], "tests")
+
+    def test_mutated_earlier_command_log_blocks_publication(self):
+        def modify_log(repo, folder, name, argv, timeout=30):
+            if name == "tests":
+                (folder / "start-status.stdout.txt").write_bytes(b"modified")
+            return self.fake_command(repo, folder, name, argv, timeout)
+        result, folder, _ = self.run_mocked("log-drift", runner=modify_log)
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["stage"], "final-recheck")
+        self.assertIn("saved evidence changed", result["error"])
+        self.assertNotIn("file_sha256", result)
+
+    def test_mutated_evidence_report_blocks_publication(self):
+        def modify_report(repo, folder, name, argv, timeout=30):
+            if name == "tests":
+                (folder / "evidence.json").write_bytes(b"{}")
+            return self.fake_command(repo, folder, name, argv, timeout)
+        result, _, _ = self.run_mocked("report-drift", runner=modify_report)
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("saved evidence changed", result["error"])
+
+    def test_strict_doctor_and_unittest_footer(self):
+        raw = json.dumps(self.doctor)
+        ambiguous = raw[:-1] + ', "gameInputEnabled": false}'
+        with self.assertRaisesRegex(ValueError, "duplicate JSON key"):
+            p.check_doctor(ambiguous)
+        self.doctor["python"] = ""
+        with self.assertRaisesRegex(ValueError, "Python version missing"):
+            p.check_doctor(json.dumps(self.doctor))
+        with self.assertRaisesRegex(ValueError, "complete unskipped OK"):
+            p.check_tests("Ran 457 tests in 1.0s\n\nFAILED\nOK\n", 457)
 
     def test_duplicate_run_and_wrong_host_refused_without_overwrite(self):
         result, folder, _ = self.run_mocked("duplicate")

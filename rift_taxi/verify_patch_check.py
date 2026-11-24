@@ -1,4 +1,4 @@
-"""Portable, read-only verification of a saved Taxi patch-check/1 bundle.
+"""Portable, read-only verification of a saved Taxi patch-check/1 or /2 bundle.
 
 This development command requires independently retained SHA-256 pins for the
 receipt and baseline, plus the original host and a minimum test count. It
@@ -51,12 +51,13 @@ def _hash_pin(pin):
 
 def verify(folder, expected_receipt_sha, expected_host, expected_before_sha,
            minimum_tests):
-    """Revalidate one completed v1 bundle on any host, using external pins.
+    """Revalidate one completed v1 or v2 bundle on any host, using external pins.
 
     Fixed filenames only; no path or command from an untrusted receipt is
     executed or followed. The pinned final receipt binds the evidence, doctor,
     and test logs. V1 Git command records are only internally consistent, not
-    individually bound by that receipt. Rechecks detect observable file drift;
+    individually bound by that receipt. V2 binds every required artifact.
+    Rechecks detect observable file drift;
     they do not provide an atomic snapshot or authenticate the producer.
     """
     folder = Path(folder)
@@ -83,7 +84,8 @@ def verify(folder, expected_receipt_sha, expected_host, expected_before_sha,
     receipt = _object(raw)
     mode = receipt.get("mode")
     _require(mode in ("preflight", "postcheck"), "invalid receipt mode")
-    _require(receipt.get("schema") == "taxi.patch-check/1"
+    schema = receipt.get("schema")
+    _require(schema in ("taxi.patch-check/1", "taxi.patch-check/2")
              and receipt.get("stage") == "complete"
              and receipt.get("status") == ("offline-preflight-passed" if mode == "preflight"
                                            else "offline-postcheck-passed")
@@ -171,6 +173,15 @@ def verify(folder, expected_receipt_sha, expected_host, expected_before_sha,
         _require(git_head.strip() == head and not status.strip(), f"{stage}: Git identity mismatch")
     _require(bool(roots[0]) and roots[0] == roots[1], "Git root mismatch")
 
+    # New receipts explicitly bind every required file except receipt.json
+    # itself (which is independently pinned). Match the exact filename set:
+    # never accept omitted hashes or open arbitrary receipt-supplied paths.
+    if schema == "taxi.patch-check/2":
+        expected_files = {name: value[0] for name, value in observed.items()
+                          if name != "receipt.json"}
+        _require(receipt.get("file_sha256") == expected_files,
+                 "V2 bound artifact hash or filename set mismatch")
+
     # Detect evidence replacement or mutation during verification. This does
     # not protect against an adversary restoring all bytes/metadata in between.
     for name, expected in observed.items():
@@ -182,7 +193,8 @@ def verify(folder, expected_receipt_sha, expected_host, expected_before_sha,
             "run_id": run_id, "mode": mode, "git_head": head, "test_count": count,
             "evidence_status": evidence["status"], "receipt_sha256": expected_receipt_sha,
             "manifest_sha256": hashes, "verified_file_count": len(observed),
-            "git_logs_internally_consistent_only": True,
+            "receipt_schema": schema,
+            "git_logs_internally_consistent_only": schema == "taxi.patch-check/1",
             "production_input_authorized": False, "live_compatibility_verified": False}
 
 

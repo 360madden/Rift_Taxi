@@ -19,7 +19,7 @@ import stat
 import subprocess
 import sys
 
-from .patch_readiness import assess, _read_saved_bytes
+from .patch_readiness import assess, _read_saved_bytes, _unique_object, _reject_constant
 
 REPO = Path(__file__).resolve().parent.parent
 RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}\Z")
@@ -85,7 +85,10 @@ def command(repo, folder, name, argv, timeout=30):
                                  shell=False, check=False)
     if max(out.stat().st_size, err.stat().st_size) > MAX_LOG_READ:
         raise ValueError(f"{name}: output too large; inspect preserved logs")
-    stdout_raw, stderr_raw = out.read_bytes(), err.read_bytes()
+    stdout_raw, _ = _read_saved_bytes(out)
+    stderr_raw, _ = _read_saved_bytes(err)
+    if max(len(stdout_raw), len(stderr_raw)) > MAX_LOG_READ:
+        raise ValueError(f"{name}: output too large; inspect preserved logs")
     receipt = {"exit_code": process.returncode, "stdout_sha256": digest(stdout_raw),
                "stderr_sha256": digest(stderr_raw), "argv": argv}
     publish(folder / (name + ".json"), json_bytes(receipt))
@@ -94,17 +97,18 @@ def command(repo, folder, name, argv, timeout=30):
     return stdout_raw.decode("utf-8"), stderr_raw.decode("utf-8"), receipt
 
 
-def git_identity(repo, folder, stage):
+def git_identity(repo, folder, stage, runner=None):
     """Require a clean working tree in the intended checkout; no Git writes."""
+    runner = runner or command
     git = ["git", "--no-optional-locks"]
-    root, _, _ = command(repo, folder, stage + "-root", git + ["rev-parse", "--show-toplevel"])
+    root, _, _ = runner(repo, folder, stage + "-root", git + ["rev-parse", "--show-toplevel"])
     if Path(root.strip()).resolve() != repo.resolve():
         raise ValueError("unexpected Git checkout root")
-    head, _, _ = command(repo, folder, stage + "-head", git + ["rev-parse", "HEAD"])
+    head, _, _ = runner(repo, folder, stage + "-head", git + ["rev-parse", "HEAD"])
     head = head.strip()
     if not HEAD.fullmatch(head):
         raise ValueError("invalid Git HEAD")
-    status, _, _ = command(repo, folder, stage + "-status",
+    status, _, _ = runner(repo, folder, stage + "-status",
                            git + ["status", "--porcelain=v1", "--untracked-files=all"])
     if status.strip():
         raise ValueError("Taxi checkout is dirty; commit reviewed changes first")
@@ -113,7 +117,11 @@ def git_identity(repo, folder, stage):
 
 def check_doctor(stdout):
     """Require the current offline/disarmed contract, not merely exit code zero."""
-    obj = json.loads(stdout)
+    try:
+        obj = json.loads(stdout, object_pairs_hook=_unique_object,
+                         parse_constant=_reject_constant)
+    except RecursionError as exc:
+        raise ValueError("doctor JSON nesting exceeds decoder limits") from exc
     if (not isinstance(obj, dict) or obj.get("schema") != "taxi.doctor/1"
             or obj.get("status") != "offline-replay-ready" or obj.get("runtime") != "stdlib"):
         raise ValueError("unexpected doctor contract")
@@ -122,15 +130,22 @@ def check_doctor(stdout):
                 "nativeZoneCandidateQualifiedForPublicApi", "siblingRepositoryRequired"):
         if obj.get(key) is not False:
             raise ValueError(f"doctor disarm/standalone gate failed: {key}")
+    if not isinstance(obj.get("python"), str) or not obj["python"].strip():
+        raise ValueError("doctor Python version missing")
     return obj
 
 
 def check_tests(stderr, minimum_tests):
     """Reject empty, reduced, skipped or unsuccessful suites despite exit zero."""
-    counts = re.findall(r"(?m)^Ran (\d+) tests? in [0-9.]+s\s*$", stderr)
-    if len(counts) != 1 or not stderr.rstrip().endswith("\nOK"):
+    # A bare trailing OK must not hide an intervening FAILED/skipped summary.
+    # The normal unittest footer is three lines: count, blank line, OK.
+    lines = stderr.rstrip().splitlines()
+    pattern = r"Ran (\d+) tests? in [0-9]+(?:\.[0-9]+)?s"
+    counts = [m for line in lines if (m := re.fullmatch(pattern, line))]
+    if (len(counts) != 1 or len(lines) < 3 or lines[-2:] != ["", "OK"]
+            or not re.fullmatch(pattern, lines[-3])):
         raise ValueError("unittest receipt missing a complete unskipped OK result")
-    count = int(counts[0])
+    count = int(counts[0][1])
     if count < minimum_tests:
         raise ValueError(f"only {count} tests; expected at least {minimum_tests}")
     return count
@@ -167,13 +182,35 @@ def run(repo, run_id, expected_host, before, expected_before_sha, minimum_tests,
     if type(minimum_tests) is not int or minimum_tests < 1:
         raise ValueError("positive minimum test count required")
     folder = new_run(repo, run_id)
-    result = {"schema": "taxi.patch-check/1", "run_id": run_id, "host": expected_host,
+    result = {"schema": "taxi.patch-check/2", "run_id": run_id, "host": expected_host,
               "started_utc": utc(), "status": "blocked", "production_input_authorized": False,
               "live_compatibility_verified": False, "stage": "source",
               "mode": "preflight" if after_a is None and after_b is None else "postcheck",
               "expected_before_sha256": expected_before_sha, "minimum_tests": minimum_tests}
+    # V2 binds every required saved byte, including the previously unbound Git
+    # logs. Capture each digest at admission, not by trusting a final directory
+    # listing after diagnostics have run. Keep identities for local rechecks;
+    # the portable receipt stores only hashes.
+    observed = {}
+
+    def track(name, expected):
+        raw, identity = _read_saved_bytes(folder / name)
+        if name in observed or digest(raw) != expected:
+            raise ValueError(f"saved evidence mismatch: {name}")
+        observed[name] = (expected, identity)
+
+    def tracked_command(repo, folder, name, argv, timeout=30):
+        out, err, meta = command(repo, folder, name, argv, timeout)
+        track(name + ".json", digest(json_bytes(meta)))
+        for stream, value in (("stdout", out), ("stderr", err)):
+            expected = meta[stream + "_sha256"]
+            if digest(value.encode("utf-8")) != expected:
+                raise ValueError(f"command output mismatch: {name}.{stream}")
+            track(f"{name}.{stream}.txt", expected)
+        return out, err, meta
+
     try:
-        head = git_identity(repo, folder, "start")
+        head = git_identity(repo, folder, "start", runner=tracked_command)
         result["git_head"] = head
         result["stage"] = "evidence"
         evidence = assess(before, expected_host, expected_before_sha, after_a, after_b)
@@ -184,6 +221,8 @@ def run(repo, run_id, expected_host, before, expected_before_sha, minimum_tests,
             hashes.update(zip(("after-a", "after-b"), evidence["after_manifest_sha256"]))
         result["manifest_sha256"] = hashes
         copies = preserve_inputs(folder, paths, hashes)
+        for name, expected in hashes.items():
+            track(name + ".json", expected)
         # Confirm the portable copy produces exactly the same gate result.
         def assess_copies():
             return assess(copies["before"], expected_host, expected_before_sha,
@@ -192,28 +231,36 @@ def run(repo, run_id, expected_host, before, expected_before_sha, minimum_tests,
             raise ValueError("copied evidence does not reproduce admission")
         publish(folder / "evidence.json", json_bytes(evidence))
         result["evidence_status"] = evidence["status"]
-        result["evidence_report_sha256"] = digest((folder / "evidence.json").read_bytes())
+        result["evidence_report_sha256"] = digest(json_bytes(evidence))
+        track("evidence.json", result["evidence_report_sha256"])
 
         result["stage"] = "doctor"
         python = [sys.executable, "-E", "-B", "-X", "utf8"]
-        stdout, _, result["doctor_command"] = command(
+        stdout, _, result["doctor_command"] = tracked_command(
             repo, folder, "doctor", python + ["-m", "rift_taxi", "doctor"])
         doctor = check_doctor(stdout)
         result["python"] = doctor["python"]
 
         result["stage"] = "tests"
-        _, stderr, result["test_command"] = command(
+        _, stderr, result["test_command"] = tracked_command(
             repo, folder, "tests", python + ["-m", "unittest", "discover", "-s", "tests", "-q"],
             timeout=300)
         result["test_count"] = check_tests(stderr, minimum_tests)
 
         result["stage"] = "final-recheck"
-        if git_identity(repo, folder, "finish") != head:
+        if git_identity(repo, folder, "finish", runner=tracked_command) != head:
             raise ValueError("Git HEAD changed during validation")
         if assess(before, expected_host, expected_before_sha, after_a, after_b) != evidence:
             raise ValueError("original evidence changed during validation")
         if assess_copies() != evidence:
             raise ValueError("preserved evidence changed during validation")
+        # Re-read all admitted artifacts immediately before publishing success.
+        # A mutated log or command record must not acquire a fresh trusted hash.
+        for name, expected in observed.items():
+            raw, identity = _read_saved_bytes(folder / name)
+            if (digest(raw), identity) != expected:
+                raise ValueError(f"saved evidence changed during validation: {name}")
+        result["file_sha256"] = {name: value[0] for name, value in observed.items()}
         result["stage"] = "complete"
         result["status"] = ("offline-preflight-passed" if after_a is None
                             else "offline-postcheck-passed")
