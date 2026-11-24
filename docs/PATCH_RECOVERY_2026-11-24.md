@@ -27,7 +27,7 @@ Taxi now has a development-only evidence and diagnostics runner. It requires the
 
 ```powershell
 Set-Location -LiteralPath 'C:\work\Rift_Taxi'
-python -B -m rift_taxi.patch_check --run-id pre-20261124-01 --expected-host LEGION --before '../Update Helper/before-20261124-legion.json' --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 466
+python -B -m rift_taxi.patch_check --run-id pre-20261124-01 --expected-host LEGION --before '../Update Helper/before-20261124-legion.json' --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 481
 if ($LASTEXITCODE -ne 0) { throw 'Taxi offline preflight blocked; inspect receipt' }
 ```
 
@@ -59,7 +59,7 @@ Use the current Update Helper one-command capture cycle and its independent save
 
 ```powershell
 Set-Location -LiteralPath 'C:\work\Rift_Taxi'
-python -B -m rift_taxi.patch_check --run-id post-20261124-01 --expected-host LEGION --before '../Update Helper/before-20261124-legion.json' --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 466 --after-a '../Update Helper/patch-20261124-attempt-01-after-a.json' --after-b '../Update Helper/patch-20261124-attempt-01-after-b.json'
+python -B -m rift_taxi.patch_check --run-id post-20261124-01 --expected-host LEGION --before '../Update Helper/before-20261124-legion.json' --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 481 --after-a '../Update Helper/patch-20261124-attempt-01-after-a.json' --after-b '../Update Helper/patch-20261124-attempt-01-after-b.json'
 if ($LASTEXITCODE -ne 0) { throw 'Taxi offline postcheck blocked; inspect receipt' }
 ```
 
@@ -115,3 +115,22 @@ The current RIFT process was present and responding, with the same Windows sessi
 | `artifacts/patch-window-diagnostic-20261124-current-01.json` | `4283bc674b8c53b819de23af3b248a7c892d58f122583a14f1cd3ff123cfa8f8` |
 
 **Resume:** If actual installation content changes later, create a new capture prefix and Taxi run ID, preserving these originals. Otherwise continue M1 offline work or obtain fresh non-minimized process/window identity when the game is available for observation. Keep actor/zone, heading, freshness and movement gates unqualified; no automatic re-arm.
+
+## 6. Independently verify archived Taxi receipts
+
+The development-only verifier `python -B -m rift_taxi.verify_patch_check` requires the original receipt SHA-256, baseline SHA-256, expected evidence host and minimum accepted test count, all retained independently from the bundle under review. It uses only the archived files and Taxi's standard-library implementation; it can run on another host without the game, Update Helper, Git checkout history or the original install. It does not execute the stored commands or perform a new test run.
+
+Example for the November 24 current-install receipt (run from the Taxi root):
+
+```powershell
+python -B -m rift_taxi.verify_patch_check --bundle artifacts/patch-check-post-20261124-current-01 --expected-receipt-sha 14211fb8c29258d798f9b782554ff987b0ec67772ead66a81c124b6a0f60d6b6 --expected-host LEGION --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 466
+if ($LASTEXITCODE -ne 0) { throw 'Archived Taxi receipt verification blocked' }
+```
+
+Exit 0 means `verified-stored-offline-receipt`; exit 2 means missing, altered, incomplete or inconsistent evidence. Recompute admission from copied manifests; compare exact report bytes, recorded command metadata and log hashes; recheck doctor disarm flags, test minimum, test count, and start/finish Git observations; reject observable evidence drift. Copy the entire bundle without modifying the originals. Do not derive the trusted receipt SHA from the same untrusted archive merely to make a check pass.
+
+**Verified original bundles, November 24 at 12:42–12:43 EST:** the 12:34 postcheck (29 required files; no-content-change) and the 00:17 preflight (27 required files; baseline-only) both passed with their independently documented pins and 466-test historical receipts. Neither was regenerated. All 15 focused synthetic verifier regressions passed.
+
+**Scope limit:** V1 receipt SHA binds the recorded evidence, doctor and test log digests; the separate Git command records are checked for internal consistency only, not individually bound by the final V1 receipt. Neither an external hash nor successful verification authenticates the original capture producer, proves the commands actually ran, or establishes current RIFT compatibility. The verifier is not an input-authorization mechanism.
+
+**Integrated regression validation (12:44 EST):** 481/481 tests passed in 52.619 seconds (exit 0), including the 15 new verifier tests. New patch-check runs require at least 481 tests; historic receipt verification continues to use the original documented 466-test threshold. The expected wrong-pin rejection in the negative test is not a failure.
