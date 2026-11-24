@@ -1,5 +1,7 @@
 # Verification and navigation-quality benchmark
 
+**November 24 V2 recovery:** 487/487 tests passed (54.169 s) in the actual committed LEGION postcheck using preserved installation captures. All 29 required V2 bundle files independently verified; both earlier V1 bundles also passed. [V2 recovery evidence](PATCH_RECOVERY_2026-11-24.md#7-v2-receipt-integrity-upgrade-1248-est). No new live-client evidence was obtained.
+
 **November 24 archive verification:** 481/481 integrated Python tests passed (52.619 s); 15 new verifier regressions exercise pinned receipt and log integrity, portable revalidation, semantic refusal paths and observable mutation. Both original 466-test recovery bundles independently passed the [archive verifier](PATCH_RECOVERY_2026-11-24.md#6-independently-verify-archived-taxi-receipts). No new live-client evidence was obtained.
 
 **November 24 current-install check:** 466/466 Python regressions passed on LEGION (73.946 s, exit 0), alongside a verified two-capture comparison with no content changes across all 266 installation files. See [the recovery receipt](PATCH_RECOVERY_2026-11-24.md#5-november-24-current-install-recovery-receipt-12301238-est). This is offline validation, not live navigation acceptance; the minimized RIFT window prevented live identity admission.

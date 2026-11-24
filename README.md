@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-481%20passing-27ae80?style=for-the-badge)](docs/VALIDATION.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-487%20passing-27ae80?style=for-the-badge)](docs/VALIDATION.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -40,6 +40,8 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 **Development workflow:** [AI-first autonomous execution](docs/AUTONOMY_POLICY.md) is the default. The AI should carry out coding, investigation, Windows/game inspection, evidence collection, testing and GitHub synchronization with minimal user intervention while preserving accurate live-game qualification.
 
 ## 📍 Current state
+
+**Recovery receipt V2:** all 487 integrated tests passed in a clean-checkout operational rehearsal. The V2 archive verifier binds all required saved diagnostics, including Git logs, and continues to accept original V1 receipts. [V2 evidence](docs/PATCH_RECOVERY_2026-11-24.md#7-v2-receipt-integrity-upgrade-1248-est).
 
 **Archived recovery verification:** both original November 24 receipt bundles independently revalidated (27 and 29 required files). Current integrated regression suite: **481/481 passed**. See the [offline receipt verifier](docs/PATCH_RECOVERY_2026-11-24.md#6-independently-verify-archived-taxi-receipts).
 
