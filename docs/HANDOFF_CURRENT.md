@@ -5,7 +5,11 @@
 **Remote:** https://github.com/360madden/Rift_Taxi.git
 **State:** M1 in progress; production navigation disarmed. M0 complete. M2/M3 experiments are offline only; M4–M6 remain planned.
 
-## Latest checkpoint — November 24, 13:20 EST
+## Latest checkpoint — November 24, 13:28 EST
+
+The new [matched delay-factor study](M2_M3_DELAY_FACTORIAL_2026-11-24.md) retains 864 simulations and separates speed, yaw cap, timestep and nominal FIFO latency on the previously observed V3 geometries. At 330 ms, 263/288 reached the destination and 225/288 settled inside tolerance. Faster movement and higher yaw caps were adverse in matched comparisons; finer timesteps alone did not rescue the same 12 high-speed/high-yaw approach failures. Report bytes reproduced exactly. Four new focused tests passed; **498/498 full regressions passed** in 60.685 s, exit 0. Next investigate a separate latency-aware synthetic control experiment. No frozen policy changes or physical qualification.
+
+## Previous checkpoint — November 24, 13:20 EST
 
 The six recovery commits through `8e491db6fb894a0620d69fb037a740b69d2415b0` were pushed and independently checked against GitHub main. The current-install comparison found zero content changes across 266 files; publisher maintenance status is unconfirmed. V2 receipt verification and the committed 487-test recovery baseline remain documented in [the recovery runbook](PATCH_RECOVERY_2026-11-24.md).
 

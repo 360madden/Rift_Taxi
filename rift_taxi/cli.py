@@ -20,6 +20,7 @@ from .simulation_holdout import evaluate_holdout
 from .simulation_holdout_v2 import evaluate_holdout_v2
 from .simulation_holdout_v3 import evaluate_holdout_v3
 from .simulation_v3_failure_audit import audit_v3_failures
+from .simulation_delay_factorial import evaluate_delay_factorial
 from .simulation_receipt_audit import audit_v3_receipt
 from .simulation_ordered_comparison import compare_ordered_corners
 from .simulation_delay_study import evaluate_delay_study
@@ -148,6 +149,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Offline diagnosis of frozen synthetic outcomes, not a new policy.
     v3_failures = commands.add_parser("audit-v3-failures", help="offline V3 synthetic failure and tail-motion breakdown")
     v3_failures.add_argument("--out", help="write V3 failure audit to a NEW file")
+    # Separate synthetic factor study; no policy, game or actuator changes.
+    factors = commands.add_parser("study-delay-factors", help="offline matched speed/yaw/timestep/delay experiment")
+    factors.add_argument("--out", help="write factor study to a NEW file")
     # Strict saved-report audit; an optional separately recorded digest
     # pins the exact input bytes. Replays synthetic data only.
     receipt = commands.add_parser("verify-v3-receipt", help="offline strict JSON, aggregate and replay verification")
@@ -361,6 +365,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_or_print(evaluate_holdout_v3(), args.out)
         elif args.command == "audit-v3-failures":
             _write_or_print(audit_v3_failures(), args.out)
+        elif args.command == "study-delay-factors":
+            if args.out is not None:
+                _capture_preflight(args.out, 0.)
+            _write_or_print(evaluate_delay_factorial(), args.out)
         elif args.command == "verify-v3-receipt":
             _write_or_print(audit_v3_receipt(args.report, expected_sha256=args.expected_sha256), args.out)
         elif args.command == "measure-motion-timing":
