@@ -6,6 +6,7 @@ actuator rate, obstacle clearance and STOP behavior remain M1/M3 work.
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
 import math
 from typing import Any
 
@@ -25,26 +26,47 @@ def _segments(points: tuple[Point, ...]) -> tuple[list[float], float]:
     return accum, accum[-1]
 
 
-def _closest_progress(
+def _project(
     points: tuple[Point, ...], cumulative: list[float],
-    position: tuple[float, float, float], previous_progress: float,
+    position: tuple[float, float, float], low: float, high: float,
 ) -> tuple[float, float]:
-    """Return projected path progress and lateral deviation; no route admission."""
-    candidates: list[tuple[float, float]] = []
-    for i, (start, end) in enumerate(zip(points, points[1:])):
-        seg = cumulative[i + 1] - cumulative[i]
-        if seg <= 1e-12:
+    """Return (arc progress, XZ error) on a clipped synthetic route interval.
+
+    Shared by preview and feedback simulation; cumulative distances must be
+    nondecreasing and aligned to the route vertices. Bounds are distances in
+    synthetic units, not time or indices. Both endpoints are inclusive.
+    A later crossing cannot teleport progress ahead of the movement budget.
+    Ties favor the earlier arc position. This is not obstacle/corridor proof.
+    """
+    candidates = []
+    # The original full scan tested each segment's start/end arc against
+    # low/high. Binary search those same sorted vertex arcs first, retaining
+    # both segments touching an exact boundary (including zero-width windows).
+    # This preserves the arithmetic and lexicographic tie break of the frozen
+    # simulator while avoiding a full route scan at every observation.
+    first = bisect_left(cumulative, low, lo=1) - 1
+    stop = bisect_right(cumulative, high, hi=len(points) - 1)
+    for i in range(first, stop):
+        a, b = points[i], points[i + 1]
+        length = cumulative[i+1] - cumulative[i]
+        if length <= 1e-12 or cumulative[i+1] < low or cumulative[i] > high:
             continue
-        vx, vz = end.xyz[0] - start.xyz[0], end.xyz[2] - start.xyz[2]
-        along = ((position[0] - start.xyz[0]) * vx + (position[2] - start.xyz[2]) * vz) / (seg * seg)
-        along = max(0.0, min(1.0, along))
-        cx, cz = start.xyz[0] + along * vx, start.xyz[2] + along * vz
-        progress = cumulative[i] + along * seg
-        error = math.hypot(position[0] - cx, position[2] - cz)
-        candidates.append((error, progress))
-    candidates.sort(key=lambda candidate: (candidate[0], -candidate[1]))
-    closest_error, closest_progress = candidates[0]
-    return max(previous_progress, closest_progress), closest_error
+        # Clip this segment to the allowed arc-length interval before
+        # projecting onto it. A globally nearest later leg would otherwise
+        # permit a jump at a crossing or closely spaced parallel section.
+        left = max(0., (low-cumulative[i])/length)
+        right = min(1., (high-cumulative[i])/length)
+        if left > right:
+            continue
+        dx, dz = b.xyz[0]-a.xyz[0], b.xyz[2]-a.xyz[2]
+        fraction = ((position[0]-a.xyz[0])*dx + (position[2]-a.xyz[2])*dz)/(length*length)
+        fraction = max(left, min(right, fraction))
+        nearest = (a.xyz[0]+fraction*dx, position[1], a.xyz[2]+fraction*dz)
+        candidates.append((_xz_distance(position, nearest), cumulative[i]+fraction*length))
+    if not candidates:
+        raise TraceError("no admissible synthetic projection")
+    error, progress = min(candidates)
+    return max(low, min(high, progress)), error
 
 
 def _lookahead_point(
@@ -87,11 +109,31 @@ def preview_steering(trace: MovementTrace, *, lookahead: float = 2.0,
     if (not math.isfinite(lookahead) or lookahead <= 0 or lookahead > 50
             or not math.isfinite(deadband_degrees) or not 0 <= deadband_degrees < 90):
         raise TraceError("invalid lookahead/deadband for synthetic steering preview")
+    # Apply the same ordered, displacement-limited arc projection as the
+    # offline feedback model. Starting at a crossing must not advance the
+    # route, and a stationary sample cannot accumulate progress. The factor
+    # of two is a synthetic allowance for cutting corners, not live motion
+    # or collision evidence. Cross-track error uses the eligible arc, never
+    # a different (possibly already passed or not yet reached) route leg.
+    for xyz in (*(p.xyz for p in trace.points), *(p.xyz for p in trace.poses)):
+        if len(xyz) != 3 or any(not math.isfinite(v) or abs(v) > 1e6 for v in xyz):
+            raise TraceError("synthetic coordinates invalid or unbounded")
     cumulative, total_length = _segments(trace.points)
+    if any(b-a <= 1e-9 for a,b in zip(cumulative, cumulative[1:])):
+        raise TraceError("duplicate horizontal route points")
+    if (not math.isfinite(trace.arrival_tolerance_xz)
+            or not 0 < trace.arrival_tolerance_xz < total_length):
+        raise TraceError("route length must exceed positive arrival tolerance")
     progress = 0.0
+    previous_xyz = None
     frames = []
     for pose in trace.poses:
-        progress, cross_track = _closest_progress(trace.points, cumulative, pose.xyz, progress)
+        budget = 0.0 if previous_xyz is None else 2.0 * _xz_distance(previous_xyz, pose.xyz)
+        progress, cross_track = _project(
+            trace.points, cumulative, pose.xyz, progress,
+            min(total_length, progress + budget),
+        )
+        previous_xyz = pose.xyz
         goal = trace.points[-1].xyz
         distance_to_goal = _xz_distance(pose.xyz, goal)
         reached = distance_to_goal <= trace.arrival_tolerance_xz and progress >= total_length - trace.arrival_tolerance_xz
@@ -125,6 +167,7 @@ def preview_steering(trace: MovementTrace, *, lookahead: float = 2.0,
         "schema": "taxi.steering-preview/1",
         "classification": "SYNTHETIC_GEOMETRY_ONLY",
         "algorithm": "pure-pursuit-lookahead-heading",
+        "progressPolicy": "ordered-displacement-bounded/1",
         "routeId": trace.route_id,
         "lookahead": lookahead,
         "deadbandDegrees": deadband_degrees,
@@ -132,7 +175,8 @@ def preview_steering(trace: MovementTrace, *, lookahead: float = 2.0,
         "gameInputSent": False,
         "liveNavigabilityVerified": False,
         "notes": [
-            "No closed-loop simulation or physical RIFT actuator has been tested.",
+            "This preview does not run the feedback simulator or a physical actuator.",
+            "Progress starts at zero; each sample permits at most twice its observed XZ displacement.",
             "Yaw convention and positive/negative turn intents are synthetic, not RIFT key bindings.",
             "No obstacle/corridor clearance or final game arrival is certified.",
         ],

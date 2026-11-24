@@ -21,7 +21,7 @@ import math
 from typing import Any
 
 from .contracts import MovementTrace, TraceError
-from .steering import _segments, _lookahead_point, _angle_delta, _xz_distance
+from .steering import _segments, _lookahead_point, _angle_delta, _xz_distance, _project
 
 
 def _bounded_number(value: float, name: str, low: float, high: float) -> float:
@@ -39,35 +39,6 @@ def _bounded_number(value: float, name: str, low: float, high: float) -> float:
     if not math.isfinite(number) or not low <= number <= high:
         raise TraceError(f"{name} must be within {low}..{high}")
     return number
-
-
-def _project(points, cumulative, position, low, high):
-    """Closest point only on an admissible forward arc interval.
-
-    A later crossing cannot teleport progress ahead of the movement budget.
-    Ties favor the earlier arc position. This is not obstacle/corridor proof.
-    """
-    candidates = []
-    for i, (a, b) in enumerate(zip(points, points[1:])):
-        length = cumulative[i+1] - cumulative[i]
-        if length <= 1e-12 or cumulative[i+1] < low or cumulative[i] > high:
-            continue
-        # Clip this segment to the allowed arc-length interval before
-        # projecting onto it. A globally nearest later leg would otherwise
-        # permit a jump at a crossing or closely spaced parallel section.
-        left = max(0., (low-cumulative[i])/length)
-        right = min(1., (high-cumulative[i])/length)
-        if left > right:
-            continue
-        dx, dz = b.xyz[0]-a.xyz[0], b.xyz[2]-a.xyz[2]
-        fraction = ((position[0]-a.xyz[0])*dx + (position[2]-a.xyz[2])*dz)/(length*length)
-        fraction = max(left, min(right, fraction))
-        nearest = (a.xyz[0]+fraction*dx, position[1], a.xyz[2]+fraction*dz)
-        candidates.append((_xz_distance(position, nearest), cumulative[i]+fraction*length))
-    if not candidates:
-        raise TraceError("no admissible synthetic projection")
-    error, progress = min(candidates)
-    return max(low, min(high, progress)), error
 
 
 def _turn_limited_speed(speed: float, heading_error: float, chord: float,

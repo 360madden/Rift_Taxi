@@ -7,13 +7,13 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-487%20passing-27ae80?style=for-the-badge)](docs/VALIDATION.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-494%20passing-27ae80?style=for-the-badge)](docs/VALIDATION.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
 *A standalone, destination-driven navigation project for the RIFT MMORPG.*
 
-[**Explore the roadmap**](docs/ROADMAP.md) · [**Current M1 handoff**](docs/M1_HANDOFF_2026-11-23.md) · [**See what works**](#-current-state) · [**AI-first development policy**](docs/AUTONOMY_POLICY.md) · [**Run the offline tools**](#-try-the-offline-tools) · [**Documentation**](#-documentation)
+[**Explore the roadmap**](docs/ROADMAP.md) · [**Current M1 handoff**](docs/HANDOFF_CURRENT.md) · [**See what works**](#-current-state) · [**AI-first development policy**](docs/AUTONOMY_POLICY.md) · [**Run the offline tools**](#-try-the-offline-tools) · [**Documentation**](#-documentation)
 
 </div>
 

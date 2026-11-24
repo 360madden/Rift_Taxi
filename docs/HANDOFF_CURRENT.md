@@ -1,15 +1,21 @@
-# Current RIFT Taxi handoff — November 23, 2026
+# Current RIFT Taxi handoff — November 24, 2026
 
 **Host:** LEGION · **Repository:** `C:\work\Rift_Taxi` · **Branch:** `main`
-**Baseline:** `2109a3e55225b35952b8d7aaae7ecad59e2f865e`
+**Historical November 23 baseline:** `2109a3e55225b35952b8d7aaae7ecad59e2f865e`
 **Remote:** https://github.com/360madden/Rift_Taxi.git
 **State:** M1 in progress; production navigation disarmed. M0 complete. M2/M3 experiments are offline only; M4–M6 remain planned.
+
+## Latest checkpoint — November 24, 13:20 EST
+
+The six recovery commits through `8e491db6fb894a0620d69fb037a740b69d2415b0` were pushed and independently checked against GitHub main. The current-install comparison found zero content changes across 266 files; publisher maintenance status is unconfirmed. V2 receipt verification and the committed 487-test recovery baseline remain documented in [the recovery runbook](PATCH_RECOVERY_2026-11-24.md).
+
+The next offline steering revision shares one displacement-bounded arc projector between preview and simulation. It corrects false arrival at a stationary closed-loop start, future-leg jumps at overlaps, and misleading cross-track error while backtracking. A binary-search index skips ineligible route segments without changing clipping or earlier-arc tie behavior. Seven new regressions (including 1,500 exact full-scan oracle comparisons); focused suite 14/14, full suite **494/494** in 53.093 s on LEGION, exit 0. The original V3 evidence SHA and all 72 scenarios / 432 outcomes matched frozen replay. A new independent audit receipt is byte-identical to the previous receipt. See [validation](VALIDATION.md) for measurement and source details. These remain synthetic geometry improvements; no live game observation or input, no physical qualification, and no new default simulator policy.
 
 ## Resume here
 
 The detailed, chronological technical handoff is [M1_HANDOFF_2026-11-23.md](M1_HANDOFF_2026-11-23.md), especially sections 33–35. This short checkpoint does not replace its original evidence or older physical experiment records. Read [AGENTS.md](../AGENTS.md), [autonomy policy](AUTONOMY_POLICY.md), [roadmap](ROADMAP.md), and [validation](VALIDATION.md).
 
-At this checkpoint, the original pasted 421-test transcript is an earlier result. The baseline's verified end-of-day handoff records 442/442 passing tests. A fresh independent LEGION full-suite rerun at this checkpoint also passed all 442 tests in 55.750 seconds (exit 0). Local HEAD and independently queried GitHub main both matched the baseline before this handoff. A new doctor check on LEGION confirmed Python 3.14.10, stdlib runtime and the following qualification gates:
+At the historical November 23 checkpoint, the original pasted 421-test transcript was an earlier result. The baseline's verified end-of-day handoff records 442/442 passing tests. A fresh independent LEGION full-suite rerun at this checkpoint also passed all 442 tests in 55.750 seconds (exit 0). Local HEAD and independently queried GitHub main both matched the baseline before this handoff. A new doctor check on LEGION confirmed Python 3.14.10, stdlib runtime and the following qualification gates:
 
 - native read-only candidate capture, burst and series available;
 - physical A/D, W and camera-only calibration commands available as separately bounded diagnostics;
