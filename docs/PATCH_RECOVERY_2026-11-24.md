@@ -33,6 +33,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Taxi offline preflight blocked; inspect receip
 
 The final receipt is `artifacts/patch-check-pre-20261124-01/receipt.json`. Use a unique run ID for every attempt. A blocked or interrupted run must never be treated as successful. The recorded source HEAD and manifest bytes are checked again after the tests. This detects observable drift, not an atomic repository snapshot. A preflight is not a new game-file scan.
 
+**Verified operational rehearsal (November 24, 00:16–00:17 EST):** LEGION at committed HEAD `ab65e4b77636bb813de86d502c7991b328a26b36` completed the real offline preflight (exit 0) with the original pinned 266-file manifest, doctor and **466/466 tests passing in 56.937 seconds**. The nine new workflow tests passed, all three runbook PowerShell blocks parsed, and the source/evidence rechecks passed. Local receipt: `artifacts/patch-check-pre-20261124-verified-01/receipt.json`, SHA-256 `2651bcf64c8a376814fc498c09b13a5393d056a817de24901ae297bedd7cf3a8`. Independently rehashed Update Helper's preserved 60,574,536-byte pre-patch executable: it matches the pinned executable SHA above. No post-patch capture or live compatibility claim is made. Local receipts and the preserved executable are not included in Git.
+
 ## 3. Recovery order after the updater completes
 
 ### P0 — establish stable file evidence
