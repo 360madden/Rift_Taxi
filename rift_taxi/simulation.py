@@ -16,6 +16,7 @@ adjusting the model, rather than loosening arrival or deviation thresholds.
 """
 from __future__ import annotations
 
+from collections import deque
 import math
 from typing import Any
 
@@ -103,11 +104,14 @@ def _sharp_vertices(points, cumulative) -> list[tuple[int, float]]:
 def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                    lookahead: float = 1.5, max_yaw_rate: float = 180.,
                    max_seconds: float = 30., max_cross_track: float = 2.,
-                   speed_policy: str = "fixed") -> dict[str, Any]:
+                   speed_policy: str = "fixed", delay_steps: int = 0) -> dict[str, Any]:
     """Run a deterministic ideal kinematic plant with feedback, no OS input.
 
     Units, speed, yaw rate, turn response and stopping are explicitly synthetic.
-    No actuator, obstacle, delay, collision, elevation or coasting model.
+    No physical actuator, obstacle, collision, elevation or coasting model.
+    Optional delay_steps is an ideal FIFO transport delay of both requested
+    velocity and yaw rate, in whole integration steps. Zero preserves the
+    original instant-response model and its report format.
 
     dt: integration step (seconds); speed: nominal positive units/s;
     lookahead: route arc-length distance (units); max_yaw_rate: degrees/s;
@@ -123,6 +127,8 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("constraint controller required for mandatory passages/hard stops")
     if speed_policy not in ("fixed", "turn-limited", "turn-limited-rejoin", "turn-limited-ordered"):
         raise TraceError("unknown synthetic speed policy")
+    if type(delay_steps) is not int or not 0 <= delay_steps <= 10:
+        raise TraceError("delay_steps must be an integer within 0..10")
     dt = _bounded_number(dt, "dt", .01, .2)
     speed = _bounded_number(speed, "speed", .1, 20.)
     lookahead = _bounded_number(lookahead, "lookahead", .1, 20.)
@@ -147,6 +153,11 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("route length must exceed arrival tolerance")
     # Plant state is derived from only the first supplied synthetic pose.
     # Later prerecorded positions/events must not influence this experiment.
+    # A finite FIFO holds already-issued synthetic commands. Initial
+    # command history is stationary. The model sees current pose without
+    # sensor delay; only command application is delayed. This is not a
+    # measured physical actuator or a key-event queue.
+    pending = deque([(0., 0.)] * delay_steps)
     position = initial.xyz
     yaw = _angle_delta(initial.actor_yaw_deg, 0.)
     progress = 0.
@@ -267,11 +278,20 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
             velocity = min(velocity, chord/step)
         if total-progress <= lookahead:
             velocity = min(velocity, max(.15, 2.*distance), distance/step)
+        # Record both requested and applied commands for nonzero delay.
+        # Motion metrics and projection budget use the applied values only.
+        requested_velocity, requested_yaw_rate = velocity, yaw_rate
+        if delay_steps:
+            pending.append((velocity, yaw_rate))
+            velocity, yaw_rate = pending.popleft()
         frames.append({"t": time, "xyz": list(position), "yawDegrees": yaw,
                        "progress": progress, "crossTrackErrorXZ": error,
                        "lookaheadXYZ": list(target), "headingErrorDegrees": heading_error,
                        "speed": velocity, "yawRateDegreesPerSecond": yaw_rate,
                        "stepSeconds": step})
+        if delay_steps:
+            frames[-1]["requestedSpeed"] = requested_velocity
+            frames[-1]["requestedYawRateDegreesPerSecond"] = requested_yaw_rate
         # Only the recovery variant adds target-mode diagnostics, keeping
         # prior policy reports byte-reproducible.
         if speed_policy in ("turn-limited-rejoin", "turn-limited-ordered"):
@@ -317,8 +337,21 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         recovery["syntheticRecovery"]["orderedSharpCornerRadius"] = min(.10*lookahead, .5*tolerance)
         recovery["syntheticRecovery"]["orderedSharpCornerMinimumDegrees"] = 100.
         recovery["syntheticRecovery"]["orderedSharpCornerPassages"] = sharp_passages
+    # Terminal frame is the end of the observation, not a drained FIFO.
+    # Do not claim settled arrival under delay: queued motion could persist
+    # after the position criterion is first satisfied. Expose pending state.
+    delay_diagnostics = ({
+        "syntheticDelay": {
+            "steps": delay_steps, "nominalSeconds": delay_steps*dt,
+            "pendingCommands": [{"speed": v, "yawRateDegreesPerSecond": r}
+                                for v,r in pending],
+            "settledArrivalVerified": False,
+            "terminalFrameIsObservationBoundary": True,
+        }
+    } if delay_steps else {})
     return {
         **recovery,
+        **delay_diagnostics,
         "schema": "taxi.synthetic-feedback/1",
         "classification": "SYNTHETIC_CLOSED_LOOP_ONLY",
         "status": status, "routeId": trace.route_id, "inputTraceSHA256": trace.trace_sha256,
