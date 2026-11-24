@@ -20,6 +20,7 @@ from .simulation_holdout import evaluate_holdout
 from .simulation_holdout_v2 import evaluate_holdout_v2
 from .simulation_holdout_v3 import evaluate_holdout_v3
 from .simulation_v3_failure_audit import audit_v3_failures
+from .simulation_receipt_audit import audit_v3_receipt
 from .simulation_ordered_comparison import compare_ordered_corners
 from .simulation_delay_study import evaluate_delay_study
 from .simulation_settling import evaluate_settling_study
@@ -147,6 +148,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Offline diagnosis of frozen synthetic outcomes, not a new policy.
     v3_failures = commands.add_parser("audit-v3-failures", help="offline V3 synthetic failure and tail-motion breakdown")
     v3_failures.add_argument("--out", help="write V3 failure audit to a NEW file")
+    # Strict saved-report audit; an optional separately recorded digest
+    # pins the exact input bytes. Replays synthetic data only.
+    receipt = commands.add_parser("verify-v3-receipt", help="offline strict JSON, aggregate and replay verification")
+    receipt.add_argument("report", help="saved V3 synthetic report JSON")
+    receipt.add_argument("--expected-sha256", help="separately retained SHA-256 of the original bytes")
+    receipt.add_argument("--out", help="write verification receipt to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -354,6 +361,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_or_print(evaluate_holdout_v3(), args.out)
         elif args.command == "audit-v3-failures":
             _write_or_print(audit_v3_failures(), args.out)
+        elif args.command == "verify-v3-receipt":
+            _write_or_print(audit_v3_receipt(args.report, expected_sha256=args.expected_sha256), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -513,6 +522,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineSyntheticRouteHoldoutV2Available": True,
                 "offlineSyntheticRouteHoldoutV3Available": True,
                 "offlineSyntheticV3FailureAuditAvailable": True,
+                "offlineSyntheticV3ReceiptAuditAvailable": True,
                 "offlineSyntheticOrderedCornerComparisonAvailable": True,
                 "offlineSyntheticDelayStudyAvailable": True,
                 "offlineSyntheticSettlingStudyAvailable": True,
