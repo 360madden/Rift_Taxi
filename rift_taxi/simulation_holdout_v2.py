@@ -18,6 +18,7 @@ from statistics import mean
 
 from .contracts import MovementTrace, TraceError
 from .simulation import simulate_route
+from .simulation_integrity import verify_synthetic_trajectory
 from .simulation_holdout import _case_trace
 from .simulation_recovery_audit import measure_recovery_phases
 
@@ -50,34 +51,9 @@ def _verify_trajectory(result: dict, trace: MovementTrace) -> None:
     closed-loop arrival cannot be accepted solely because its endpoint is
     already close to the initial position.
     """
-    frames = result["frames"]
-    metrics = result["metrics"]
-    # Recompute the final endpoint distance and route arc from the source
-    # geometry, not from the simulator's own arrival flag or summary.
-    if not frames:
-        raise TraceError("generated holdout trajectory is empty")
-    total = sum(math.hypot(b.xyz[0]-a.xyz[0], b.xyz[2]-a.xyz[2])
-                for a,b in zip(trace.points, trace.points[1:]))
-    final = frames[-1]
-    goal = trace.points[-1].xyz
-    endpoint = math.hypot(final["xyz"][0]-goal[0], final["xyz"][2]-goal[2])
-    if not all(math.isclose(a,b,abs_tol=1e-8,rel_tol=0.) for a,b in (
-            (total,metrics["routeLengthXZ"]), (endpoint,metrics["finalXZError"]),
-            (final["progress"],metrics["finalProgress"]),
-            (final["t"],metrics["elapsedSeconds"]))):
-        raise TraceError("generated holdout metrics disagree with trajectory/source geometry")
-    for a,b in zip(frames, frames[1:]):
-        displacement = math.hypot(b["xyz"][0]-a["xyz"][0], b["xyz"][2]-a["xyz"][2])
-        advance = b["progress"]-a["progress"]
-        if (advance < -1e-8 or advance > 2.*displacement+1e-8
-                or b["t"] <= a["t"]):
-            raise TraceError("generated holdout trajectory violates progress/time invariant")
-    if frames[-1]["speed"] != 0. or frames[-1]["stepSeconds"] != 0.:
-        raise TraceError("generated holdout terminal frame invalid")
-    tolerance = trace.arrival_tolerance_xz
-    if metrics["syntheticArrival"] and (
-            endpoint > tolerance or final["progress"] < total-tolerance):
-        raise TraceError("generated holdout arrival violates endpoint/progress requirement")
+    # Centralize this audit so v2, ordered-corner, delay and terminal
+    # studies check the same invariants without duplicating validation.
+    verify_synthetic_trajectory(result, trace)
 
 
 def _summary(rows: list[dict], policy: str) -> dict:
