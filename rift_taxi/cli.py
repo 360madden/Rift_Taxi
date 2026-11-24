@@ -18,6 +18,7 @@ from .simulation import simulate_route
 from .simulation_stress import stress_route, compare_speed_policies
 from .simulation_holdout import evaluate_holdout
 from .simulation_holdout_v2 import evaluate_holdout_v2
+from .simulation_holdout_v3 import evaluate_holdout_v3
 from .simulation_ordered_comparison import compare_ordered_corners
 from .simulation_delay_study import evaluate_delay_study
 from .simulation_settling import evaluate_settling_study
@@ -139,6 +140,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     # errors without changing first arrival or terminal drain.
     terminal_errors = commands.add_parser("study-terminal-errors", help="offline signed synthetic terminal error analysis")
     terminal_errors.add_argument("--out", help="write terminal error report to a NEW file")
+    # Fresh authored geometry, frozen synthetic policies, no game access.
+    holdout_v3 = commands.add_parser("evaluate-holdout-v3", help="offline 72-case synthetic validation with settling")
+    holdout_v3.add_argument("--out", help="write v3 comparison to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -342,6 +346,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_or_print(evaluate_settling_study(), args.out)
         elif args.command == "study-terminal-errors":
             _write_or_print(evaluate_terminal_errors(), args.out)
+        elif args.command == "evaluate-holdout-v3":
+            _write_or_print(evaluate_holdout_v3(), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -499,6 +505,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineSyntheticRouteHoldoutAvailable": True,
                 "offlineSyntheticRecoveryPhaseAuditAvailable": True,
                 "offlineSyntheticRouteHoldoutV2Available": True,
+                "offlineSyntheticRouteHoldoutV3Available": True,
                 "offlineSyntheticOrderedCornerComparisonAvailable": True,
                 "offlineSyntheticDelayStudyAvailable": True,
                 "offlineSyntheticSettlingStudyAvailable": True,
