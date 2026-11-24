@@ -21,6 +21,7 @@ from .simulation_holdout_v2 import evaluate_holdout_v2
 from .simulation_ordered_comparison import compare_ordered_corners
 from .simulation_delay_study import evaluate_delay_study
 from .simulation_settling import evaluate_settling_study
+from .simulation_terminal_errors import evaluate_terminal_errors
 from .simulation_recovery_audit import audit_recovery_efficiency
 from .motion_timing import analyze_motion_timing
 from .forward_bearing import (
@@ -134,6 +135,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     # arrival study. No live actuator or movement is involved.
     settling = commands.add_parser("study-synthetic-settling", help="offline terminal FIFO drain and ideal settling")
     settling.add_argument("--out", help="write synthetic settling report to a NEW file")
+    # Geometric diagnosis only: classify the frozen synthetic endpoint
+    # errors without changing first arrival or terminal drain.
+    terminal_errors = commands.add_parser("study-terminal-errors", help="offline signed synthetic terminal error analysis")
+    terminal_errors.add_argument("--out", help="write terminal error report to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -335,6 +340,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_or_print(evaluate_delay_study(), args.out)
         elif args.command == "study-synthetic-settling":
             _write_or_print(evaluate_settling_study(), args.out)
+        elif args.command == "study-terminal-errors":
+            _write_or_print(evaluate_terminal_errors(), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -495,6 +502,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineSyntheticOrderedCornerComparisonAvailable": True,
                 "offlineSyntheticDelayStudyAvailable": True,
                 "offlineSyntheticSettlingStudyAvailable": True,
+                "offlineSyntheticTerminalErrorStudyAvailable": True,
                 "offlinePhysicalForwardBearingComparisonAvailable": True,
                 "offlineTwoHeadingForwardComparisonAvailable": True,
                 "offlineRR2NativeZoneCorrelationAvailable": True,
