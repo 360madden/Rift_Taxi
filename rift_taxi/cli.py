@@ -18,6 +18,7 @@ from .simulation import simulate_route
 from .simulation_stress import stress_route, compare_speed_policies
 from .simulation_holdout import evaluate_holdout
 from .simulation_holdout_v2 import evaluate_holdout_v2
+from .simulation_ordered_comparison import compare_ordered_corners
 from .simulation_recovery_audit import audit_recovery_efficiency
 from .motion_timing import analyze_motion_timing
 from .forward_bearing import (
@@ -97,11 +98,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     sim.add_argument("--max-yaw-rate", type=float, default=180.)
     sim.add_argument("--max-seconds", type=float, default=30.)
     sim.add_argument("--max-cross-track", type=float, default=2.)
-    sim.add_argument("--speed-policy", choices=("fixed", "turn-limited", "turn-limited-rejoin"), default="fixed")
+    sim.add_argument("--speed-policy", choices=("fixed", "turn-limited", "turn-limited-rejoin", "turn-limited-ordered"), default="fixed")
     sim.add_argument("--out", help="write synthetic report to a NEW file")
     stress = commands.add_parser("stress-route", help="offline fixed 180-case synthetic sensitivity benchmark")
     stress.add_argument("trace", help="synthetic-local-xyz trace")
-    stress.add_argument("--speed-policy", choices=("fixed", "turn-limited", "turn-limited-rejoin"), default="fixed")
+    stress.add_argument("--speed-policy", choices=("fixed", "turn-limited", "turn-limited-rejoin", "turn-limited-ordered"), default="fixed")
     stress.add_argument("--out", help="write benchmark report to a NEW file")
     policy = commands.add_parser("compare-speed-policies", help="offline paired comparison on the unchanged 180-case grid")
     policy.add_argument("trace", help="synthetic-local-xyz trace")
@@ -120,6 +121,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     # All route geometry and profiles are authored, synthetic and frozen.
     holdout_v2 = commands.add_parser("evaluate-holdout-v2", help="offline new 108-case paired synthetic validation")
     holdout_v2.add_argument("--out", help="write v2 comparison to a NEW file")
+    # Compare the experimental fourth policy without changing either
+    # original holdout command or promoting any game navigation default.
+    ordered = commands.add_parser("compare-ordered-corners", help="offline paired comparison on frozen v1/v2 routes")
+    ordered.add_argument("--out", help="write ordered corner comparison to a NEW file")
     timing = commands.add_parser("measure-motion-timing",
         help="offline only: source-aware pose/key temporal analysis, never calibrated game response")
     timing.add_argument("trace", help="source-hashed motion trace JSON")
@@ -315,6 +320,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             _write_or_print(audit_recovery_efficiency(), args.out)
         elif args.command == "evaluate-holdout-v2":
             _write_or_print(evaluate_holdout_v2(), args.out)
+        elif args.command == "compare-ordered-corners":
+            _write_or_print(compare_ordered_corners(), args.out)
         elif args.command == "measure-motion-timing":
             report = analyze_motion_timing(
                 load_trace(args.trace),
@@ -472,6 +479,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "offlineSyntheticRouteHoldoutAvailable": True,
                 "offlineSyntheticRecoveryPhaseAuditAvailable": True,
                 "offlineSyntheticRouteHoldoutV2Available": True,
+                "offlineSyntheticOrderedCornerComparisonAvailable": True,
                 "offlinePhysicalForwardBearingComparisonAvailable": True,
                 "offlineTwoHeadingForwardComparisonAvailable": True,
                 "offlineRR2NativeZoneCorrelationAvailable": True,

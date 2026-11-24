@@ -84,6 +84,22 @@ def _turn_limited_speed(speed: float, heading_error: float, chord: float,
     return min(speed, .8 * math.radians(max_yaw_rate) / curvature) if curvature > 1e-9 else speed
 
 
+def _sharp_vertices(points, cumulative) -> list[tuple[int, float]]:
+    """Identify sharp synthetic reversals in route order, not by proximity.
+
+    The angle is the absolute signed heading change between consecutive
+    nonzero XZ segments. A 100-degree threshold is a model heuristic.
+    """
+    result = []
+    for i in range(1, len(points)-1):
+        a,b,c = points[i-1].xyz, points[i].xyz, points[i+1].xyz
+        incoming = math.degrees(math.atan2(b[2]-a[2], b[0]-a[0]))
+        outgoing = math.degrees(math.atan2(c[2]-b[2], c[0]-b[0]))
+        if abs(_angle_delta(outgoing, incoming)) >= 100.:
+            result.append((i, cumulative[i]))
+    return result
+
+
 def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                    lookahead: float = 1.5, max_yaw_rate: float = 180.,
                    max_seconds: float = 30., max_cross_track: float = 2.,
@@ -105,7 +121,7 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("simulation accepts only synthetic-local-xyz traces")
     if any(p.kind in {"mandatory_passage", "hard_stop"} for p in trace.points):
         raise TraceError("constraint controller required for mandatory passages/hard stops")
-    if speed_policy not in ("fixed", "turn-limited", "turn-limited-rejoin"):
+    if speed_policy not in ("fixed", "turn-limited", "turn-limited-rejoin", "turn-limited-ordered"):
         raise TraceError("unknown synthetic speed policy")
     dt = _bounded_number(dt, "dt", .01, .2)
     speed = _bounded_number(speed, "speed", .1, 20.)
@@ -146,6 +162,16 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     # every integration step as the vehicle approaches the route.
     rejoining = False
     rejoin_entries = 0
+    # Sequential synthetic sharp-corner gates. Gate completion never assigns
+    # progress directly; the original per-step displacement budget still
+    # bounds every projection. Prior policy behavior remains unchanged.
+    ordered = speed_policy == "turn-limited-ordered"
+    sharp = _sharp_vertices(trace.points, cumulative) if ordered else []
+    sharp_cursor = 0
+    # Keep actual model-space witnesses instead of reporting only a count.
+    # The comparator can independently check every passage radius and arc.
+    sharp_passages = []
+    passed_arc = 0.
     goal = trace.points[-1].xyz
     status = "time-budget-exhausted"
     time = 0.
@@ -155,8 +181,29 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     # It is not an obstacle-clearance or topology guarantee.
     max_steps = math.ceil(max_seconds/dt)
     for i in range(max_steps+1):
-        progress, error = _project(trace.points, cumulative, position, progress,
-                                   min(total, progress+progress_budget))
+        low = progress
+        high = min(total, progress+progress_budget)
+        if ordered:
+            # Pending sharp corners bound the eligible arc interval. After
+            # spatial and arc evidence of a passed corner, prefer its outgoing
+            # arc, but only within the original displacement-derived budget.
+            if sharp_cursor < len(sharp):
+                high = min(high, sharp[sharp_cursor][1])
+            low = min(high, max(low, passed_arc))
+        progress, error = _project(trace.points, cumulative, position, low,
+                                   high)
+        if ordered and sharp_cursor < len(sharp):
+            index, arc = sharp[sharp_cursor]
+            radius = min(.10*lookahead, .5*tolerance)
+            if (arc-progress <= radius
+                    and _xz_distance(position, trace.points[index].xyz) <= radius):
+                sharp_passages.append({
+                    "vertexIndex": index, "vertexArc": arc, "t": time,
+                    "xyz": list(position), "progress": progress,
+                })
+                passed_arc = arc
+                sharp_cursor += 1
+                rejoining = False
         max_error = max(max_error, error)
         distance = _xz_distance(position, goal)
         if error > max_cross_track:
@@ -164,17 +211,21 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
             break
         # Require both local progress and endpoint proximity. A route that
         # returns near its start must not be marked arrived at t=0.
-        if distance <= tolerance and progress >= total-tolerance:
+        if (distance <= tolerance and progress >= total-tolerance
+                and (not ordered or sharp_cursor == len(sharp))):
             status = "synthetic-arrived"
             break
         remaining_time = max_seconds-time
         if i == max_steps or remaining_time <= 1e-10:
             break
         step = min(dt, remaining_time)
-        target = _lookahead_point(trace.points, cumulative, min(total, progress+lookahead))
+        target_arc = min(total, progress+lookahead)
+        if ordered and sharp_cursor < len(sharp):
+            target_arc = min(target_arc, sharp[sharp_cursor][1])
+        target = _lookahead_point(trace.points, cumulative, target_arc)
         dx, dz = target[0]-position[0], target[2]-position[2]
         chord = math.hypot(dx, dz)
-        if speed_policy == "turn-limited-rejoin":
+        if speed_policy in ("turn-limited-rejoin", "turn-limited-ordered"):
             # A short chord can occur even when substantial arc remains:
             # closely spaced bends let the plant reach a future geometric
             # target while its monotonic arc projection is still behind.
@@ -205,11 +256,15 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         # not RIFT A/D or a physical steering calibration.
         yaw_rate = max(-max_yaw_rate, min(max_yaw_rate, 5.*heading_error))
         velocity = speed if abs(heading_error) < 85. else 0.
-        if speed_policy in ("turn-limited", "turn-limited-rejoin") and velocity > 0.:
+        if speed_policy in ("turn-limited", "turn-limited-rejoin", "turn-limited-ordered") and velocity > 0.:
             velocity = _turn_limited_speed(velocity, heading_error, chord, max_yaw_rate)
         # Terminal approach bounds the ideal step by remaining Euclidean
         # distance and reduces velocity near the goal. No coast/braking
         # dynamics are implied by this instantaneous model.
+        if ordered and sharp_cursor < len(sharp) and target_arc == sharp[sharp_cursor][1] and not rejoining:
+            # Avoid stepping past a close anchor while aligning. Keep the
+            # curvature cap; no forced minimum velocity at a singularity.
+            velocity = min(velocity, chord/step)
         if total-progress <= lookahead:
             velocity = min(velocity, max(.15, 2.*distance), distance/step)
         frames.append({"t": time, "xyz": list(position), "yawDegrees": yaw,
@@ -219,8 +274,10 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                        "stepSeconds": step})
         # Only the recovery variant adds target-mode diagnostics, keeping
         # prior policy reports byte-reproducible.
-        if speed_policy == "turn-limited-rejoin":
+        if speed_policy in ("turn-limited-rejoin", "turn-limited-ordered"):
             frames[-1]["targetMode"] = "local-projection-rejoin" if rejoining else "lookahead"
+        if ordered:
+            frames[-1]["orderedSharpCornersPassed"] = sharp_cursor
         # Midpoint integration of an ideal planar velocity/turn plant.
         delta_yaw = yaw_rate*step
         mid = math.radians(yaw+delta_yaw/2.)
@@ -253,7 +310,13 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                                         "entryChordFractionOfLookahead": .20,
                                         "entryErrorFractionOfLookahead": .35,
                                         "exitErrorFractionOfLookahead": .15}}
-                if speed_policy == "turn-limited-rejoin" else {})
+                if speed_policy in ("turn-limited-rejoin", "turn-limited-ordered") else {})
+    if ordered:
+        recovery["syntheticRecovery"]["orderedSharpCorners"] = len(sharp)
+        recovery["syntheticRecovery"]["orderedSharpCornersPassed"] = sharp_cursor
+        recovery["syntheticRecovery"]["orderedSharpCornerRadius"] = min(.10*lookahead, .5*tolerance)
+        recovery["syntheticRecovery"]["orderedSharpCornerMinimumDegrees"] = 100.
+        recovery["syntheticRecovery"]["orderedSharpCornerPassages"] = sharp_passages
     return {
         **recovery,
         "schema": "taxi.synthetic-feedback/1",
