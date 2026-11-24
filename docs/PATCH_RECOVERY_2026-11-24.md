@@ -17,6 +17,8 @@ The existing Update Helper at `C:\work\Update Helper` owns installation capture.
 
 The two files introduced for this patch window (`rift_taxi/patch_readiness.py` and `tests/test_patch_readiness.py`) only consume saved manifests and have eight focused passing tests. The actual pinned before-manifest test also passed. The integrated suite passed **450/450 tests in 54.843 seconds** (exit 0); the expected wrong-pin rejection printed by its negative CLI test is not a failure. `git diff --check` also passed. No after capture exists in this receipt and no game update, live process, new-build compatibility or movement was verified.
 
+**November 24 pre-patch bug hunt:** Windows path aliases, reserved names, invalid characters, file/directory conflicts, duplicate or replaced evidence files, inconsistent hash lengths and empty executables are now rejected. All 15 focused tests passed; the original 266-file manifest passed with its unchanged SHA-256 pin. The full suite passed **457/457 tests in 65.305 seconds** (exit 0). Both PowerShell blocks parsed successfully without execution; `git diff --check` passed before this documentation-only update. No game or updater operation was executed.
+
 Preserve the original baseline, all November 23 physical receipts, and frozen synthetic V1/V2/V3 evidence. Local ignored artifacts are **not** included in Git backups. Do not reuse the archived PID, HWND, process start, actor, zone, map transforms or timing as current observations. Do not change the game, installed addons, RR2, RiftWorld or Telara Fly from Taxi work.
 
 ## 2. Recovery order after the updater completes
@@ -28,10 +30,21 @@ Verify the connected machine is LEGION, and confirm the updater is actually fini
 ```powershell
 Set-Location -LiteralPath 'C:\work\Update Helper'
 python -B update_helper.py verify before-20261124-legion.json
+if ($LASTEXITCODE -ne 0) { throw 'Baseline verification failed' }
 python -B update_helper.py capture --phase after --expected-host LEGION --out after-20261124-legion-a.json
+if ($LASTEXITCODE -ne 0) { throw 'First capture failed' }
 python -B update_helper.py capture --phase after --expected-host LEGION --out after-20261124-legion-b.json
+if ($LASTEXITCODE -ne 0) { throw 'Second capture failed' }
 python -B update_helper.py compare --consistency --before after-20261124-legion-a.json --after after-20261124-legion-b.json --out consistency-20261124-legion.json
+if ($LASTEXITCODE -ne 0) { throw 'Consistency comparison failed' }
+# The helper returns exit 0 for a valid comparison even if files differ.
+# Inspect counts before moving on; a successful command is not stability.
+$consistency = Get-Content -LiteralPath 'consistency-20261124-legion.json' -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+if ($consistency.counts.added -ne 0 -or $consistency.counts.removed -ne 0 -or $consistency.counts.modified -ne 0) {
+    throw 'Post-patch manifests disagree; recapture after the updater settles'
+}
 python -B update_helper.py compare --before before-20261124-legion.json --after after-20261124-legion-b.json --out changes-20261124-legion.json
+if ($LASTEXITCODE -ne 0) { throw 'Before/after comparison failed' }
 ```
 
 Check each exit code. The second comparison may report file changes on success; the consistency comparison must have zero additions, removals and modifications. If either capture fails or the post manifests disagree, preserve the failed attempt, choose new output names and investigate before retrying. Never overwrite the baseline or substitute a different host. The helper does not guarantee an atomic file-system snapshot.
@@ -41,12 +54,16 @@ Check each exit code. The second comparison may report file changes on success; 
 ```powershell
 Set-Location -LiteralPath 'C:\work\Rift_Taxi'
 python -B -m rift_taxi.patch_readiness --before '../Update Helper/before-20261124-legion.json' --expected-host LEGION --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --after-a '../Update Helper/after-20261124-legion-a.json' --after-b '../Update Helper/after-20261124-legion-b.json'
+if ($LASTEXITCODE -ne 0) { throw 'Taxi evidence admission blocked' }
 python -B -m rift_taxi doctor
+if ($LASTEXITCODE -ne 0) { throw 'Taxi doctor failed' }
 python -B -m unittest discover -s tests -q
+if ($LASTEXITCODE -ne 0) { throw 'Taxi regression suite failed' }
 git status -sb
+if ($LASTEXITCODE -ne 0) { throw 'Git status failed' }
 ```
 
-Save the gate's JSON stdout to a new ignored `artifacts/` receipt when executing the post-patch assessment; retain command exit codes and report SHA. Omit both after arguments only for a pre-patch check. Exit 2 means evidence admission blocked; exit 0 means **saved file evidence only**. It never authorizes live game input.
+Save the gate's JSON stdout to a new ignored `artifacts/` receipt when executing the post-patch assessment; retain command exit codes and report SHA. Omit both after arguments only for a pre-patch check. Exit 2 means evidence admission blocked; exit 0 means **saved file evidence only**. It never authorizes live game input. The gate checks declared capture intervals, distinct file identities, stable reads, canonical local Windows paths and inventory consistency; it does not cryptographically authenticate the producer or prove the scanner actually ran twice. Run the capture steps independently and retain the original bytes. The commands above are fail-fast; do not ignore exceptions or continue to P1 after an unstable comparison.
 
 | Gate output | Recovery decision |
 |---|---|

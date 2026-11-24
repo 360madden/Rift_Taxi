@@ -12,11 +12,14 @@ supply TWO separately captured after manifests. All comparisons are content-only
 from __future__ import annotations
 
 import argparse
+from bisect import bisect_left
 from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import Path, PureWindowsPath
 import re
+import stat
 import sys
 
 SCHEMA = "update-helper.game-files.v1"
@@ -38,6 +41,92 @@ def _reject_constant(value):
     raise ValueError(f"non-finite JSON number: {value}")
 
 
+# A manifest describes ordinary Windows files, not Win32 aliases or devices.
+# This includes superscript digits which Windows also recognizes in COM/LPT
+# device names. Reject rather than normalize away ambiguous evidence.
+_RESERVED_DEVICE_NAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$", "CLOCK$"}
+    | {prefix + digit for prefix in ("COM", "LPT") for digit in "123456789¹²³"}
+)
+
+
+def _valid_component(part):
+    """Recognize unambiguous ordinary Win32 path components.
+
+    Trailing dots/spaces, device names (even with extensions), controls,
+    surrogates and forbidden punctuation cannot represent distinct ordinary
+    files in the inventory. Keep the check lexical: never open game paths.
+    """
+    return (
+        bool(part)
+        and part not in (".", "..")
+        and not part.endswith((".", " "))
+        and not any(ch in '<>:"/\\|?*' or ord(ch) < 32
+                    or 0xD800 <= ord(ch) <= 0xDFFF for ch in part)
+        and part.split(".", 1)[0].rstrip(" ").upper() not in _RESERVED_DEVICE_NAMES
+    )
+
+
+def _root_key(value):
+    """Require the resolved, drive-qualified local Windows root the helper emits.
+
+    Device namespaces, UNC roots, dot segments and alternate spellings are
+    deliberately outside this local-install evidence contract. Do not silently
+    normalize an invalid root into a different installation identity.
+    """
+    if not isinstance(value, str):
+        raise ValueError("invalid game installation root")
+    root = PureWindowsPath(value)
+    if (not root.is_absolute() or not re.fullmatch(r"[A-Za-z]:", root.drive)
+            or str(root) != value or not all(_valid_component(p) for p in root.parts[1:])):
+        raise ValueError("invalid canonical local game installation root")
+    return value.casefold()
+
+
+def _file_stamp(info):
+    """Identity and mutable metadata shared by path stat and Windows fstat.
+
+    Windows handle creation time may differ from path creation time; do not
+    compare it across those APIs. The pre/post path check also includes ctime.
+    These checks detect observable races, not maliciously restored timestamps.
+    """
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+
+
+def _path_stat(path):
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode)
+            or getattr(info, "st_file_attributes", 0) & 0x400):
+        raise ValueError("manifest must be a regular non-reparse file")
+    return info
+
+
+def _read_saved_bytes(path):
+    """Read bounded evidence once and refuse an observed edit or replacement.
+
+    Using the same bytes for JSON decoding and SHA-256 avoids a second-read
+    hash/content mismatch. Path and handle identity also let the caller refuse
+    aliases/hard links offered as separate capture files.
+    """
+    path = Path(path)
+    before = _path_stat(path)
+    if before.st_size > MAX_MANIFEST_BYTES:
+        raise ValueError("manifest exceeds bounded evidence size")
+    with path.open("rb") as stream:
+        if _file_stamp(os.fstat(stream.fileno())) != _file_stamp(before):
+            raise ValueError("manifest changed while opening")
+        raw = stream.read(MAX_MANIFEST_BYTES + 1)
+        if _file_stamp(os.fstat(stream.fileno())) != _file_stamp(before):
+            raise ValueError("manifest changed while reading")
+    after = _path_stat(path)
+    if (_file_stamp(before) != _file_stamp(after)
+            or before.st_ctime_ns != after.st_ctime_ns or len(raw) != before.st_size):
+        raise ValueError("manifest changed while reading")
+    if len(raw) > MAX_MANIFEST_BYTES:
+        raise ValueError("manifest exceeds bounded evidence size")
+    return raw, (before.st_dev, before.st_ino)
+
+
 def _time(value):
     """Return an offset-aware datetime; reject unqualified local clock values."""
     if not isinstance(value, str):
@@ -55,36 +144,37 @@ def read_manifest(path, expected_host, phase):
     capture interval and a case-insensitive path -> (size, SHA-256) map. This is
     validation of saved evidence, not a fresh hash of any installed game file.
     """
-    with Path(path).open("rb") as stream:
-        raw = stream.read(MAX_MANIFEST_BYTES + 1)
-    if len(raw) > MAX_MANIFEST_BYTES:
-        raise ValueError("manifest exceeds bounded evidence size")
-    doc = json.loads(raw, object_pairs_hook=_unique_object,
-                     parse_constant=_reject_constant)
+    raw, file_identity = _read_saved_bytes(path)
+    # The producer writes UTF-8, not UTF-16/32 or a different document format.
+    # On older supported Python versions deep JSON can raise RecursionError.
+    try:
+        doc = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object,
+                         parse_constant=_reject_constant)
+    except RecursionError as exc:
+        raise ValueError("manifest JSON nesting exceeds decoder limits") from exc
     if not isinstance(doc, dict) or doc.get("schema") != SCHEMA:
         raise ValueError("unsupported manifest schema")
     if doc.get("complete") is not True or doc.get("phase") != phase:
         raise ValueError(f"expected a complete {phase} capture")
-    if doc.get("host") != expected_host:
-        raise ValueError("manifest host mismatch")
-    root = doc.get("root")
-    if not isinstance(root, str) or not PureWindowsPath(root).is_absolute():
-        raise ValueError("invalid game installation root")
+    if (not isinstance(expected_host, str) or not expected_host
+            or expected_host.strip() != expected_host or doc.get("host") != expected_host):
+        raise ValueError("manifest host mismatch or missing host pin")
+    root = _root_key(doc.get("root"))
     started, finished = _time(doc.get("started_utc")), _time(doc.get("finished_utc"))
-    if started > finished:
-        raise ValueError("capture interval is reversed")
+    if started >= finished:
+        raise ValueError("capture interval must have positive duration")
     files = doc.get("files")
     if not isinstance(files, list):
         raise ValueError("missing file inventory")
     index = {}
+    lengths = {}
     for row in files:
         if not isinstance(row, dict):
             raise ValueError("invalid file row")
         rel, size, sha = row.get("path"), row.get("size"), row.get("sha256")
         # Update Helper emits POSIX-relative names, even on Windows. Refuse
         # traversal and ambiguous path spellings before comparing inventories.
-        if (not isinstance(rel, str) or "\\" in rel or ":" in rel
-                or any(part in ("", ".", "..") for part in rel.split("/"))):
+        if not isinstance(rel, str) or not all(_valid_component(p) for p in rel.split("/")):
             raise ValueError("invalid relative file path")
         if (type(size) is not int or size < 0 or not isinstance(sha, str)
                 or not SHA.fullmatch(sha) or type(row.get("mtime_ns")) is not int):
@@ -92,14 +182,26 @@ def read_manifest(path, expected_host, phase):
         key = rel.casefold()
         if key in index:
             raise ValueError(f"duplicate file path: {rel}")
+        if lengths.setdefault(sha, size) != size:
+            raise ValueError("identical content hash has conflicting file lengths")
         index[key] = (size, sha)
-    if ("rift_x64.exe" not in index or type(doc.get("file_count")) is not int
+    # A flat file manifest cannot contain a file as the parent directory of
+    # another file. Binary search for each prefix in the sorted inventory
+    # avoids walking every ancestor of an arbitrarily deep malformed path.
+    keys = sorted(index)
+    for key in keys:
+        prefix = key + "/"
+        pos = bisect_left(keys, prefix)
+        if pos < len(keys) and keys[pos].startswith(prefix):
+            raise ValueError(f"file-directory inventory conflict: {key}")
+    if ("rift_x64.exe" not in index or index["rift_x64.exe"][0] == 0
+            or type(doc.get("file_count")) is not int
             or doc["file_count"] != len(index) or type(doc.get("bytes")) is not int
             or doc["bytes"] != sum(size for size, _ in index.values())):
         raise ValueError("manifest totals or executable identity invalid")
     return {
         "sha256": hashlib.sha256(raw).hexdigest(),
-        "root": str(PureWindowsPath(root)).casefold(),
+        "root": root, "file_identity": file_identity,
         "started": started, "finished": finished, "index": index,
     }
 
@@ -130,18 +232,36 @@ def assess(before, expected_host, expected_before_sha, after_a=None, after_b=Non
         return result
     if after_a is None or after_b is None:
         raise ValueError("two separate post-patch manifests are required")
+    # Even replacing a file with a different inode must not let the same
+    # pathname stand for two supposedly immutable captures. The later handle
+    # identity check catches hard-link and other same-file aliases.
+    names = {os.path.normcase(os.path.abspath(p)) for p in (before, after_a, after_b)}
+    if len(names) != 3:
+        raise ValueError("post captures are duplicated by pathname")
     a = read_manifest(after_a, expected_host, "after")
     b = read_manifest(after_b, expected_host, "after")
-    # Equal bytes are not evidence of two independent capture intervals.
-    if (a["sha256"] == b["sha256"] or a["root"] != pre["root"]
+    # Equal bytes or aliases of one underlying file cannot demonstrate two
+    # separately retained captures. Distinct file identities and declared
+    # intervals still do not authenticate that the scanner actually ran twice.
+    if (len({pre["file_identity"], a["file_identity"], b["file_identity"]}) != 3
+            or a["sha256"] == b["sha256"] or a["root"] != pre["root"]
             or b["root"] != pre["root"] or a["started"] < pre["finished"]
             or b["started"] < a["finished"] or b["started"] <= a["started"]):
         raise ValueError("post captures are duplicated, overlapping or from another root")
     if a["index"] != b["index"]:
         raise ValueError("post captures disagree; wait for updater to settle and recapture")
 
-    # Only compare immutable manifests; Update Helper remains the sole scanner.
+    # Identical SHA-256s with conflicting lengths are inconsistent content
+    # evidence, not a meaningful patch change. Check across both inventories.
+    # Identical bytes necessarily have identical lengths.
     left, right = pre["index"], b["index"]
+    lengths = {}
+    for index in (left, right):
+        for size, sha in index.values():
+            if lengths.setdefault(sha, size) != size:
+                raise ValueError("identical content hash has conflicting file lengths")
+
+    # Only compare immutable manifests; Update Helper remains the sole scanner.
     added = sorted(right.keys() - left.keys())
     removed = sorted(left.keys() - right.keys())
     modified = sorted(key for key in left.keys() & right.keys() if left[key] != right[key])
@@ -170,7 +290,7 @@ def main(argv=None):
     try:
         result = assess(args.before, args.expected_host, args.expected_before_sha,
                         args.after_a, args.after_b)
-    except (OSError, ValueError, TypeError, KeyError) as exc:
+    except (OSError, ValueError, TypeError, KeyError, OverflowError) as exc:
         print(f"PATCH EVIDENCE BLOCKED: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2))
