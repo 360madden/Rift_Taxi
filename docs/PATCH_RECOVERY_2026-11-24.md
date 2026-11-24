@@ -82,3 +82,36 @@ Keep the current M1 qualification boundary. Only fresh, separately authorized ev
 ## 4. Handoff requirements
 
 Record machine, Git HEAD, patch timestamps, original manifest hashes, changes by class, offline test exit/count, outstanding qualification blockers and whether any live observation actually occurred. Preserve the distinction between pre-patch evidence, post-patch evidence, synthetic fixtures and actual verified behavior. Mark M1 incomplete until its existing acceptance requirements are met. No sibling writes or automatic game updates from this workflow.
+
+## 5. November 24 current-install recovery receipt (12:30–12:38 EST)
+
+**Disposition: offline recovery passed; no game installation content change; live M1 remains unqualified.** The publisher's actual patch/maintenance status was not independently established. This is a current-install comparison against the original before manifest, not evidence that a new build was delivered.
+
+- Host: LEGION. Taxi tested HEAD: `792e62a3b6055c81ef8513dd766af0e39e0a775a` (clean committed checkout throughout the check); Python 3.14.10.
+- Update Helper: 35/35 tests passed (1.210 s); original baseline pin verified by the capture cycle and independent bundle verifier.
+- Fresh two-pass capture: `taxi-20261124-current-01`, 12:30:26–12:33:11 EST. Both captures agreed; 266 unchanged, 0 added, 0 removed, 0 modified. Executable SHA unchanged. Independent `verify_cycle.py` completed exit 0.
+- Taxi `patch_check`: `post-20261124-current-01`, 12:33:29–12:34:44 EST; `offline-postcheck-passed`, `no-content-change`, doctor exit 0 and **466/466 tests passed in 73.946 s**. The wrong-pin message in stderr is expected from a negative test; unittest reported OK.
+- No movement, focus change, restart, installation/addon change, or live native pose acquisition was performed. Production input and live compatibility remain explicitly false.
+
+| Original evidence (local ignored files; not included in Git) | SHA-256 |
+|---|---|
+| Update Helper `before-20261124-legion.json` | `6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e` |
+| Update Helper `taxi-20261124-current-01-after-a.json` | `16d1d64d611192a90ebc5fddcb22093af646024c8b3a731dd1b63eafae6e237f` |
+| Update Helper `taxi-20261124-current-01-after-b.json` | `110524bcbc3a4526ac324f709e4dd39585278794e013901be4e0b2aaf0a67961` |
+| Update Helper `taxi-20261124-current-01-consistency.json` | `fba57e97eab4b337fd4b398937f64e16f06318f396563283988712f5e1a9fbc0` |
+| Update Helper `taxi-20261124-current-01-changes.json` | `a80f1992a40d50ff6a542eb47d8e7b6dabdea755464299780977aecdfb270c1f` |
+| Taxi `artifacts/patch-check-post-20261124-current-01/receipt.json` | `14211fb8c29258d798f9b782554ff987b0ec67772ead66a81c124b6a0f60d6b6` |
+| Taxi same folder `evidence.json` | `d7d66c258fc2d2c59eca64c6953f90a2984004b6944029884b0ea0c9ca1397e3` |
+| Taxi same folder `tests.stderr.txt` | `3c5acb232ea0df8721f52c9e90e275b76f0142826198d648c150ccdd9adfcc79` |
+
+### P2 read-only OS identity follow-up (12:38 EST)
+
+The current RIFT process was present and responding, with the same Windows session (2) as the diagnostic. Initial Taxi OS identity inspection refused unpinned window selection; a second attempt with the independently observed main HWND refused the pinned window. Independent Win32 metadata established that HWND 395576 belonged to PID 33052, was valid and visible, unowned, and **minimized** (`IsIconic=true`); Taxi correctly returned no eligible window. These PID/HWND values are historical observations only. Both identity attempts exited 2 as intended; the independent metadata diagnostic exited 0. Do not relax the non-minimized window contract or infer a build failure from this result.
+
+| Local original diagnostic | SHA-256 |
+|---|---|
+| `artifacts/patch-os-identity-20261124-current-01.json` | `2af965c0222ef1d2fba0cb4abe271894b9adcca618f5fe9e05168524f361c4fa` |
+| `artifacts/patch-os-identity-20261124-current-02.json` | `f56f957116d71a46306d8ecd6337705ab34242b1ef0f7b7cdffd2db4b55060bf` |
+| `artifacts/patch-window-diagnostic-20261124-current-01.json` | `4283bc674b8c53b819de23af3b248a7c892d58f122583a14f1cd3ff123cfa8f8` |
+
+**Resume:** If actual installation content changes later, create a new capture prefix and Taxi run ID, preserving these originals. Otherwise continue M1 offline work or obtain fresh non-minimized process/window identity when the game is available for observation. Keep actor/zone, heading, freshness and movement gates unqualified; no automatic re-arm.
