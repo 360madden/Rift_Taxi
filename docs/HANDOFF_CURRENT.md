@@ -23,6 +23,10 @@ The frozen V3 benchmark includes 72 scenarios and 432 runs. Ordered-policy geome
 
 The latest baseline independently validated saved V3 report bytes, scenario hashes, coverage, aggregate counts and full frozen replay. See section 35 of the detailed handoff for hashes and local artifact locations. Artifacts are Git-ignored; a GitHub push backs up tracked code, tests and documentation, not those original local receipts.
 
+## November 24 possible patch — recovery first
+
+Follow [the prepared patch recovery runbook](PATCH_RECOVERY_2026-11-24.md) before making new live-client claims. A pinned LEGION game manifest is verified; the Taxi-owned `rift_taxi.patch_readiness` offline gate requires two consistent post-update manifests and always leaves production input unauthorized. Reuse the existing Update Helper; preserve the November 23 evidence as historical and keep all current M1 qualification gates intact.
+
 ## Priority for the next session
 
 1. Continue read-only evidence integrity, reproducibility and source qualification; use existing sister-project research rather than duplicate tools.
