@@ -115,3 +115,11 @@ class AuditTests(unittest.TestCase):
                     else:
                         self.assertIn("failed:", result.stderr)
                         self.assertEqual(result.stdout, "")
+
+    def test_unknown_schema_rejected_with_matching_digest(self):
+        """A correctly hashed archive cannot silently select another schema."""
+        report = fixture()
+        report["schema"] = "taxi.synthetic-delay-factorial/2"
+        raw = json.dumps(report).encode("utf-8")
+        with self.assertRaisesRegex(ValueError, "report identity"):
+            audit_bytes(raw, hashlib.sha256(raw).hexdigest())
