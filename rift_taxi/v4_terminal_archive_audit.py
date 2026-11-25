@@ -8,6 +8,8 @@ import argparse
 import hashlib
 import json
 import math
+from itertools import product
+from statistics import mean
 from pathlib import Path
 import zipfile
 
@@ -15,6 +17,13 @@ from .delay_factorial_audit import require, parse_report
 
 LIMIT = 8 * 1024 * 1024
 MEMBER = "v4-terminal-observation.json"
+# Independent frozen design: hashes alone do not establish that the
+# archived scenarios belong to this particular study.
+ROUTE = [[0., 0., 0.], [7., 0., 1.], [7.2, 0., 2.],
+         [1., 0., 3.], [1.2, 0., 4.2], [8., 0., 5.]]
+PROFILES = ((2.8, 85., .06), (3.1, 115., .12))
+OFFSETS = (-.45, .85)
+HEADINGS = (-55., 70., 155.)
 
 
 def close(a, b):
@@ -50,10 +59,27 @@ def verify(report):
     rows = report["rows"]
     require(len(rows) == report["pairs"] == 12
             and len({r["scenarioSHA256"] for r in rows}) == 12, "pair coverage")
+    # Reconcile the complete design before accepting any measurements.
+    design = set()
+    for row in rows:
+        spec = row["scenario"]
+        require(spec["routeXYZ"] == ROUTE, "unexpected geometry")
+        key = (spec["lateralOffset"], spec["headingOffsetDegrees"],
+               (spec["speed"], spec["maxYawRate"], spec["dt"]))
+        design.add(key)
+        offset, heading, _ = key
+        length = math.hypot(7., 1.)
+        for value, expected in zip(spec["initialXYZ"], (-offset/length, 0., 7.*offset/length)):
+            close(value, expected)
+        require(len(spec["initialXYZ"]) == 3, "initial pose dimension")
+        close(spec["initialYawDegrees"], math.degrees(math.atan2(1., 7.)) + heading)
+    require(design == set(product(OFFSETS, HEADINGS, PROFILES)), "frozen design coverage")
     intervals = 0
     counts = {}
     for side in ("baseline", "candidate"):
         settled = 0
+        travels, changes = [], []
+        exits = 0
         for row in rows:
             spec = row["scenario"]
             require(spec["routeId"] == "long-short-ladder", "unexpected route")
@@ -80,7 +106,8 @@ def verify(report):
                 command = q[i-1] if i <= len(q) else {
                     "speed": 0., "yawRateDegreesPerSecond": 0.}
                 v, rate = command["speed"], command["yawRateDegreesPerSecond"]
-                require(0 <= v <= spec["speed"] and abs(rate) <= spec["maxYawRate"],
+                require(type(v) in (int, float) and type(rate) in (int, float)
+                        and 0 <= v <= spec["speed"] and abs(rate) <= spec["maxYawRate"],
                         "queue outside model bounds")
                 close(v, obs["appliedSpeed"])
                 close(rate, obs["appliedYawRateDegreesPerSecond"])
@@ -100,7 +127,19 @@ def verify(report):
             require(t["leftTolerance"] is (t["maxError"] > .30)
                     and outcome["settled"] is (t["finalError"] <= .30),
                     "tolerance outcome mismatch")
+            require(t["firstError"] <= .30, "initial arrival outside tolerance")
             settled += outcome["settled"]
+            exits += t["leftTolerance"]
+            travels.append(t["queuedTravel"])
+            changes.append(t["errorChange"])
+        # A report may have valid individual observations but corrupted
+        # aggregate statistics. Independently derive every summary field.
+        summary = report["summary"][side]
+        for field, expected in (("arrivals", 12), ("settled", settled), ("sampledExits", exits)):
+            require(type(summary[field]) is int and summary[field] == expected,
+                    "terminal summary count mismatch")
+        close(summary["meanQueuedTravel"], mean(travels))
+        close(summary["meanErrorChange"], mean(changes))
         counts[side] = settled
     require(intervals == 132 and counts == {"baseline": 11, "candidate": 0},
             "observed V4 terminal counts disagree")
@@ -114,7 +153,7 @@ def main():
     args = parser.parse_args()
     try:
         print(json.dumps(verify_zip(args.archive, args.sha256), sort_keys=True))
-    except (OSError, ValueError, KeyError, TypeError, OverflowError, zipfile.BadZipFile) as exc:
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, zipfile.BadZipFile, IndexError, RuntimeError) as exc:
         parser.exit(2, f"Terminal audit failed: {exc}\n")
 
 
