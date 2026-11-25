@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. 93 steps completed at their stated scope. Hosted run 45547937230, job 138981923577, verifies Python 3.11.18 on Ubuntu: 22 focused tests passed, 507 applicable full-suite tests passed (16 skipped), wheel built and installed, five research modules imported from installed site-packages, and three CLI help commands succeeded. Steps 027, 080–082, 084, 087–088, 093–094 and 098 completed. Nine frozen simulator/study source hashes match main; no new live authority. See DELAY_FACTORIAL_AUDIT_HANDOFF.md and ARCHITECTURE.md. Windows standalone distribution is not yet qualified. Historical LEGION archive, sibling local-checkout inspection, final merge and main documentation updates remain open. Main unchanged.
+November 24, 2026. 96 steps completed at their stated scope. Final online review: run 45548072486 green across all three jobs (Windows 523/523; Ubuntu Python 3.14 and 3.11 each 507 passed/16 skipped, installed wheel verified). Steps 096, 099 and 100 completed. Original V4 archives were rechecked, and the new per-route recount plus premerge handoff are recorded. Four objectives remain blocked or dependent on merge: 020, 085, 089, 090. Historical LEGION archive and independent sibling local-checkout inspection remain unavailable. Main is unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md and HANDOFF_CURRENT.md for the final review and next offline research slice.
 
 ## Online baseline and acceptance
 
@@ -126,9 +126,9 @@ November 24, 2026. 93 steps completed at their stated scope. Hosted run 45547937
 - [x] 093. Record physical qualification blockers
 - [x] 094. Confirm no new live authority claims
 - [x] 095. Review CI permissions and triggers
-- [ ] 096. Check final branch and commit identities
+- [x] 096. Check final branch and commit identities
 - [x] 097. Review all new tests and known skips
 - [x] 098. Record exact completion status for this backlog
-- [ ] 099. Prepare next prioritized offline research slice
-- [ ] 100. Produce final SITREP with verified evidence and remaining work
+- [x] 099. Prepare next prioritized offline research slice
+- [x] 100. Produce final SITREP with verified evidence and remaining work
 
