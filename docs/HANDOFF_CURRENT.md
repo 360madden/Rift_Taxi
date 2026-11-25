@@ -4,7 +4,10 @@
 
 PR #8 accepted at 93199e2; hosted synthetic Windows recovery rehearsal and independent verifier succeeded (556/556, 29 files). LEGION synchronized to that main; current-main recovery replay using archived manifests passed 556/556 and 29-file verification. Current executable hash matches the baseline, but updater completion and full current inventory remain unverified. RIFT login unavailable. See [recovery runbook section 9](PATCH_RECOVERY_2026-11-24.md#9-november-25-morning-legion-validation).
 
-New standalone CLI reporting supports --summary (compact JSON, with optional full receipt saved separately) and --require-settled (exit 1 for a completed but unsettled model run; invalid inputs and I/O refusals remain exit 2). Legacy defaults unchanged. Local focused suite 17/17; full 559/559 passed (66.049 s, exit 0). Keep all modes synthetic and production disarmed.
+New standalone CLI reporting supports --summary (compact JSON, with optional full receipt saved separately) and --require-settled (exit 1 for a completed but unsettled model run; invalid inputs and I/O refusals remain exit 2). Legacy defaults unchanged. Local focused suite 17/17; full 559/559 passed (66.049 s, exit 0).
+
+Matched complete-journey comparison on the previously observed 48-case fixed smoke geometry (source SHA-256 7f25b693911db7c824f48a8996eda8de2e7e4727e4f5450062f54fe85d6bc90e): zero-delay recovery settled 16/16 vs 12/16 baseline; on 12 common successes, mean total seconds 4.483 vs 4.483 and full-journey duty .9558 vs .9558. For both prediction variants on 32 delayed cases, 32/32 settled vs baseline 30/32; zero baseline settled losses. Among 30 common successes, baseline mean total time 6.764 s and duty .8837, near-goal 6.341 s and .8871, near-stall 5.768 s and .9192. Includes approach, drain and terminal correction, matched delay/profile, not live or new holdout evidence. Compact report receipt artifacts/legion-journey-end-to-end-20261125.json, SHA-256 dd75e75be12a1fc04c8a797379d98bc04b666f5090dc1bee4836533ab6a9d9ec. This is a descriptive comparison on observed development cases; retain baseline, do not promote the experimental controller. Next prioritize reproducible standalone batch comparison and fixed-design timing mismatch research.
+ Keep all modes synthetic and production disarmed.
 
 
 ## Accepted baseline and recovery rehearsal (November 24 PST)
