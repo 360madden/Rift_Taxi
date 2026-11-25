@@ -189,3 +189,24 @@ Architecture commit 5b480dd documents the hosted research/physical authority bou
 ### Minimum-version and wheel acceptance result
 
 Run 45547937230, job 138981923577, head 4ed8fe8, completed successfully on Ubuntu Python 3.11.18. Independently reviewed its logs: focused archive tests 17/17 in 0.376 s, V4 tests 5/5 in 1.179 s, full suite 523 discovered in 23.025 s (507 passed, 16 Windows-specific skips), wheel built and rift-taxi 0.1.0 installed. All five new research modules resolved from installed site-packages under isolated Python mode; all three archive CLI help invocations succeeded. Earlier hosted tests cover missing paths, wrong digests, valid archive CLI execution and V4 report generation. The historical LEGION archive is not accessible for its exact command replay. No Windows installed-wheel or standalone end-user executable is claimed by this Linux packaging test. The Windows 3.14 full-suite baseline remains separately verified at 523/523.
+
+## Final online review checkpoint
+
+Run 45548072486 tested PR merge checkout a097e01 (head 630959ceeb0018703c52fada498628827298361a, base 2e0a8cf65ea6345bf1b82c8b76ecf367260f7b94). Windows Python 3.14: 523/523 in 46.194 s. Ubuntu Python 3.14: 507 passed, 16 skipped in 40.045 s. Ubuntu Python 3.11: 507 passed, 16 skipped in 22.622 s, 22/22 focused tests and all five installed research module imports verified. Both new artifact uploads succeeded. The draft PR was mergeable but not merged. The reviewed 18-file change inventory consisted of the CI workflow, five documentation files, five synthetic research modules and seven test files; no existing simulator or live controller was changed. Current handoff now contains a clearly labeled premerge checkpoint (d9fb91b). Its main baseline remains unchanged.
+
+Rechecked the downloaded original V4 ZIPs against the recorded ZIP and JSON digests and compared all 216 discrete pairs. Independent per-route recount at 360 ms (12 pairs per route):
+
+| Route | Baseline / candidate arrivals | Baseline / candidate settled | Settled gains / losses |
+|---|---:|---:|---:|
+| acute-alternation | 6 / 6 | 6 / 4 | 0 / 2 |
+| concave-loop-exit | 6 / 6 | 6 / 6 | 0 / 0 |
+| long-short-ladder | 12 / 12 | 11 / 0 | 0 / 11 |
+| oblique-close-return | 7 / 9 | 6 / 4 | 0 / 2 |
+| offset-crossing | 6 / 6 | 6 / 6 | 0 / 0 |
+| reverse-terminal | 6 / 7 | 5 / 6 | 1 / 0 |
+
+At 120 ms the only changes to combined arrival/duty are on long-short-ladder: 7 to 4, one gain and four losses. The dominant high-delay settling regression is concentrated on long-short-ladder; it is not an approach failure. Next research slice: inspect the observed synthetic terminal queue histories for these cases, contrast stable and unsettled arrivals, and specify a separate terminal-only experiment on a development grid before freezing a new candidate and an unused evaluation set. Do not promote or retune the rejected V4 parameter candidate based on this observed set. No physical extrapolation.
+
+### Closure and remaining gates
+
+Online checklist closure is 96/100: verified branch identities, next research slice, and final evidence SITREP completed. Four tasks remain explicitly open: 020 merge after original LEGION archive acceptance, 085 README baseline after merge, 089 current main handoff after acceptance/merge, 090 independent sister local-checkout verification. Premerge handoff is prepared, but is not the postmerge task. No sibling repository was modified by this work; independent local verification still requires access. The historical report is not a substitute for fresh physical qualification, and the reproduced V4 artifacts are not a substitute for the historical report. Main remains at 2e0a8cf; no production navigation permission is changed.
