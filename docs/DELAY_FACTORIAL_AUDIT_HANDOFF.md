@@ -247,3 +247,20 @@ Retrieved Ubuntu terminal artifact 14993235441 from run 45548498152. Independent
 | Maximum final error | 0.302692275 | 0.593542170 |
 
 All 12 candidate endpoints exceed 0.30 tolerance; the smallest miss is approximately 0.000847 units, so the failures are not uniformly large. The candidate actually starts closer on average before the queue drains. Retain this distinction when reviewing future ideal-model settling studies. This selected observed geometry and the archived synthetic model do not establish physical causation or qualify production navigation. No controller changes. Next check the Windows archive and review a terminal-only experimental protocol without changing the frozen V4 evidence. Original backlog and merge gates remain unchanged.
+
+## Ten follow-up tasks — terminal archive cross-platform closure
+
+Run 45548498152 completed all three jobs successfully. Retrieved Windows terminal ZIP 14992752018 (11694 bytes, SHA-256 0bc2ab94cbb1d41fb3972a5be0aa260920d6eedb778525b4899362ecec28a61e), sole JSON member v4-terminal-observation.json (58374 bytes, SHA-256 a3d6a23611428eb1436b93c8e9ea53006d75c6bdb6dce9492c45a815a11dce45). Retrieved and reverified Ubuntu artifact 14993235441. Both expire February 23, 2027.
+
+Independent Python verification in this session: 12 unique scenario spec hashes per report; compared first and final errors and outcome flags against original V4 comparison archives 14992900453 and 14991594821; recomputed 132 midpoint integration intervals per platform (including stationary witnesses), queue bounds, timestamps, position, wrapped yaw and sampled destination distances. Both reports passed. Recursively compared every field: 1,900 floating-point values with maximum absolute difference 3.979039320256561e-12 (applied yaw rate), all other fields exactly equal. No trajectory solver was called in this independent archive check.
+
+| dt (seconds) | Baseline / candidate settled (of 6) | Baseline / candidate mean queued travel | Baseline / candidate mean final error |
+|---|---:|---:|---:|
+| .06 | 6 / 0 | .265854771 / .490426818 | .067887951 / .343719273 |
+| .12 | 5 / 0 | .345203311 / .523665188 | .234838044 / .537883956 |
+
+All 12 baseline cases initially reduced endpoint error at the first drain interval, versus 7 candidate cases. All 12 candidate cases reach a smaller sampled error before their final endpoint. Candidate first sampled tolerance exits occur from .12 to .36 seconds; all remain outside at the endpoint. Profiles couple speed, yaw cap and dt, so these strata cannot isolate timestep causation.
+
+Commits 91500ab and 715fa07 add a reusable archive-only terminal verifier and three new regression methods (generated-report acceptance, tampering rejection, ZIP admission). The verifier bounds archive/member size, authenticates ZIP bytes, checks scenario digest and recomputes saved ideal midpoint observations without importing the simulator. Its scope is the observed long-short-ladder receipt, not arbitrary synthetic reports. Hosted execution of these new methods is pending; prospective discovery count 528, verified Windows baseline 525. The independent Python check above was executed separately, not a claim that the newly committed module has passed. Reproduce the new command with the downloaded Windows ZIP and its pinned digest: python -B -m rift_taxi.v4_terminal_archive_audit github-actions-artifact-14992752018.zip --sha256 0bc2ab94cbb1d41fb3972a5be0aa260920d6eedb778525b4899362ecec28a61e.
+
+Completed ten follow-up tasks: check three-job CI, retrieve Windows archive, verify both ZIP/member digests, verify scenario hashes, independently recompute integration intervals, reconcile historical comparison outcomes, compare platforms, stratify by profile and exit timing, implement reusable audit, commit its regression tests. Implementation is complete; new code acceptance is not. Original 96/100 backlog and four merge gates remain unchanged. No physical qualification, controller changes, or new candidate promotion.
