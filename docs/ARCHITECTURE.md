@@ -150,3 +150,11 @@ See [VALIDATION.md](VALIDATION.md), [ROADMAP.md](ROADMAP.md), and the specific [
 **M3:** multi-bend path tracking with W held through guides and A/D adjustments while running, with accepted real-key-state and XYZ/yaw receipts.
 
 Only **after M3** widen map coverage, NPC destinations, obstacle-aware detours and app/UI polish. The current repo contains **no implemented Taxi movement executable**.
+
+## 11. Hosted offline research qualification boundary
+
+The research branch uses GitHub-hosted Python regression jobs and a separate prespecified synthetic comparison. CI availability is a development convenience, never a runtime requirement. The synthetic modules accept only authored flat synthetic traces or archived synthetic JSON reports; they neither read a game process nor invoke physical input. Package smoke tests exercise isolated installed imports and CLI help, not a Windows x64 end-user application release.
+
+The V4 parameter experiment changed the existing lookahead setting only; that setting also affects internal rejoin and corner thresholds. Its failed research screen leaves the original simulator and policy unchanged. Numerical agreement between Windows and Ubuntu and successful test execution prove repeatability at the reported synthetic scope, not real actor identity, world-instance identity, passive XYZ freshness, body heading, traversability, game-consumed STOP or crash-proof release.
+
+The live authority boundary remains unchanged: current executable/session/actor binding, independent freshness and heading qualification, reliable release under loss of focus and child/sender faults, and observed physical journey acceptance are separate gates. Do not use a synthetic receipt, archived client process ID, hosted test-runner process observation, or installed-package smoke test to grant production navigation authority. See [offline research handoff](DELAY_FACTORIAL_AUDIT_HANDOFF.md), [validation](VALIDATION.md) and [current main handoff](HANDOFF_CURRENT.md).
