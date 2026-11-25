@@ -27,7 +27,7 @@ Taxi now has a development-only evidence and diagnostics runner. It requires the
 
 ```powershell
 Set-Location -LiteralPath 'C:\work\Rift_Taxi'
-python -B -m rift_taxi.patch_check --run-id pre-20261124-01 --expected-host LEGION --before '../Update Helper/before-20261124-legion.json' --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 487
+python -B -m rift_taxi.patch_check --run-id pre-20261124-01 --expected-host LEGION --before '../Update Helper/before-20261124-legion.json' --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 556
 if ($LASTEXITCODE -ne 0) { throw 'Taxi offline preflight blocked; inspect receipt' }
 ```
 
@@ -59,7 +59,7 @@ Use the current Update Helper one-command capture cycle and its independent save
 
 ```powershell
 Set-Location -LiteralPath 'C:\work\Rift_Taxi'
-python -B -m rift_taxi.patch_check --run-id post-20261124-01 --expected-host LEGION --before '../Update Helper/before-20261124-legion.json' --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 487 --after-a '../Update Helper/patch-20261124-attempt-01-after-a.json' --after-b '../Update Helper/patch-20261124-attempt-01-after-b.json'
+python -B -m rift_taxi.patch_check --run-id post-20261124-01 --expected-host LEGION --before '../Update Helper/before-20261124-legion.json' --expected-before-sha 6612cab5ad31162cc0eab21266ed3839c4a2ef1e12e3a2aa82536d5b195c983e --minimum-tests 556 --after-a '../Update Helper/patch-20261124-attempt-01-after-a.json' --after-b '../Update Helper/patch-20261124-attempt-01-after-b.json'
 if ($LASTEXITCODE -ne 0) { throw 'Taxi offline postcheck blocked; inspect receipt' }
 ```
 
@@ -150,4 +150,14 @@ python -B -m rift_taxi.verify_patch_check --bundle artifacts/patch-check-post-20
 if ($LASTEXITCODE -ne 0) { throw 'V2 receipt verification blocked' }
 ```
 
-New checks use minimum 487 tests. Preserve earlier receipt pins and their original test thresholds. The V1 Git-log consistency-only limitation remains for historical bundles; V2 fully binds required saved Git artifacts. Both formats keep live compatibility and production input authorization false.
+The historical V2 rehearsal used minimum 487 tests. For new checks use the current accepted threshold in section 8. Preserve earlier receipt pins and their original test thresholds. The V1 Git-log consistency-only limitation remains for historical bundles; V2 fully binds required saved Git artifacts. Both formats keep live compatibility and production input authorization false.
+
+## 8. Current accepted baseline and hosted synthetic rehearsal — November 24 PST
+
+PR #7 merged at `4803c924ccdd50a865863e15f196bc25ade2735f`. The exact PR head passed 556/556 Windows regressions (52.533 seconds), both Ubuntu jobs, and all installed experimental journey modes in [run 45563551288](https://github.com/360madden/Rift_Taxi/actions/runs/45563551288). The latest LEGION source-checkout regression also passed 556/556. A fresh doctor check returned offline-replay-ready, and the original V2 29-file receipt independently reverified. Those historical manifests showed no content change; they are not a current installation scan.
+
+Use minimum **556** tests for the current accepted Windows baseline and increase the threshold as new verified tests are added. Historic receipt verification must retain its original threshold. LEGION was subsequently unreachable from the connected session; do not claim the local checkout is synchronized or that the updater has completed.
+
+The hosted Windows recovery rehearsal invokes the real patch-check and receipt-verification CLIs using fictional before/after inventories on the hosted runner, including the full unskipped regression suite. Its artifact and manifest classification is SYNTHETIC_CI_REHEARSAL_ONLY; it cannot be substituted for physical LEGION captures or external provenance. The same-run receipt hash is for producer/consumer integration, not independent historical authentication. The new rehearsal is awaiting its first hosted execution; do not mark it verified until its exact-head CI passes.
+
+No new live compatibility or movement qualification. When LEGION and the updater are available, follow sections 3 and 4 with fresh captures and a new run ID, using the current committed checkout and test floor.
