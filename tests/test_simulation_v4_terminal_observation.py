@@ -82,3 +82,24 @@ class V4TerminalObservationTests(unittest.TestCase):
             digest = write("unexpected.json")
             with self.assertRaisesRegex(ValueError, "ZIP member"):
                 verify_zip(path, digest)
+
+    def test_summary_fields_are_recomputed(self):
+        for field, value in (("arrivals", 11), ("settled", True),
+                             ("sampledExits", 0), ("meanQueuedTravel", 0.),
+                             ("meanErrorChange", 0.)):
+            report = copy.deepcopy(self.report)
+            report["summary"]["baseline"][field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                verify(report)
+
+    def test_rehashed_wrong_design_is_rejected(self):
+        """A self-consistent digest does not make an altered design admissible."""
+        report = copy.deepcopy(self.report)
+        row = report["rows"][0]
+        row["scenario"]["headingOffsetDegrees"] = 42.
+        row["scenario"]["initialYawDegrees"] = math.degrees(math.atan2(1., 7.)) + 42.
+        raw = json.dumps(row["scenario"], sort_keys=True, separators=(",", ":"),
+                         allow_nan=False).encode()
+        row["scenarioSHA256"] = hashlib.sha256(raw).hexdigest()
+        with self.assertRaisesRegex(ValueError, "frozen design coverage"):
+            verify(report)
