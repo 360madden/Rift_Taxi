@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. 83 steps completed at their stated scope. Hosted run 45547588448 passed Windows 523/523 and Ubuntu 507 applicable tests (16 skipped). Both V4 report ZIPs were downloaded and independently verified, including all 216 matched pairs and discrete cross-platform outcomes. The candidate remains rejected. Steps 022, 041, 048, 070, 083, 086, 091, 092, 095 and 097 are complete; see DELAY_FACTORIAL_AUDIT_HANDOFF.md and VALIDATION.md. Artifacts expire February 23, 2027; retain original ZIPs separately. Historical LEGION archive, installed packaging and minimum-version validation, final merge and physical qualification remain outstanding. Main is unchanged.
+November 24, 2026. 93 steps completed at their stated scope. Hosted run 45547937230, job 138981923577, verifies Python 3.11.18 on Ubuntu: 22 focused tests passed, 507 applicable full-suite tests passed (16 skipped), wheel built and installed, five research modules imported from installed site-packages, and three CLI help commands succeeded. Steps 027, 080–082, 084, 087–088, 093–094 and 098 completed. Nine frozen simulator/study source hashes match main; no new live authority. See DELAY_FACTORIAL_AUDIT_HANDOFF.md and ARCHITECTURE.md. Windows standalone distribution is not yet qualified. Historical LEGION archive, sibling local-checkout inspection, final merge and main documentation updates remain open. Main unchanged.
 
 ## Online baseline and acceptance
 
@@ -36,7 +36,7 @@ November 24, 2026. 83 steps completed at their stated scope. Hosted run 45547588
 - [x] 024. Identify terminal settling definition
 - [x] 025. Identify duty denominator and time budget
 - [x] 026. Check timestep versus delay representability
-- [ ] 027. Preserve all frozen source hashes
+- [x] 027. Preserve all frozen source hashes
 - [x] 028. Write explicit no-live-qualification boundary
 - [x] 029. Define baseline comparison outcome schema
 - [x] 030. Define negative result retention policy
@@ -104,18 +104,18 @@ November 24, 2026. 83 steps completed at their stated scope. Hosted run 45547588
 - [x] 077. Test deterministic diagnostic ordering
 - [x] 078. Test mixed gain/loss analytic fixture
 - [x] 079. Test all-failure diagnostic stratum
-- [ ] 080. Run focused then full hosted suites
+- [x] 080. Run focused then full hosted suites
 
 ## Distribution and documentation
 
-- [ ] 081. Verify package discovery includes new modules
-- [ ] 082. Check Python minimum version assumptions
+- [x] 081. Verify package discovery includes new modules
+- [x] 082. Check Python minimum version assumptions
 - [x] 083. Review stdlib-only runtime dependencies
-- [ ] 084. Verify CLI usage examples
+- [x] 084. Verify CLI usage examples
 - [ ] 085. Review README baseline count after confirmed merge
 - [x] 086. Update validation evidence links
-- [ ] 087. Update architecture qualification boundaries
-- [ ] 088. Review comments and docstrings
+- [x] 087. Update architecture qualification boundaries
+- [x] 088. Review comments and docstrings
 - [ ] 089. Update current handoff after confirmed acceptance
 - [ ] 090. Confirm sibling repositories remain unchanged
 
@@ -123,12 +123,12 @@ November 24, 2026. 83 steps completed at their stated scope. Hosted run 45547588
 
 - [x] 091. Review unresolved original archive verification
 - [x] 092. Record source provenance and missing artifacts
-- [ ] 093. Record physical qualification blockers
-- [ ] 094. Confirm no new live authority claims
+- [x] 093. Record physical qualification blockers
+- [x] 094. Confirm no new live authority claims
 - [x] 095. Review CI permissions and triggers
 - [ ] 096. Check final branch and commit identities
 - [x] 097. Review all new tests and known skips
-- [ ] 098. Record exact completion status for this backlog
+- [x] 098. Record exact completion status for this backlog
 - [ ] 099. Prepare next prioritized offline research slice
 - [ ] 100. Produce final SITREP with verified evidence and remaining work
 
