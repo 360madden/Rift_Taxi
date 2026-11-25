@@ -119,7 +119,7 @@ def compare_latency_prediction():
         factorial.append(row)
     return {"schema": "taxi.synthetic-command-prediction-comparison/1",
             "classification": "SYNTHETIC_CLOSED_LOOP_ONLY",
-            "candidate": "queued-pose-midpoint/1",
+            "candidate": "queued-pose-midpoint-terminal-rejoin/2",
             "sets": [_group(v3, "observed-v3", "delaySteps"),
                      _group(factorial, "observed-v3-factorial", "nominalDelaySeconds")],
             "gameInputSent": False, "liveArrivalVerified": False,

@@ -269,6 +269,20 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                 target = _lookahead_point(trace.points, cumulative, progress)
                 dx, dz = target[0]-control_position[0], target[2]-control_position[2]
                 chord = math.hypot(dx, dz)
+        # A forecast can approach the endpoint while observed, displacement-
+        # bounded route progress remains short. Braking toward that same
+        # endpoint then eliminates the motion needed to earn progress.
+        # Rejoin the local admitted arc instead; do not assign progress,
+        # bypass outstanding sharp gates, or relax the arrival tolerance.
+        terminal_rejoin = (prediction_active and target_arc == total
+                           and sharp_cursor == len(sharp)
+                           and progress < total-tolerance
+                           and distance <= tolerance
+                           and control_distance <= tolerance)
+        if terminal_rejoin:
+            target = _lookahead_point(trace.points, cumulative, progress)
+            dx, dz = target[0]-control_position[0], target[2]-control_position[2]
+            chord = math.hypot(dx, dz)
         # A coincident target has no well-defined bearing. Keep the failure
         # explicit rather than guessing a yaw or skipping an unverified leg.
         # Holdout v1 exposes this limitation on tightly spaced zigzags.
@@ -289,7 +303,11 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
             # Avoid stepping past a close anchor while aligning. Keep the
             # curvature cap; no forced minimum velocity at a singularity.
             velocity = min(velocity, chord/step)
-        if total-progress <= lookahead:
+        if terminal_rejoin:
+            # Bound the return by its local chord, not distance to the
+            # already-near endpoint. Only applied motion earns progress.
+            velocity = min(velocity, chord/step)
+        elif total-progress <= lookahead:
             velocity = min(velocity, max(.15, 2.*control_distance), control_distance/step)
         # Record both requested and applied commands for nonzero delay.
         # Motion metrics and projection budget use the applied values only.
@@ -311,7 +329,9 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         # Only the recovery variant adds target-mode diagnostics, keeping
         # prior policy reports byte-reproducible.
         if speed_policy in ("turn-limited-rejoin", "turn-limited-ordered"):
-            frames[-1]["targetMode"] = "local-projection-rejoin" if rejoining else "lookahead"
+            frames[-1]["targetMode"] = (
+                "terminal-progress-rejoin" if terminal_rejoin else
+                "local-projection-rejoin" if rejoining else "lookahead")
         if ordered:
             frames[-1]["orderedSharpCornersPassed"] = sharp_cursor
         # Midpoint integration of an ideal planar velocity/turn plant.

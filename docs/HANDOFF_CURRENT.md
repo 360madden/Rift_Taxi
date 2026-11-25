@@ -1,5 +1,10 @@
 # Current RIFT Taxi handoff — November 24, 2026
 
+## LEGION restored — current research branch (November 24 PST)
+
+See [LEGION latency recovery](LEGION_LATENCY_RECOVERY_2026-11-24.md) for source receipts, original archive authentication, preserved negative results and new smoke design. Local main synchronized to PR #4 merge 134b7c7 (545 hosted Windows tests and installed-wheel journey execution). Interrupted work preserved separately; research branch reconciled at cd9d592. V2 opt-in terminal rejoin corrects one lost arrival; 864/864 factorial settled, 216/216 observed V3 settled, 24/24 new smoke settled. Full LEGION regression 550/550 passed (57.448 s, exit 0). Duty losses remain; do not promote default policy. RIFT unavailable, no physical qualification. Historical sister verification only partially complete. Continue bounded offline functionality and independent fixed-design tests.
+
+
 **Host:** LEGION · **Repository:** `C:\work\Rift_Taxi` · **Branch:** `main`
 **Historical November 23 baseline:** `2109a3e55225b35952b8d7aaae7ecad59e2f865e`
 **Remote:** https://github.com/360madden/Rift_Taxi.git
