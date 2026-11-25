@@ -5,6 +5,7 @@ conditioning effect estimates on successful journeys.
 """
 import contextlib
 import io
+import hashlib
 from itertools import product
 import json
 from pathlib import Path
@@ -13,6 +14,9 @@ import unittest
 from unittest.mock import patch
 
 from rift_taxi.cli import main
+from rift_taxi.delay_factorial_audit import audit_bytes
+from rift_taxi.delay_factorial_diagnostics import diagnose
+from rift_taxi.delay_factorial_stratification import stratify
 from rift_taxi.simulation_delay_factorial import evaluate_delay_factorial
 from rift_taxi.simulation_holdout_v3 import evaluate_holdout_v3
 
@@ -77,6 +81,56 @@ class DelayFactorialTests(unittest.TestCase):
             self.assertEqual(sum(summary["statusCounts"].values()), 288)
             self.assertEqual(summary["settledWithinTolerance"] + summary["settledOutside"],
                              summary["geometricArrivals"])
+
+    def test_independent_archive_auditor_accepts_generated_report(self):
+        """Exercise the real 864-case report, not merely an analytic fixture.
+
+        A fresh report's digest establishes the exact bytes under test. This
+        is NOT validation of the archived LEGION file's historical digest.
+        Reuse the class-level study to avoid rerunning the expensive grid.
+        """
+        raw = json.dumps(self.report, sort_keys=True, allow_nan=False).encode("utf-8")
+        receipt = audit_bytes(raw, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(receipt, {"cases": 864, "profiles": 24,
+                                   "matchedEffects": 9, "physicalQualification": False})
+
+    def test_real_route_diagnostics_reconcile_to_frozen_delay_counts(self):
+        """Check per-route matched losses against the known aggregate study.
+
+        The six observed route shapes are not new holdouts. Output the
+        small descriptive summary for hosted CI inspection; no live claims.
+        """
+        r = diagnose(self.report)
+        self.assertEqual(r["matchedStarts"], 288)
+        self.assertEqual(len(r["routes"]), 6)
+        levels = [route["levels"][1] for route in r["routes"]]
+        self.assertTrue(all(level["matchedPairs"] == 48 for level in levels))
+        self.assertEqual(sum(x["outcomes"]["geometricArrival"]["lost"] for x in levels), 25)
+        self.assertEqual(sum(x["outcomes"]["settledWithinTolerance"]["lost"] for x in levels), 63)
+        self.assertEqual(sum(x["arrivedButUnsettled"] for x in levels), 38)
+        print("FACTORIAL_DIAGNOSTICS " + json.dumps(r, sort_keys=True, allow_nan=False))
+
+    def test_stratified_counts_reconcile_with_frozen_report(self):
+        """Every route contributes to the original aggregate factor counts."""
+        result = stratify(self.report)
+        routes = result["routes"]
+        self.assertEqual(len(routes), 6)
+        self.assertFalse(result["physicalQualification"])
+        for i, expected in enumerate(self.report["matchedEffects"]):
+            self.assertEqual(sum(r["effects"][i]["pairs"] for r in routes), 144)
+            for field, counts in expected["outcomes"].items():
+                for category, count in counts.items():
+                    self.assertEqual(sum(r["effects"][i]["outcomes"][field][category]
+                                         for r in routes), count)
+        for i, expected in enumerate(self.report["byDelay"]):
+            group = [r["terminalDistribution"][i] for r in routes]
+            self.assertEqual(sum(t["total"] for t in group), 288)
+            self.assertEqual(sum(t["arrivals"] for t in group), expected["geometricArrivals"])
+            self.assertEqual(sum(t["outsideTolerance"] for t in group), expected["settledOutside"])
+        for route in routes:
+            for patterns in route["delayHistories"].values():
+                self.assertEqual(sum(patterns.values()), 48)
+        print("FACTORIAL_STRATA " + json.dumps(result, sort_keys=True, allow_nan=False))
 
     def test_cli_preflights_and_preserves_report_bytes(self):
         """Test the actual writer with cached study output to avoid rerunning the grid."""

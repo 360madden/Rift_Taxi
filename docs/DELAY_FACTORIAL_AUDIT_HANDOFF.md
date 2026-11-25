@@ -1,0 +1,274 @@
+# Independent factorial archive audit — November 24, 2026
+
+Base: `2e0a8cf65ea6345bf1b82c8b76ecf367260f7b94`. This is a proposed offline evidence-integrity improvement, not a new controller or a new physical experiment.
+
+## Verification performed
+
+The standalone auditor and analytic fixture passed all three focused unittest methods (including nine corruption subcases) on the isolated Linux Python 3.13 environment. The two GitHub file blob hashes were independently matched to the locally tested source:
+
+- `rift_taxi/delay_factorial_audit.py`: `372abc14adca7e1c70f9719fb8d779bc4d0672c3`
+- `tests/test_delay_factorial_audit.py`: `17dd5b32ac161590661f5b333101b04ea4af3619`
+
+No full checkout was available to the isolated environment because direct GitHub DNS resolution failed. The original ignored LEGION archive was not available. Do not report a new integrated regression baseline or a successful original archive audit yet.
+
+## Acceptance on the repository checkout
+
+Run from the root in PowerShell after fetching the review branch:
+
+```powershell
+python -B -m unittest discover -s tests -p test_delay_factorial_audit.py -v
+python -B -m rift_taxi.delay_factorial_audit artifacts/m2-m3-delay-factorial-20261124-1326.json --sha256 83c749b68236c62a8a3e85c94f9349016298eb3e53e2b9cd6971b18cc81cb65f
+python -B -m unittest discover -s tests -v
+```
+
+The trusted archive hash is from M2_M3_DELAY_FACTORIAL_2026-11-24.md. A digest match authenticates identity relative to that recorded receipt; internal consistency checks do not independently reconstruct every trajectory, geometry or source trace. Retain the original evidence unchanged.
+
+Before merging, review schema coverage and verify the original 864-case archive and integrated tests. The next steering study remains separate. Production navigation and all physical qualification flags remain unchanged.
+
+## Online environment follow-up
+
+Added .github/workflows/offline-regression.yml: GitHub-hosted Windows and Ubuntu, Python 3.14, read-only repository permissions and no game dependency. Workflow execution is not yet confirmed; do not count it as passing.
+
+The auditor now rejects duplicate JSON keys, nonfinite numbers (including overflowing exponents), and booleans used as numeric case IDs, factors, duty or terminal measurements. Five isolated Python 3.13.5 tests passed, including sixteen corruption subcases, and the updated remote blobs match the locally tested files exactly:
+
+- Auditor: `57ddf5e19c2fbbb043845b5dedec08898457ae02`
+- Tests: `99a8e30111f2b75ce1b9363f86fa66f5bb0e4a46`
+
+Full integrated acceptance and the original archived report remain pending. Main and frozen synthetic policies are unchanged. Direct Git DNS remains unavailable in the Linux execution environment; use the GitHub connector and hosted CI where supported.
+
+## Hosted regression and diagnostic evidence
+
+GitHub Actions run 45540802854, head d16632b: Windows 503/503 (46.282 s), Ubuntu 487 passed and 16 skipped (21.526 s). Run 45541077013, head 576dcb2, base 2e0a8cf: Windows 507/507 (34.987 s); Ubuntu 489 passed, 2 failed, 16 skipped (21.650 s). Windows checkout log confirms synthetic PR merge b0ce121 with the expected head and base. Both platforms generated and audited the complete 864-case study and reconciled these route-level counts.
+
+| Route | Approach losses at 330 ms | Arrived but unsettled | Total settling losses |
+|---|---:|---:|---:|
+| double-crossing | 13 | 6 | 19 |
+| narrow-return | 12 | 5 | 17 |
+| mixed-angle-fan | 0 | 10 | 10 |
+| short-leg-staircase | 0 | 7 | 7 |
+| translated-curve | 0 | 7 | 7 |
+| short-terminal-leg | 0 | 3 | 3 |
+| Total | 25 | 38 | 63 |
+
+Zero and 110 ms: all 288 approach and settling outcomes successful. At 330 ms: 263 arrivals, 225 settled, 32 arrival-plus-duty successes. These counts match the historical study, but small platform-specific floating-point differences occur in terminal error values; do not claim cross-platform byte identity. For duty success, zero delay has 104, 110 ms has 89 (15 gains, 30 losses), 330 ms has 32 (16 gains, 88 losses), all compared to zero delay. All observed geometric losses concentrate in two route shapes. Original ignored LEGION archive still unavailable; generated report SHA validation is not a substitute for historical archive verification.
+
+## Cross-platform test defect
+
+The two failing Ubuntu tests in run 45541077013 are existing mocked crash-release tests. Their synthetic marker is at 100.03 monotonic seconds, but the fixture uses the real host monotonic clock to judge whether that marker is in the past. A newly started host can violate that assumption. Commit aa2d037 pins the mocked clock to a deterministic advancing epoch beginning at 500 seconds, independent of uptime; production behavior is unchanged. This is a proposed fixture correction pending hosted rerun, not confirmation of a physical release event. Keep PR draft pending acceptance.
+
+Evidence: https://github.com/360madden/Rift_Taxi/actions/runs/45541077013
+
+## Model contract and bounded archive follow-up
+
+Source review: simulation.py, simulation_settling.py and simulation_delay_factorial.py. The ideal plant observes current synthetic pose, delays only command application in a stationary-initialized FIFO of 0–10 whole steps, and uses midpoint planar integration. No sensor lag or physical actuator is represented. The matched dt=55/110 ms and delay=0/110/330 ms correspond to integer queues 0/2/6 and 0/1/3 respectively. Geometric arrival requires endpoint distance and remaining arc both within tolerance plus all ordered sharp gates passed; cross-track rejection precedes arrival. Terminal settling is separate passive FIFO drain and one stationary interval, not active correction. Forward duty is modeled positive applied velocity time divided by elapsed approach time, with a 40 s factorial approach budget; it excludes the post-arrival drain and is not key duty.
+
+Comparison contract: pair by geometryCase, speed, maxYawRate, dt, and delay; record geometricArrival, settledWithinTolerance, arrivalAndDutyTarget, terminal status and final/settled error separately. Gains and losses must both be retained; never discard failed approaches or assign them terminal observations. Preserve all original report and policy identities. No live input, collision, safe traversal or physical qualification claim follows from these simulations.
+
+Commits 94653fc, fb876ec and 170cbc5 add a shared digest-verified strict parser, an 8 MiB bounded read (original report 667,969 bytes), top-level object and nesting rejection, and CLI/error-path tests. This is an engineering limit chosen for current report size, not a simulator constraint. Three new test methods bring the prospective discovery count to 510; hosted confirmation remains pending. The original archive is still unavailable.
+
+## Cross-platform reproducibility follow-up
+
+Run 45546590286 (aa2d037) completed successfully: Windows 507/507 in 50.375 s; Ubuntu 491 passed, 16 skipped in 35.214 s. Independently parsed the diagnostic JSON from both job logs: all discrete outcomes across 12 route/delay groups match exactly. The maximum absolute difference in the 12 maximum-settled-error measurements is 5.717648576819556e-15 synthetic units. This is aggregate diagnostic equivalence, not a per-case trajectory comparison or byte-identical archive reproduction.
+
+Run 45546766551 (ed17b2c): Ubuntu 494 passed, 16 skipped, 21.150 s; Windows pending at observation. The archive size, non-object/deep JSON, and both CLI error/success tests therefore have verified Linux execution. Four additional test methods are committed at c48bec2 and 2e8e7a8: deterministic diagnostic case ordering, all-failure report, matched gains/losses that cancel in marginal counts, and unknown schema with correct digest. Prospective discovery count is 514; no pass claim until hosted execution.
+
+## Route-factor stratification checkpoint
+
+Hosted run 45546919255 at head 3828af4: Windows 514/514 (39.941 s); Ubuntu 498 passed, 16 skipped (19.729 s). Both succeeded. This validates the preceding four new tests and bounded archive changes. Source blobs for simulation.py (5294c221193e18f067856857428549ebbcac5050), simulation_settling.py (52a5f2082fd07502a77bbb6a876486e2566dc894), simulation_delay_factorial.py (b26999c0de6671d7029abb30cf394675ba1b90ea), and simulation_holdout_v3.py (60871fc94ab3c17d0cc8d3154e65d46d3939882e) independently match base 2e0a8cf.
+
+Commits ca637e6, 0739369 and 92e8603 introduce a separate descriptive stratification command: route-specific matched effects for speed, yaw cap and timestep; binary outcome histories across three delays; and min/median/max terminal errors with failed-approach denominators. The four new tests (three analytic, one actual-grid reconciliation) are committed but not yet verified by hosted CI. Prospective discovery count: 518. Keep the historical archive and controller unchanged. The analysis is descriptive, not an independent holdout or a physical performance claim.
+
+Usage (from repo root):
+```powershell
+python -B -m rift_taxi.delay_factorial_stratification artifacts/m2-m3-delay-factorial-20261124-1326.json --sha256 83c749b68236c62a8a3e85c94f9349016298eb3e53e2b9cd6971b18cc81cb65f
+```
+The original file remains unavailable; above is a future verification command, not an execution receipt.
+
+## Route-stratification results and next research priority
+
+Hosted run 45547058953 at head 92e8603: Ubuntu discovered 518 tests, 502 passed and 16 skipped in 35.612 s. Windows was still running at initial review. All six route strata reconcile to the original 864-case study. Matched changes at 330 ms (low to high factor value, gains/losses):
+
+| Route | Speed arrival | Speed settled | Yaw arrival | Yaw settled | dt arrival | dt settled |
+|---|---:|---:|---:|---:|---:|---:|
+| double-crossing | 0/11 | 5/10 | 0/13 | 4/13 | 0/1 | 0/5 |
+| narrow-return | 0/12 | 0/13 | 0/12 | 0/11 | 0/0 | 0/3 |
+| mixed-angle-fan | 0/0 | 5/5 | 0/0 | 5/5 | 0/0 | 0/8 |
+| short-leg-staircase | 0/0 | 2/5 | 0/0 | 0/5 | 0/0 | 3/4 |
+| short-terminal-leg | 0/0 | 3/0 | 0/0 | 0/3 | 0/0 | 1/2 |
+| translated-curve | 0/0 | 0/7 | 0/0 | 0/5 | 0/0 | 0/7 |
+
+Terminal distributions at 330 ms, conditional on geometric arrival:
+
+| Route | Arrivals / 48 | Min | Median | Max | Outside tolerance |
+|---|---:|---:|---:|---:|---:|
+| double-crossing | 35 | .059563 | .198077 | .406516 | 6 |
+| narrow-return | 36 | .049080 | .218367 | .372131 | 5 |
+| mixed-angle-fan | 48 | .095572 | .182495 | .444542 | 10 |
+| short-leg-staircase | 48 | .080966 | .210559 | .474761 | 7 |
+| short-terminal-leg | 48 | .040119 | .165944 | .332633 | 3 |
+| translated-curve | 48 | .049575 | .184857 | .412727 | 7 |
+
+The three-delay geometric and settled histories are exclusively 110 and 111. The combined arrival/duty outcome is not monotone: eleven short-terminal-leg cases have 010 (succeed only at 110 ms), four have 011, five have 001, and seven narrow-return cases have 001. All double-crossing cases have 000 for the combined objective even at zero delay. These observations argue against treating delay as the only cause or choosing a universal faster/slower profile from marginal counts. Prioritize separate approach and terminal studies, retain all failed starts, and evaluate independent geometry before making any generalization. This is descriptive analysis of observed synthetic cases, not a new steering policy, physical calibration, or live qualification.
+
+## V4 prespecified holdout design
+
+Windows run 45547058953 subsequently completed 518/518 in 28.343 s. Both platforms are green for the stratification checkpoint.
+
+Commit d31c7ae fixes six new authored synthetic geometries, two perpendicular initial offsets, three heading offsets, and two new coupled speed/yaw/dt profiles. Three matched nominal delay levels (0, 120 and 360 ms) give 216 intended runs across 72 scenario identities. Commit d693df4 adds two design-only regression tests; prospective discovery count 520, hosted confirmation pending. The generator returns scenario specifications, not outcomes. No V4 simulations have been run by these additions. Freeze a candidate and its matched comparison protocol before evaluating this set; once inspected, treat the set as observed and preserve it unchanged. New authored geometry is separate from V1–V3 but not an independent external physical dataset. Existing simulation code and prior reports are unchanged.
+
+Future results must distinguish geometric arrival, terminal settling and forward duty, preserve failed starts, and report matched gains/losses rather than relying on marginal success. The historical LEGION archive remains unavailable. No production qualification or merge claim.
+
+## V4 comparison protocol checkpoint
+
+Hosted run 45547257578 confirms Windows 520/520 in 45.599 s and Ubuntu 504 passed, 16 skipped in 19.751 s. Both V4 design tests passed.
+
+Protocol 00c7ab6 was committed before V4 outcome evaluation; comparison implementation d3a22f5 and tests 2dd93de follow it. Candidate is a separate parameter sensitivity study using the unchanged ordered simulator: baseline lookahead 1.5, candidate min(3, 1.5 + nominal speed times modeled delay). It is not a queued-pose predictor and also changes coupled lookahead-dependent thresholds. All 216 matched pairs (432 simulation calls) are retained by the report generator, including failures. Zero delay must be exactly equivalent, and the research screen requires no baseline success losses for any of the three outcomes plus a nonzero-delay settling gain. The protocol rejects an unsuccessful candidate without treating a negative research result as a test failure. No automatic policy promotion.
+
+Three new regression methods committed; prospective discovery count 523. The comparison outcome and hosted test results have not yet been observed. Reproduce the complete JSON report with python -B -m rift_taxi.simulation_holdout_v4_comparison (stdout); archive the full output before interpreting or tuning. Existing simulator and physical qualification are unchanged.
+
+## V4 comparison: negative candidate result
+
+Hosted run 45547479280 at head 2dd93de: Ubuntu 507 passed, 16 skipped (523 discovered), 19.755 s. Windows pending at review. The 216 matched pairs (432 calls) completed. At zero delay both configurations match exactly. At 120 ms both arrive and settle in all 72 cases, but the candidate gains one and loses four arrival-plus-duty outcomes (baseline 7, candidate 4). At 360 ms geometric arrivals improve from 43 to 46 (three gains, zero losses); settled outcomes deteriorate from 40 to 26 (one gain, fifteen losses); combined arrival/duty deteriorates from one to zero. The frozen research screen rejects the candidate. No simulator or production policy change is warranted. Preserve V4 as observed evidence; do not reuse it as an unseen holdout.
+
+Commit 650493e adds a hosted step to generate and upload complete per-case V4 reports separately for Windows and Ubuntu with requested 90-day retention. Artifact upload and retrieval are not yet verified; historical LEGION archive remains unavailable. The earlier hosted logs preserve aggregate results only, not a full per-case report. Next: verify both platforms, retrieve and review the new artifacts, then close remaining documentation and release-readiness work. Avoid further lookahead tuning on V4.
+
+## Complete V4 artifact verification and provenance
+
+Run 45547588448, head 650493e445d1d0b2d95b1e0a81655361de1908cc: Windows 523/523 (48.233 s), Ubuntu 507 passed, 16 skipped (37.785 s). Both artifact jobs succeeded. Downloaded both ZIP archives through GitHub and independently read and verified them in Python 3.13.5. Each ZIP has exactly one v4-comparison.json member; 216 unique scenario/delay pairs, 432 outcomes and 72 pairs per delay. Recounted every paired outcome category and checked terminal and duty invariants from the original rows; both reports agree exactly on scenario identity, terminal status and all three discrete outcomes for both sides, and their research screen rejects the candidate.
+
+| Platform | Artifact ID | ZIP bytes | ZIP SHA-256 |
+|---|---|---:|---|
+| Windows | 14992900453 | 17071 | c707df0f46a201b9606d9cc2d27800838594ae88f347e8be53b35f967caebe0a |
+| Ubuntu | 14991594821 | 17039 | 9228b47c6e8b05c16bab8d1cbdc8618c476684adb9e13bb45451497e659e4711 |
+
+JSON member digests: Windows 836af85fbd4b9bf2db8260f873e2a5570543e327b733ba3f0d092387bb5cca55 (171041 bytes); Ubuntu 55216ef43ee2d9d846b006ce67750f9ca87af7fd2fa657dc053bb67ddf1ba2c6 (171044 bytes). GitHub retention currently expires February 23, 2027; copy these original archives to durable storage before expiration. Their distinct byte hashes are not an inconsistency in the discrete results.
+
+### Immutable identities and serialization
+
+The V3 factorial study is identified by taxi.synthetic-delay-factorial/1, frozen base 2e0a8cf and historical report SHA-256 83c749b68236c62a8a3e85c94f9349016298eb3e53e2b9cd6971b18cc81cb65f. V4 uses taxi.synthetic-v4-lookahead-comparison/1, generator taxi-holdout-v4-prespecified, protocol commit 00c7ab6, design blob fb5509da2bd215c7576432ccb126245e910b9cfc, comparison blob a9ce6a4890593fd3c8ab8c2dc268e6bc4de8f413, and separate per-platform report byte hashes above. These define separate study identities, not interchangeable report formats. Historical study receipts remain parent evidence for the decision; the V4 study is not a reproduction of the historical archive. Pair by scenarioSHA256 and nominal delay; each generated scenario hash covers the canonical scenario spec (sorted keys, compact separators, finite numbers). Reports use sorted JSON keys, finite numbers only, fixed traversal order, and stdout newline. Preserve raw bytes and digest per platform rather than promising identical float formatting or newline conventions. Never normalize original archives in place.
+
+### Inventory, dependency and CI review
+
+Reviewed hosted test inventory: test_replay, test_steering, test_simulation, test_simulation_stress, test_simulation_delay_study, test_simulation_delay_factorial, test_simulation_holdout, test_simulation_holdout_v2, test_simulation_holdout_v3, test_simulation_holdout_v4_design, test_simulation_holdout_v4_comparison, test_simulation_integrity, test_simulation_ordered_comparison, test_simulation_receipt_audit, test_simulation_recovery_audit, test_simulation_settling, test_simulation_terminal_errors, test_simulation_v3_failure_audit, test_delay_factorial_audit, test_delay_factorial_diagnostics and test_delay_factorial_stratification. Ubuntu skips exactly 16 platform-specific tests (camera child 1, crash launcher 1, keyboard snapshot 1, native memory 1, release supervisor 5, supervised integration 4, turn/forward probes 2, Win32 observation 1); Windows ran all. New tests are included in both applicable suites.
+
+All five new production-package modules import only Python standard library and existing local package modules. pyproject.toml has no runtime dependencies; setuptools is build-only. This is an import review, not an installed-wheel or minimum Python 3.11 runtime qualification. CI uses pull_request and workflow_dispatch, contents: read, no persisted checkout credentials, 15-minute job limit, separate OS jobs and artifact names. The workflow action runtime deprecation warning warrants future maintenance; no failed job is suppressed.
+
+Historical LEGION V3 report is still not available in this environment. The original path and pinned digest are retained in this handoff; generated and V4 artifacts cannot replace it. Main merge and physical qualification remain pending. All work confined to the Taxi review branch.
+
+## Packaging and qualification closure checkpoint
+
+The installed-wheel and minimum-version validation job was added in 4ed8fe859f982fbd8820491f67420c88ef056855. It checks Python 3.11 on Ubuntu, runs focused then full source regressions, builds and installs a wheel, and uses Python isolated mode to check that all five research modules resolve from the installed site-packages tree rather than the checkout. The three archive CLI help commands are checked separately. This tests the declared minimum, not a standalone Windows app. At initial observation run 45547937230 had passed the focused 3.11 tests; full regression, wheel and installed CLI checks were still running. Do not report successful packaging until the actual steps complete.
+
+### Frozen source verification
+
+Compared base 2e0a8cf65ea6345bf1b82c8b76ecf367260f7b94 with the review branch. All nine source blobs below are identical; the PR changed-file inventory contains no edits to any of these modules or the live controller.
+
+| Source under rift_taxi/ | Git blob SHA |
+|---|---|
+| simulation.py | 5294c221193e18f067856857428549ebbcac5050 |
+| simulation_holdout.py | 12381004e2c54c794fd4d1faf76b98114d29127c |
+| simulation_holdout_v2.py | 2e9b88856865c918224a862dbb74d9ac85168952 |
+| simulation_holdout_v3.py | 60871fc94ab3c17d0cc8d3154e65d46d3939882e |
+| simulation_delay_factorial.py | b26999c0de6671d7029abb30cf394675ba1b90ea |
+| simulation_delay_study.py | 40d2fd71037e3029fa57dc0842825e05fc2c662b |
+| simulation_settling.py | 52a5f2082fd07502a77bbb6a876486e2566dc894 |
+| simulation_integrity.py | 49eae49711ba4fbbca4d982911094ead060e0df3 |
+| simulation_ordered_comparison.py | a6a730b48186fa7beae820d8f63ccb82d5825e35 |
+
+Reviewed all five new research module headers, public entry-point docstrings and comments for evidence boundaries, paired denominators, stable scenario generation and candidate scope. They describe the synthetic restrictions. Preserve V4 design/comparison blobs as historical source rather than editing them after observing the result. Rechecked both downloaded V4 ZIP hashes and the 216 discrete pairs in Python in this session; exact agreement remains.
+
+Architecture commit 5b480dd documents the hosted research/physical authority boundary. Physical blockers are current game/session/actor and zone/world-instance correspondence, independent body heading and passive XYZ freshness, release under remaining failure modes, game-consumed STOP, and end-to-end physical journey evidence. No hosted result clears any such gate. No sister repository was written by this workflow; their unavailable local checkouts have not been independently inspected. PR #1 remains draft against unchanged main.
+
+### Next prioritized offline slice
+
+1. Inspect completed minimum-version, wheel and installed CLI checks; fix genuine portability defects rather than masking tests.
+2. Review the final research diff and verify the historical LEGION archive when available; keep current handoff and README main baseline distinct until merge.
+3. Preserve V4 as observed, rejected-candidate evidence. Before additional experimentation, establish a separate comparison specification and evidence review. Do not tune the rejected lookahead parameter on V4 and then relabel V4 as unseen validation.
+4. Keep the physical M1 blockers explicit; none can be closed using a hosted test-runner process.
+
+### Minimum-version and wheel acceptance result
+
+Run 45547937230, job 138981923577, head 4ed8fe8, completed successfully on Ubuntu Python 3.11.18. Independently reviewed its logs: focused archive tests 17/17 in 0.376 s, V4 tests 5/5 in 1.179 s, full suite 523 discovered in 23.025 s (507 passed, 16 Windows-specific skips), wheel built and rift-taxi 0.1.0 installed. All five new research modules resolved from installed site-packages under isolated Python mode; all three archive CLI help invocations succeeded. Earlier hosted tests cover missing paths, wrong digests, valid archive CLI execution and V4 report generation. The historical LEGION archive is not accessible for its exact command replay. No Windows installed-wheel or standalone end-user executable is claimed by this Linux packaging test. The Windows 3.14 full-suite baseline remains separately verified at 523/523.
+
+## Final online review checkpoint
+
+Run 45548072486 tested PR merge checkout a097e01 (head 630959ceeb0018703c52fada498628827298361a, base 2e0a8cf65ea6345bf1b82c8b76ecf367260f7b94). Windows Python 3.14: 523/523 in 46.194 s. Ubuntu Python 3.14: 507 passed, 16 skipped in 40.045 s. Ubuntu Python 3.11: 507 passed, 16 skipped in 22.622 s, 22/22 focused tests and all five installed research module imports verified. Both new artifact uploads succeeded. The draft PR was mergeable but not merged. The reviewed 18-file change inventory consisted of the CI workflow, five documentation files, five synthetic research modules and seven test files; no existing simulator or live controller was changed. Current handoff now contains a clearly labeled premerge checkpoint (d9fb91b). Its main baseline remains unchanged.
+
+Rechecked the downloaded original V4 ZIPs against the recorded ZIP and JSON digests and compared all 216 discrete pairs. Independent per-route recount at 360 ms (12 pairs per route):
+
+| Route | Baseline / candidate arrivals | Baseline / candidate settled | Settled gains / losses |
+|---|---:|---:|---:|
+| acute-alternation | 6 / 6 | 6 / 4 | 0 / 2 |
+| concave-loop-exit | 6 / 6 | 6 / 6 | 0 / 0 |
+| long-short-ladder | 12 / 12 | 11 / 0 | 0 / 11 |
+| oblique-close-return | 7 / 9 | 6 / 4 | 0 / 2 |
+| offset-crossing | 6 / 6 | 6 / 6 | 0 / 0 |
+| reverse-terminal | 6 / 7 | 5 / 6 | 1 / 0 |
+
+At 120 ms the only changes to combined arrival/duty are on long-short-ladder: 7 to 4, one gain and four losses. The dominant high-delay settling regression is concentrated on long-short-ladder; it is not an approach failure. Next research slice: inspect the observed synthetic terminal queue histories for these cases, contrast stable and unsettled arrivals, and specify a separate terminal-only experiment on a development grid before freezing a new candidate and an unused evaluation set. Do not promote or retune the rejected V4 parameter candidate based on this observed set. No physical extrapolation.
+
+### Closure and remaining gates
+
+Online checklist closure is 96/100: verified branch identities, next research slice, and final evidence SITREP completed. Four tasks remain explicitly open: 020 merge after original LEGION archive acceptance, 085 README baseline after merge, 089 current main handoff after acceptance/merge, 090 independent sister local-checkout verification. Premerge handoff is prepared, but is not the postmerge task. No sibling repository was modified by this work; independent local verification still requires access. The historical report is not a substitute for fresh physical qualification, and the reproduced V4 artifacts are not a substitute for the historical report. Main remains at 2e0a8cf; no production navigation permission is changed.
+
+## Next research slice — observed terminal queue diagnostic
+
+Commits a4f49ce and 29a30cc add a separate descriptive replay of the 12 long-short-ladder V4 scenario pairs at 360 ms (24 simulation calls). The existing baseline, rejected candidate, simulator and terminal drain are unchanged. The diagnostic retains each synthetic pending command and post-arrival observation, first/settled error, queued travel, tolerance exits, and error change. It checks the triangle bound between distance traveled and change in endpoint error. Failed approaches retain null terminal observations.
+
+Two additional regression methods check reproduction of the previously observed 12/12 arrivals and 11/0 settled baseline/candidate outcomes, and reconcile queued travel, drain duration, stationary witness and endpoint tolerance. The prospective full suite is 525 discovered tests; these new tests await hosted validation. This is observed-case diagnosis, not a new independent holdout or an improved controller. Run from repo root: python -B -m rift_taxi.simulation_v4_terminal_observation. The original V4 sources and reports remain frozen; the 100-step backlog remains at 96/100, with its four outstanding gates unchanged.
+
+### Observed terminal diagnostic results
+
+Run 45548405445 at head 29a30cc: Ubuntu Python 3.14, 525 discovered, 509 passed/16 skipped in 28.546 s; Ubuntu Python 3.11, 509 passed/16 skipped in 22.727 s. Both emitted the same terminal summary. Windows job pending at review.
+
+| Metric, 12 observed long-short-ladder pairs at 360 ms | Baseline | Candidate |
+|---|---:|---:|
+| Geometric arrivals | 12 | 12 |
+| Settled within tolerance | 11 | 0 |
+| Sampled tolerance exits | 1 | 12 |
+| Mean queued travel (synthetic units) | 0.3055290409495986 | 0.5070460033469539 |
+| Mean change in endpoint error (synthetic units) | -0.10693706724113833 | 0.19353667471860014 |
+
+The candidate has roughly 66% more queued travel after geometric arrival, and mean endpoint error increases instead of decreasing. These are descriptive means from the selected observed geometry, not independent causal isolation of queue length or a physical overshoot diagnosis. The simulator and original V4 experiment remain frozen; no policy change. Next compare individual queue and observation histories once their full archives are verified.
+
+Commit f016c89 adds separate hosted terminal-observation JSON artifacts, a focused terminal test invocation under Python 3.11 and the sixth installed research-module import check. These new CI steps await verification. Existing V4 artifact paths are unchanged. Main remains unchanged; original roadmap 96/100.
+
+### Terminal archive independent verification
+
+Run 45548405445 completed Windows Python 3.14 with 525/525 in 49.967 s. The Windows terminal summary agrees with both Ubuntu summaries (negligible float differences only). The expanded minimum-version job 138983755205, run 45548498152, passed all 24 focused tests and 509 applicable full-suite tests (525 discovered, 16 platform-specific skips; 22.481 s). All six installed research modules resolved from Python 3.11.18 site-packages.
+
+Retrieved Ubuntu terminal artifact 14993235441 from run 45548498152. Independently verified ZIP SHA-256 477312d2bcd94bae6f31b7e577f2770439ac15361ba9b59a65251ff246875825 (11675 bytes). Its sole JSON member v4-terminal-observation.json has SHA-256 e3f652afbfceec2ed54aa9e68773cab14827673494903f14cee6758aaf3c23f3 (58376 bytes). Checked 12 unique scenario identities, all 24 terminal queues, queued travel against sum of speed times dt, endpoint error triangle bound, observation count, final zero-speed witness and tolerance outcome. All checks passed. Windows terminal artifact was not yet listed at review; do not claim independent per-case Windows archive comparison.
+
+| Metric (synthetic units) | Baseline | Candidate |
+|---|---:|---:|
+| Mean first arrival error | 0.258300065 | 0.247264939 |
+| Mean final error | 0.151362998 | 0.440801614 |
+| Minimum final error | 0.064649375 | 0.300847458 |
+| Maximum final error | 0.302692275 | 0.593542170 |
+
+All 12 candidate endpoints exceed 0.30 tolerance; the smallest miss is approximately 0.000847 units, so the failures are not uniformly large. The candidate actually starts closer on average before the queue drains. Retain this distinction when reviewing future ideal-model settling studies. This selected observed geometry and the archived synthetic model do not establish physical causation or qualify production navigation. No controller changes. Next check the Windows archive and review a terminal-only experimental protocol without changing the frozen V4 evidence. Original backlog and merge gates remain unchanged.
+
+## Ten follow-up tasks — terminal archive cross-platform closure
+
+Run 45548498152 completed all three jobs successfully. Retrieved Windows terminal ZIP 14992752018 (11694 bytes, SHA-256 0bc2ab94cbb1d41fb3972a5be0aa260920d6eedb778525b4899362ecec28a61e), sole JSON member v4-terminal-observation.json (58374 bytes, SHA-256 a3d6a23611428eb1436b93c8e9ea53006d75c6bdb6dce9492c45a815a11dce45). Retrieved and reverified Ubuntu artifact 14993235441. Both expire February 23, 2027.
+
+Independent Python verification in this session: 12 unique scenario spec hashes per report; compared first and final errors and outcome flags against original V4 comparison archives 14992900453 and 14991594821; recomputed 132 midpoint integration intervals per platform (including stationary witnesses), queue bounds, timestamps, position, wrapped yaw and sampled destination distances. Both reports passed. Recursively compared every field: 1,900 floating-point values with maximum absolute difference 3.979039320256561e-12 (applied yaw rate), all other fields exactly equal. No trajectory solver was called in this independent archive check.
+
+| dt (seconds) | Baseline / candidate settled (of 6) | Baseline / candidate mean queued travel | Baseline / candidate mean final error |
+|---|---:|---:|---:|
+| .06 | 6 / 0 | .265854771 / .490426818 | .067887951 / .343719273 |
+| .12 | 5 / 0 | .345203311 / .523665188 | .234838044 / .537883956 |
+
+All 12 baseline cases initially reduced endpoint error at the first drain interval, versus 7 candidate cases. All 12 candidate cases reach a smaller sampled error before their final endpoint. Candidate first sampled tolerance exits occur from .12 to .36 seconds; all remain outside at the endpoint. Profiles couple speed, yaw cap and dt, so these strata cannot isolate timestep causation.
+
+Commits 91500ab and 715fa07 add a reusable archive-only terminal verifier and three new regression methods (generated-report acceptance, tampering rejection, ZIP admission). The verifier bounds archive/member size, authenticates ZIP bytes, checks scenario digest and recomputes saved ideal midpoint observations without importing the simulator. Its scope is the observed long-short-ladder receipt, not arbitrary synthetic reports. Hosted execution of these new methods is pending; prospective discovery count 528, verified Windows baseline 525. The independent Python check above was executed separately, not a claim that the newly committed module has passed. Reproduce the new command with the downloaded Windows ZIP and its pinned digest: python -B -m rift_taxi.v4_terminal_archive_audit github-actions-artifact-14992752018.zip --sha256 0bc2ab94cbb1d41fb3972a5be0aa260920d6eedb778525b4899362ecec28a61e.
+
+Completed ten follow-up tasks: check three-job CI, retrieve Windows archive, verify both ZIP/member digests, verify scenario hashes, independently recompute integration intervals, reconcile historical comparison outcomes, compare platforms, stratify by profile and exit timing, implement reusable audit, commit its regression tests. Implementation is complete; new code acceptance is not. Original 96/100 backlog and four merge gates remain unchanged. No physical qualification, controller changes, or new candidate promotion.
+
+## Terminal audit hardening checkpoint
+
+Hosted run 45548818427 at head e682921 completed all three jobs: Windows Python 3.14 528/528 (49.675 s), Ubuntu Python 3.14 512 passed/16 skipped (38.561 s), Ubuntu Python 3.11 512 passed/16 skipped (21.128 s), with 27 focused tests passing. This validates the earlier archive verifier and its first three regression methods.
+
+Review found that the verifier accepted individual consistent observations without reconciling the entire frozen scenario design or saved summary counts and means. Commit c4da114 adds independent checks for the six-point geometry, two offsets, three headings, two profiles, initial pose, first-arrival tolerance, command numeric types and all saved aggregate fields. Commit e8127c4 adds summary corruption and rehashed out-of-design scenario tests. Separately rechecked both original terminal ZIP SHA-256 pins, all 12 design entries per archive, canonical scenario digests, initial pose and both aggregate summaries in Python 3.13.5 in the current execution environment; all checks passed. This independent data check is not execution of the newly committed verifier itself.
+
+Prospective discovery count 530; new regression methods await hosted validation. The previously verified 528-test baseline remains separate. No changes to simulator, V4 design, physical input or production qualification. Original backlog remains 96/100. The next offline research slice should remain separately specified rather than modifying the observed V4 experiment.
