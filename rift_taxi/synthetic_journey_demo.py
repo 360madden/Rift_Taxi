@@ -39,6 +39,23 @@ def journey(trace, *, dt=.1, speed=3., yaw_rate=115., delay_steps=0,
             tolerance=trace.arrival_tolerance_xz, budget=terminal_budget)
 
     settled = bool(correction and correction["settled"])
+    # Phase times describe disjoint intervals. For an approach failure the
+    # drain and correction were never executed; their costs remain zero.
+    # In particular, an unfinished FIFO on failure is not a settled plant.
+    metrics = approach["metrics"]
+    drain_seconds = (drain["queueDrainSeconds"] +
+                     drain["stationaryVerificationSeconds"]) if arrived else 0.
+    drain_distance = drain["postArrivalDistanceXZ"] if arrived else 0.
+    correction_seconds = correction["extraSeconds"] if correction else 0.
+    correction_distance = correction["extraTravelXZ"] if correction else 0.
+    total_seconds = metrics["elapsedSeconds"] + drain_seconds + correction_seconds
+    # Use actual applied synthetic velocity, not requested motion. Stationary
+    # witness intervals and delayed zero commands count toward elapsed time.
+    drain_forward = dt * sum(
+        row["appliedSpeed"] > 0. for row in drain.get("observations", [])[1:])
+    correction_forward = dt * sum(
+        row["appliedSpeed"] > 0. for row in correction["frames"][1:]) if correction else 0.
+    forward_seconds = metrics["forwardSeconds"] + drain_forward + correction_forward
     return {
         "schema": "taxi.synthetic-journey-demo/1",
         "classification": "SYNTHETIC_ONLY",
@@ -51,6 +68,14 @@ def journey(trace, *, dt=.1, speed=3., yaw_rate=115., delay_steps=0,
             "geometricArrival": arrived,
             "passiveSettled": bool(drain["settledWithinTolerance"]),
             "finalModelSettled": settled,
+            "approachSeconds": metrics["elapsedSeconds"],
+            "passiveDrainSeconds": drain_seconds,
+            "terminalCorrectionSeconds": correction_seconds,
+            "totalElapsedSeconds": total_seconds,
+            "approachForwardDutyRatio": metrics["forwardDutyRatio"],
+            "totalForwardDutyRatio": forward_seconds / total_seconds if total_seconds else 0.,
+            "totalDistanceXZ": metrics["simulatedDistanceXZ"] + drain_distance + correction_distance,
+            "finalObservedErrorXZ": correction["finalErrorXZ"] if correction else metrics["finalXZError"],
             "status": ("approach-failed" if not arrived else
                        "model-settled" if settled else "terminal-unsettled"),
         },

@@ -80,3 +80,19 @@ jobs:
           python -I -m rift_taxi.delay_factorial_audit --help
           python -I -m rift_taxi.delay_factorial_diagnostics --help
           python -I -m rift_taxi.delay_factorial_stratification --help
+      # Exercise the installed user-facing journey from outside the checkout.
+      # The trace is an explicit input; neither modules nor outputs rely on
+      # a working tree import. A failed model journey is valid report data.
+      - name: Run installed offline journey demonstration
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -I -m rift_taxi.synthetic_journey_demo --help
+          python -I -m rift_taxi.synthetic_journey_demo "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" --delay-steps 2 --out installed-journey.json
+          python -I -c "import json; from pathlib import Path; r=json.loads(Path('installed-journey.json').read_text(encoding='utf-8')); assert r['schema']=='taxi.synthetic-journey-demo/1' and r['routeId']=='three-bend-synthetic-course' and r['classification']=='SYNTHETIC_ONLY' and not r['gameInputSent'] and not r['physicalQualification']; print('INSTALLED_JOURNEY', r['summary'])"
+      - name: Upload installed synthetic journey
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-synthetic-journey
+          path: ${{ runner.temp }}/installed-journey.json
+          if-no-files-found: error
+          retention-days: 90
