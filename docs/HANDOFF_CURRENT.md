@@ -5,9 +5,13 @@
 **Remote:** https://github.com/360madden/Rift_Taxi.git
 **State:** M1 in progress; production navigation disarmed. M0 complete. M2/M3 experiments are offline only; M4–M6 remain planned.
 
-## Online review branch checkpoint — November 24, 2026
+## Accepted main checkpoint — November 24, 2026
 
-**Review branch only:** `research/factorial-archive-audit` · [draft PR #1](https://github.com/360madden/Rift_Taxi/pull/1). The LEGION/main checkpoint below remains the last accepted main checkpoint. GitHub-hosted regression run [45548072486](https://github.com/360madden/Rift_Taxi/actions/runs/45548072486) at review head `630959ceeb0018703c52fada498628827298361a`, base `2e0a8cf65ea6345bf1b82c8b76ecf367260f7b94`, verified Windows Python 3.14 523/523, Ubuntu Python 3.14 and 3.11 each 507 passed/16 skipped, and Python 3.11 wheel installation with five isolated installed research module imports. This is the online research branch baseline, not the main baseline or a packaged Windows executable.
+**Merged:** PR #1 at `4a25968c2826f888f40a3509639c72ace5006c75`. Run [45549011214](https://github.com/360madden/Rift_Taxi/actions/runs/45549011214) verified exact premerge head `8d2bb60225652a7f4b617c73ebdad1b0851da3a1`: Windows 530/530, Ubuntu Python 3.11/3.14 each 514 passed and 16 skipped. User-approved strategy separates historical archive authentication from offline code acceptance. The original archive remains unavailable; physical M1 qualification and production disarm are unchanged. Stop expanding auditors unless a consequential defect appears; prioritize bounded offline functionality and meaningful grouped CI checkpoints.
+
+## Historical online review branch checkpoint — November 24, 2026
+
+**Former review branch:** `research/factorial-archive-audit` · [draft PR #1](https://github.com/360madden/Rift_Taxi/pull/1). The following is the historical premerge checkpoint, not the current main baseline. GitHub-hosted regression run [45548072486](https://github.com/360madden/Rift_Taxi/actions/runs/45548072486) at review head `630959ceeb0018703c52fada498628827298361a`, base `2e0a8cf65ea6345bf1b82c8b76ecf367260f7b94`, verified Windows Python 3.14 523/523, Ubuntu Python 3.14 and 3.11 each 507 passed/16 skipped, and Python 3.11 wheel installation with five isolated installed research module imports. This is the online research branch baseline, not the main baseline or a packaged Windows executable.
 
 The V4 lookahead sensitivity candidate was rejected by its prespecified research screen: 360 ms geometric arrivals 43 to 46, settled arrivals 40 to 26. All 216 matched scenario/delay pairs agree on discrete outcomes across the original downloaded Windows and Ubuntu reports. A new per-route recount found 11 previously settled long-short-ladder cases lost with all 12 geometric arrivals retained. Prioritize separate synthetic terminal-settling evidence analysis, without reusing observed V4 as an unseen holdout. See [full research handoff](DELAY_FACTORIAL_AUDIT_HANDOFF.md), [protocol](V4_OFFLINE_COMPARISON_PROTOCOL.md) and [backlog](ONLINE_DEVELOPMENT_100_STEPS.md).
 
