@@ -1,9 +1,15 @@
 """Regression coverage for the observed V4 terminal diagnostic."""
+import copy
+import hashlib
 import json
+import tempfile
+from pathlib import Path
+import zipfile
 import math
 import unittest
 
 from rift_taxi.simulation_v4_terminal_observation import evaluate
+from rift_taxi.v4_terminal_archive_audit import verify, verify_zip
 
 
 class V4TerminalObservationTests(unittest.TestCase):
@@ -41,3 +47,38 @@ class V4TerminalObservationTests(unittest.TestCase):
                 self.assertTrue(math.isfinite(terminal["queuedTravel"]))
         print("V4_TERMINAL_SUMMARY " + json.dumps(self.report["summary"],
                                                   sort_keys=True, allow_nan=False))
+
+    def test_independent_terminal_archive_audit(self):
+        """Use the actual observed report without rerunning the simulation."""
+        receipt = verify(self.report)
+        self.assertEqual(receipt["intervals"], 132)
+        self.assertEqual(receipt["settled"], {"baseline": 11, "candidate": 0})
+        self.assertFalse(receipt["physicalQualification"])
+
+    def test_terminal_archive_rejects_corruption(self):
+        """Changing recorded geometry, observations, or authority must fail."""
+        for change in (
+            lambda r: r["rows"][0]["scenario"].__setitem__("speed", 9.),
+            lambda r: r["rows"][0]["baseline"]["terminal"]["observations"][1]["xyz"].__setitem__(0, 99.),
+            lambda r: r["rows"][0]["candidate"]["terminal"].__setitem__("leftTolerance", False),
+            lambda r: r.__setitem__("physicalQualification", True),
+        ):
+            r = copy.deepcopy(self.report)
+            change(r)
+            with self.assertRaises(ValueError):
+                verify(r)
+
+    def test_zip_digest_and_member_admission(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "report.zip"
+            def write(name):
+                with zipfile.ZipFile(path, "w") as z:
+                    z.writestr(name, json.dumps(self.report, allow_nan=False))
+                return hashlib.sha256(path.read_bytes()).hexdigest()
+            digest = write("v4-terminal-observation.json")
+            self.assertEqual(verify_zip(path, digest)["pairs"], 12)
+            with self.assertRaisesRegex(ValueError, "SHA-256"):
+                verify_zip(path, "0" * 64)
+            digest = write("unexpected.json")
+            with self.assertRaisesRegex(ValueError, "ZIP member"):
+                verify_zip(path, digest)
