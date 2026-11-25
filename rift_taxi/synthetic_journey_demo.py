@@ -16,14 +16,28 @@ from .synthetic_terminal_finish import finish_after_drain
 
 
 def journey(trace, *, dt=.1, speed=3., yaw_rate=115., delay_steps=0,
-            approach_budget=40., terminal_budget=5., lookahead=1.5):
-    """Run a synthetic journey with explicit, independently bounded phases."""
+            approach_budget=40., terminal_budget=5., lookahead=1.5,
+            approach_mode="baseline"):
+    """Run bounded synthetic phases; experimental approach modes are opt-in.
+
+    Prediction modes model nonzero transport delay. The zero-delay rejoin
+    mode addresses local arc progress without forecasting. All modes share
+    the same observation gates, drain and correction, never live input.
+    """
+    if approach_mode not in ("baseline", "predict-near-goal", "predict-near-stall", "zero-delay-rejoin"):
+        raise TraceError("unknown synthetic journey approach mode")
+    predicting = approach_mode in ("predict-near-goal", "predict-near-stall")
+    if predicting and delay_steps == 0:
+        raise TraceError("predictive journey requires nonzero delay")
     terminal_budget = _bounded_number(terminal_budget, "terminal budget", .01, 30.)
     approach = simulate_route(
         trace, dt=dt, speed=speed, max_yaw_rate=yaw_rate,
         delay_steps=delay_steps, max_seconds=approach_budget,
         lookahead=lookahead, max_cross_track=2.,
-        speed_policy="turn-limited-ordered")
+        speed_policy="turn-limited-ordered",
+        predict_command_application=predicting,
+        prediction_rejoin_policy="near-stall" if approach_mode == "predict-near-stall" else "near-goal",
+        recover_terminal_progress=approach_mode == "zero-delay-rejoin")
     verify_synthetic_trajectory(approach, trace)
     drain = drain_after_arrival(approach, trace)
     correction = None
@@ -59,6 +73,7 @@ def journey(trace, *, dt=.1, speed=3., yaw_rate=115., delay_steps=0,
     return {
         "schema": "taxi.synthetic-journey-demo/1",
         "classification": "SYNTHETIC_ONLY",
+        **({"experimentalApproachMode": approach_mode} if approach_mode != "baseline" else {}),
         "routeId": trace.route_id,
         "inputTraceSHA256": trace.trace_sha256,
         "approach": approach,
@@ -96,6 +111,9 @@ def main(argv=None):
     parser.add_argument("--speed", type=float, default=3.)
     parser.add_argument("--yaw-rate", type=float, default=115.)
     parser.add_argument("--delay-steps", type=int, default=0)
+    parser.add_argument("--approach-mode", default="baseline",
+                        choices=("baseline", "predict-near-goal", "predict-near-stall", "zero-delay-rejoin"),
+                        help="opt-in synthetic approach policy; baseline unchanged")
     parser.add_argument("--approach-budget", type=float, default=40.)
     parser.add_argument("--terminal-budget", type=float, default=5.)
     parser.add_argument("--lookahead", type=float, default=1.5)
@@ -106,7 +124,7 @@ def main(argv=None):
             load_trace(args.trace), dt=args.dt, speed=args.speed,
             yaw_rate=args.yaw_rate, delay_steps=args.delay_steps,
             approach_budget=args.approach_budget, terminal_budget=args.terminal_budget,
-            lookahead=args.lookahead)
+            lookahead=args.lookahead, approach_mode=args.approach_mode)
         encoded = json.dumps(result, indent=2, allow_nan=False) + "\n"
         if args.out is None:
             print(encoded, end="")

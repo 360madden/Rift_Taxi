@@ -101,7 +101,8 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                    max_seconds: float = 30., max_cross_track: float = 2.,
                    speed_policy: str = "fixed", delay_steps: int = 0,
                    predict_command_application: bool = False,
-                   prediction_rejoin_policy: str = "near-goal") -> dict[str, Any]:
+                   prediction_rejoin_policy: str = "near-goal",
+                   recover_terminal_progress: bool = False) -> dict[str, Any]:
     """Run a deterministic ideal kinematic plant with feedback, no OS input.
 
     Units, speed, yaw rate, turn response and stopping are explicitly synthetic.
@@ -115,6 +116,8 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     With zero delay prediction is an exact no-op, including report bytes.
     The near-stall experiment delays rejoin until forecast error is at most
     one tenth of arrival tolerance; near-goal preserves the V2 experiment.
+    Separately opt into zero-delay terminal progress recovery; this uses
+    the same narrow rejoin gate without a forecast. Frozen defaults stay unchanged.
 
     dt: integration step (seconds); speed: nominal positive units/s;
     lookahead: route arc-length distance (units); max_yaw_rate: degrees/s;
@@ -140,8 +143,12 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("unknown synthetic prediction rejoin policy")
     if prediction_rejoin_policy != "near-goal" and not predict_command_application:
         raise TraceError("alternate rejoin policy requires command prediction")
+    if type(recover_terminal_progress) is not bool:
+        raise TraceError("recover_terminal_progress must be boolean")
+    if recover_terminal_progress and (delay_steps != 0 or speed_policy != "turn-limited-ordered"):
+        raise TraceError("terminal progress recovery requires zero delay and ordered policy")
     prediction_active = predict_command_application and delay_steps > 0
-    rejoin_fraction = .1 if prediction_rejoin_policy == "near-stall" else 1.
+    rejoin_fraction = .1 if (recover_terminal_progress or prediction_rejoin_policy == "near-stall") else 1.
     dt = _bounded_number(dt, "dt", .01, .2)
     speed = _bounded_number(speed, "speed", .1, 20.)
     lookahead = _bounded_number(lookahead, "lookahead", .1, 20.)
@@ -277,12 +284,12 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                 target = _lookahead_point(trace.points, cumulative, progress)
                 dx, dz = target[0]-control_position[0], target[2]-control_position[2]
                 chord = math.hypot(dx, dz)
-        # A forecast can approach the endpoint while observed, displacement-
+        # Either an actual pose or a forecast can approach the endpoint while observed, displacement-
         # bounded route progress remains short. Braking toward that same
         # endpoint then eliminates the motion needed to earn progress.
         # Rejoin the local admitted arc instead; do not assign progress,
         # bypass outstanding sharp gates, or relax the arrival tolerance.
-        terminal_rejoin = (prediction_active and target_arc == total
+        terminal_rejoin = ((prediction_active or recover_terminal_progress) and target_arc == total
                            and sharp_cursor == len(sharp)
                            and progress < total-tolerance
                            and distance <= tolerance
@@ -396,6 +403,10 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     return {
         **recovery,
         **delay_diagnostics,
+        **({"syntheticTerminalProgressRecovery": {"policy": "zero-delay-near-stall/1",
+                                                   "terminalRejoinFraction": .1,
+                                                   "observedProgressOnly": True}}
+           if recover_terminal_progress else {}),
         **({"syntheticCommandPrediction": {"method": "queued-pose-midpoint/1",
                                            "observedProgressOnly": True,
                                            "nominalHorizonSeconds": delay_steps*dt,

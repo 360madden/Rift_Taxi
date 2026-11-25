@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 24, 2026
 
+## Zero-delay recovery and standalone mode integration (November 24 PST)
+
+See [zero-delay recovery](LEGION_ZERO_DELAY_REJOIN_2026-11-24.md). PR #6 accepted at db161f0; separate opt-in zero-delay rejoin recovers the four observed short-final-z failures, with no losses on 288 factorial zero-delay cases. Standalone demo exposes both prediction modes and zero-delay recovery; four local CLI modes settled. All frozen defaults preserved. No physical qualification.
+
 ## Near-stall prediction V3 (November 24 PST)
 
 See [near-stall study](LEGION_LATENCY_NEAR_STALL_2026-11-24.md). PR #5 accepted at a60efca; V2 comparison preserved byte-for-byte. Opt-in near-stall mode restores seven factorial high-duty successes while retaining 864/864 settled. New 48-case smoke: 44/48 settled, four shared zero-delay short-final-z failures remain. No default promotion or physical qualification. Next investigate baseline terminal progress failure separately from prediction.
