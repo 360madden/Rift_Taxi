@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. 66 steps completed at their stated scope. Hosted run 45547257578 verifies Windows 520/520 and Ubuntu 504 passed, 16 skipped, including the V4 design. The separate V4 comparison protocol and parameter candidate are committed before outcome inspection; the 432-call comparison and three added tests remain pending hosted confirmation. Step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md and V4_OFFLINE_COMPARISON_PROTOCOL.md for evidence and research limits.
+November 24, 2026. 73 steps completed at their stated scope. Hosted run 45547479280 confirms the Ubuntu V4 experiment: 507 tests passed, 16 skipped, 523 discovered. The prespecified candidate failed its research screen despite three added high-delay arrivals; no policy change. Windows confirmation and full per-case artifact retention remain pending. Step 070 remains open until archive verification; step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for detailed evidence.
 
 ## Online baseline and acceptance
 
@@ -74,10 +74,10 @@ November 24, 2026. 66 steps completed at their stated scope. Hosted run 45547257
 - [x] 053. Define model-only command latency parameter
 - [x] 054. Specify terminal objective and comparison metrics
 - [x] 055. Select bounded model-only research candidates
-- [ ] 056. Evaluate zero-delay negative control
-- [ ] 057. Evaluate known delay cases
-- [ ] 058. Retain every failed approach
-- [ ] 059. Compare gains and losses against frozen baseline
+- [x] 056. Evaluate zero-delay negative control
+- [x] 057. Evaluate known delay cases
+- [x] 058. Retain every failed approach
+- [x] 059. Compare gains and losses against frozen baseline
 - [x] 060. Document limits and reject unqualified policy promotion
 
 ## Independent holdout research
@@ -88,9 +88,9 @@ November 24, 2026. 66 steps completed at their stated scope. Hosted run 45547257
 - [x] 064. Define model factor coverage before evaluation
 - [x] 065. Record deterministic generator version
 - [x] 066. Check every requested scenario appears once
-- [ ] 067. Evaluate frozen baseline on holdout
-- [ ] 068. Evaluate opt-in research candidates
-- [ ] 069. Compare terminal error and duty without survivor bias
+- [x] 067. Evaluate frozen baseline on holdout
+- [x] 068. Evaluate opt-in research candidates
+- [x] 069. Compare terminal error and duty without survivor bias
 - [ ] 070. Archive failures and record decision rationale
 
 ## Robustness and regression
