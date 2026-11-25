@@ -24,7 +24,23 @@ jobs:
       # Runtime is stdlib-only; running from the root avoids unnecessary
       # package downloads and tests the exact checked-out source.
       - name: Run full offline regression suite
+        if: matrix.os != 'windows-latest'
         run: python -B -m unittest discover -s tests -v
+      # Windows exercises the real recovery CLI, which itself runs the full
+      # unskipped suite. No extra duplicate regression execution is needed.
+      - name: Rehearse patch recovery with synthetic manifests
+        if: matrix.os == 'windows-latest'
+        run: python -B scripts/ci_patch_recovery_rehearsal.py --minimum-tests 556
+      - name: Upload synthetic recovery rehearsal
+        if: always() && matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-recovery-rehearsal-windows
+          path: |
+            artifacts/patch-check-hosted-synthetic-rehearsal/
+            artifacts/hosted-synthetic-rehearsal-summary.json
+          if-no-files-found: warn
+          retention-days: 90
       # Preserve a complete synthetic comparison, including failed cases.
       # Each runner uses a separate artifact; floating-point differences
       # can change bytes without changing the discrete research outcomes.
