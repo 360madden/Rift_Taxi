@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. 96 steps completed at their stated scope. Final online review: run 45548072486 green across all three jobs (Windows 523/523; Ubuntu Python 3.14 and 3.11 each 507 passed/16 skipped, installed wheel verified). Steps 096, 099 and 100 completed. Original V4 archives were rechecked, and the new per-route recount plus premerge handoff are recorded. Four objectives remain blocked or dependent on merge: 020, 085, 089, 090. Historical LEGION archive and independent sibling local-checkout inspection remain unavailable. Main is unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md and HANDOFF_CURRENT.md for the final review and next offline research slice.
+November 24, 2026. 99 of 100 objectives completed at their stated scope. PR #1 merged at 4a25968 after green run 45549011214 (Windows 530/530, Ubuntu 514 passed/16 skipped on both supported test versions). User approved separating historical LEGION archive verification from offline code acceptance; archive is still unavailable. README and current main handoff updated. Only step 090, independent sibling local-checkout verification, remains open. No physical qualification change.
 
 ## Online baseline and acceptance
 
@@ -26,7 +26,7 @@ November 24, 2026. 96 steps completed at their stated scope. Final online review
 - [x] 017. Check draft PR diff for unrelated changes
 - [x] 018. Check CI checkout commit against branch head
 - [x] 019. Record original LEGION receipt as unavailable unless retrieved
-- [ ] 020. Review and merge only after relevant acceptance gates
+- [x] 020. Review and merge only after relevant acceptance gates
 
 ## Synthetic model scope
 
@@ -112,11 +112,11 @@ November 24, 2026. 96 steps completed at their stated scope. Final online review
 - [x] 082. Check Python minimum version assumptions
 - [x] 083. Review stdlib-only runtime dependencies
 - [x] 084. Verify CLI usage examples
-- [ ] 085. Review README baseline count after confirmed merge
+- [x] 085. Review README baseline count after confirmed merge
 - [x] 086. Update validation evidence links
 - [x] 087. Update architecture qualification boundaries
 - [x] 088. Review comments and docstrings
-- [ ] 089. Update current handoff after confirmed acceptance
+- [x] 089. Update current handoff after confirmed acceptance
 - [ ] 090. Confirm sibling repositories remain unchanged
 
 ## Release and next-session readiness
