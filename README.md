@@ -7,7 +7,7 @@
 **Choose your destination. Keep moving. Let the local controller handle the route.**
 
 [![Project status](https://img.shields.io/badge/status-M1%20in%20progress-9c78ea?style=for-the-badge)](docs/ROADMAP.md)
-[![Offline tests](https://img.shields.io/badge/regression%20tests-530%20passing-27ae80?style=for-the-badge)](docs/VALIDATION.md)
+[![Offline tests](https://img.shields.io/badge/regression%20tests-556%20passing-27ae80?style=for-the-badge)](docs/VALIDATION.md)
 [![Python-first](https://img.shields.io/badge/core-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
 [![Runtime](https://img.shields.io/badge/target-Windows-344866?style=for-the-badge)](docs/ARCHITECTURE.md)
 
@@ -41,11 +41,11 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 
 ## 📍 Current state
 
-**Merged offline baseline (November 24):** PR #1 consolidated the independently tested offline research and hosted CI infrastructure. [Run 45549011214](https://github.com/360madden/Rift_Taxi/actions/runs/45549011214) verified Windows 530/530 and Ubuntu Python 3.11/3.14 each 514 passed with 16 Windows-specific skips. The original LEGION archive remains unverified; this does not establish live qualification. The V4 lookahead candidate remains rejected. See the [research handoff](docs/DELAY_FACTORIAL_AUDIT_HANDOFF.md).
+**Latest accepted offline baseline (November 24 PST):** PR #7 merged at `4803c92`. [Hosted run 45563551288](https://github.com/360madden/Rift_Taxi/actions/runs/45563551288) passed 556/556 Windows tests, 540 passed plus 16 Windows-specific skips on Python 3.11 Linux; all three hosted jobs succeeded. Installed baseline and all three experimental synthetic journey modes ran successfully. Both original LEGION factorial archives were recovered and independently verified. [Recovery and research handoff](docs/HANDOFF_CURRENT.md). The V4 lookahead candidate remains rejected; no live qualification is implied.
 
 **Recovery receipt V2:** all 487 integrated tests passed in a clean-checkout operational rehearsal. The V2 archive verifier binds all required saved diagnostics, including Git logs, and continues to accept original V1 receipts. [V2 evidence](docs/PATCH_RECOVERY_2026-11-24.md#7-v2-receipt-integrity-upgrade-1248-est).
 
-**Archived recovery verification:** both original November 24 receipt bundles independently revalidated (27 and 29 required files). Current integrated regression suite: **481/481 passed**. See the [offline receipt verifier](docs/PATCH_RECOVERY_2026-11-24.md#6-independently-verify-archived-taxi-receipts).
+**Archived recovery verification:** both original November 24 receipt bundles independently revalidated (27 and 29 required files). Historical integrated regression checkpoint: **481/481 passed**. See the [offline receipt verifier](docs/PATCH_RECOVERY_2026-11-24.md#6-independently-verify-archived-taxi-receipts).
 
 **November 24 recovery:** two fresh installation captures matched the original 266-file baseline; independent verification and all **466/466 regression tests passed**. No client content change was detected. A minimized game window correctly blocked live OS identity qualification. Production navigation remains disarmed. [Patch recovery evidence and runbook](docs/PATCH_RECOVERY_2026-11-24.md#5-november-24-current-install-recovery-receipt-12301238-est).
 
@@ -162,6 +162,12 @@ python -B -m rift_taxi preview-steering samples\synthetic_continuous.json
 
 # Inspect pose/key timing (offline, never sends game input)
 python -B -m rift_taxi measure-motion-timing samples\synthetic_continuous.json
+
+# Standalone synthetic journey; prediction is explicitly opt-in
+python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json --delay-steps 2 --approach-mode predict-near-stall
+
+# Zero-delay synthetic approach recovery
+python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json --approach-mode zero-delay-rejoin
 
 # Re-run the regression suite
 python -B -m unittest discover -s tests -v
