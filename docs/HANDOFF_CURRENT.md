@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 24, 2026
 
+## Accepted baseline and recovery rehearsal (November 24 PST)
+
+PR #7 accepted at `4803c92`; hosted run 45563551288 passed 556 Windows tests and installed all three experimental modes. Latest LEGION doctor returned offline-replay-ready; historic V2 receipt independently reverified (29 files, no-content-change). LEGION subsequently returned session terminated; no new installation state or local sync is asserted. New hosted synthetic recovery rehearsal is under review, using fake manifest data on a Windows runner and the actual recovery commands, not RIFT or LEGION evidence. Current test floor 556; see [patch runbook section 8](PATCH_RECOVERY_2026-11-24.md#8-current-accepted-baseline-and-hosted-synthetic-rehearsal--november-24-pst). Keep production disarmed. Resume actual post-patch capture only after host and updater readiness are confirmed.
+
 ## Zero-delay recovery and standalone mode integration (November 24 PST)
 
 See [zero-delay recovery](LEGION_ZERO_DELAY_REJOIN_2026-11-24.md). PR #6 accepted at db161f0; separate opt-in zero-delay rejoin recovers the four observed short-final-z failures, with no losses on 288 factorial zero-delay cases. Standalone demo exposes both prediction modes and zero-delay recovery; four local CLI modes settled. All frozen defaults preserved. No physical qualification.
