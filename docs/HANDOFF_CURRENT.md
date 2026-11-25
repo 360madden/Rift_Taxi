@@ -5,6 +5,14 @@
 **Remote:** https://github.com/360madden/Rift_Taxi.git
 **State:** M1 in progress; production navigation disarmed. M0 complete. M2/M3 experiments are offline only; M4–M6 remain planned.
 
+## Online review branch checkpoint — November 24, 2026
+
+**Review branch only:** `research/factorial-archive-audit` · [draft PR #1](https://github.com/360madden/Rift_Taxi/pull/1). The LEGION/main checkpoint below remains the last accepted main checkpoint. GitHub-hosted regression run [45548072486](https://github.com/360madden/Rift_Taxi/actions/runs/45548072486) at review head `630959ceeb0018703c52fada498628827298361a`, base `2e0a8cf65ea6345bf1b82c8b76ecf367260f7b94`, verified Windows Python 3.14 523/523, Ubuntu Python 3.14 and 3.11 each 507 passed/16 skipped, and Python 3.11 wheel installation with five isolated installed research module imports. This is the online research branch baseline, not the main baseline or a packaged Windows executable.
+
+The V4 lookahead sensitivity candidate was rejected by its prespecified research screen: 360 ms geometric arrivals 43 to 46, settled arrivals 40 to 26. All 216 matched scenario/delay pairs agree on discrete outcomes across the original downloaded Windows and Ubuntu reports. A new per-route recount found 11 previously settled long-short-ladder cases lost with all 12 geometric arrivals retained. Prioritize separate synthetic terminal-settling evidence analysis, without reusing observed V4 as an unseen holdout. See [full research handoff](DELAY_FACTORIAL_AUDIT_HANDOFF.md), [protocol](V4_OFFLINE_COMPARISON_PROTOCOL.md) and [backlog](ONLINE_DEVELOPMENT_100_STEPS.md).
+
+Original LEGION factorial report is still unavailable; do not substitute generated evidence or waive the recorded merge gate without a separate documented decision. No local sibling checkout inspection, current live qualification, or new physical journey was performed. Production remains disarmed.
+
 ## Latest checkpoint — November 24, 13:28 EST
 
 The new [matched delay-factor study](M2_M3_DELAY_FACTORIAL_2026-11-24.md) retains 864 simulations and separates speed, yaw cap, timestep and nominal FIFO latency on the previously observed V3 geometries. At 330 ms, 263/288 reached the destination and 225/288 settled inside tolerance. Faster movement and higher yaw caps were adverse in matched comparisons; finer timesteps alone did not rescue the same 12 high-speed/high-yaw approach failures. Report bytes reproduced exactly. Four new focused tests passed; **498/498 full regressions passed** in 60.685 s, exit 0. Next investigate a separate latency-aware synthetic control experiment. No frozen policy changes or physical qualification.
