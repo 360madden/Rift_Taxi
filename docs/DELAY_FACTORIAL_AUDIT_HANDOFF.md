@@ -24,3 +24,14 @@ python -B -m unittest discover -s tests -v
 The trusted archive hash is from M2_M3_DELAY_FACTORIAL_2026-11-24.md. A digest match authenticates identity relative to that recorded receipt; internal consistency checks do not independently reconstruct every trajectory, geometry or source trace. Retain the original evidence unchanged.
 
 Before merging, review schema coverage and verify the original 864-case archive and integrated tests. The next steering study remains separate. Production navigation and all physical qualification flags remain unchanged.
+
+## Online environment follow-up
+
+Added .github/workflows/offline-regression.yml: GitHub-hosted Windows and Ubuntu, Python 3.14, read-only repository permissions and no game dependency. Workflow execution is not yet confirmed; do not count it as passing.
+
+The auditor now rejects duplicate JSON keys, nonfinite numbers (including overflowing exponents), and booleans used as numeric case IDs, factors, duty or terminal measurements. Five isolated Python 3.13.5 tests passed, including sixteen corruption subcases, and the updated remote blobs match the locally tested files exactly:
+
+- Auditor: `57ddf5e19c2fbbb043845b5dedec08898457ae02`
+- Tests: `99a8e30111f2b75ce1b9363f86fa66f5bb0e4a46`
+
+Full integrated acceptance and the original archived report remain pending. Main and frozen synthetic policies are unchanged. Direct Git DNS remains unavailable in the Linux execution environment; use the GitHub connector and hosted CI where supported.
