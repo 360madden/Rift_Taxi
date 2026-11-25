@@ -100,7 +100,8 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                    lookahead: float = 1.5, max_yaw_rate: float = 180.,
                    max_seconds: float = 30., max_cross_track: float = 2.,
                    speed_policy: str = "fixed", delay_steps: int = 0,
-                   predict_command_application: bool = False) -> dict[str, Any]:
+                   predict_command_application: bool = False,
+                   prediction_rejoin_policy: str = "near-goal") -> dict[str, Any]:
     """Run a deterministic ideal kinematic plant with feedback, no OS input.
 
     Units, speed, yaw rate, turn response and stopping are explicitly synthetic.
@@ -111,7 +112,9 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     prediction experiment is restricted to the ordered policy. It uses the
     queued ideal motion to compute a future control pose, but preserves
     actual observed arc progress, corner witnesses and terminal criteria.
-    With zero delay the flag is an exact no-op, including report bytes.
+    With zero delay prediction is an exact no-op, including report bytes.
+    The near-stall experiment delays rejoin until forecast error is at most
+    one tenth of arrival tolerance; near-goal preserves the V2 experiment.
 
     dt: integration step (seconds); speed: nominal positive units/s;
     lookahead: route arc-length distance (units); max_yaw_rate: degrees/s;
@@ -133,7 +136,12 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("predict_command_application must be boolean")
     if predict_command_application and speed_policy != "turn-limited-ordered":
         raise TraceError("command prediction requires the ordered synthetic policy")
+    if prediction_rejoin_policy not in ("near-goal", "near-stall"):
+        raise TraceError("unknown synthetic prediction rejoin policy")
+    if prediction_rejoin_policy != "near-goal" and not predict_command_application:
+        raise TraceError("alternate rejoin policy requires command prediction")
     prediction_active = predict_command_application and delay_steps > 0
+    rejoin_fraction = .1 if prediction_rejoin_policy == "near-stall" else 1.
     dt = _bounded_number(dt, "dt", .01, .2)
     speed = _bounded_number(speed, "speed", .1, 20.)
     lookahead = _bounded_number(lookahead, "lookahead", .1, 20.)
@@ -278,7 +286,7 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                            and sharp_cursor == len(sharp)
                            and progress < total-tolerance
                            and distance <= tolerance
-                           and control_distance <= tolerance)
+                           and control_distance <= rejoin_fraction * tolerance)
         if terminal_rejoin:
             target = _lookahead_point(trace.points, cumulative, progress)
             dx, dz = target[0]-control_position[0], target[2]-control_position[2]
@@ -390,7 +398,10 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         **delay_diagnostics,
         **({"syntheticCommandPrediction": {"method": "queued-pose-midpoint/1",
                                            "observedProgressOnly": True,
-                                           "nominalHorizonSeconds": delay_steps*dt}}
+                                           "nominalHorizonSeconds": delay_steps*dt,
+                                            **({"terminalRejoinPolicy": "near-stall",
+                                                "terminalRejoinFraction": .1}
+                                               if prediction_rejoin_policy == "near-stall" else {})}}
            if prediction_active else {}),
         "schema": "taxi.synthetic-feedback/1",
         "classification": "SYNTHETIC_CLOSED_LOOP_ONLY",
