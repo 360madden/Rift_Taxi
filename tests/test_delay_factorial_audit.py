@@ -1,9 +1,13 @@
 """Independent synthetic archive fixtures; no simulator or game dependency."""
 import hashlib
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 from itertools import product
 import json
 import unittest
-from rift_taxi.delay_factorial_audit import audit, audit_bytes
+from rift_taxi.delay_factorial_audit import audit, audit_bytes, read_report, MAX_REPORT_BYTES
 
 
 def fixture():
@@ -74,3 +78,40 @@ class AuditTests(unittest.TestCase):
             r["cases"][0][field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):
                 audit(r)
+
+    def test_size_limit_for_bytes_and_file(self):
+        """Oversized input must fail before hashing or JSON decoding."""
+        raw = b" " * (MAX_REPORT_BYTES + 1)
+        with self.assertRaisesRegex(ValueError, "size limit"):
+            audit_bytes(raw, hashlib.sha256(raw).hexdigest())
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "oversize.json"
+            path.write_bytes(raw)
+            with self.assertRaisesRegex(ValueError, "size limit"):
+                read_report(path)
+
+    def test_non_object_and_deep_json(self):
+        for raw in (b"[]", b"null", b"[" * 2000 + b"]" * 2000):
+            with self.subTest(length=len(raw)), self.assertRaises(ValueError):
+                audit_bytes(raw, hashlib.sha256(raw).hexdigest())
+
+    def test_cli_errors_and_success(self):
+        """Both command-line consumers share the same admission behavior."""
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "report.json"
+            raw = json.dumps(fixture()).encode()
+            digest = hashlib.sha256(raw).hexdigest()
+            for module in ("delay_factorial_audit", "delay_factorial_diagnostics"):
+                base = [sys.executable, "-B", "-m", "rift_taxi." + module, str(path), "--sha256"]
+                for existing, supplied, expected in ((False, digest, 2), (True, "0"*64, 2), (True, digest, 0)):
+                    if existing:
+                        path.write_bytes(raw)
+                    else:
+                        path.unlink(missing_ok=True)
+                    result = subprocess.run(base + [supplied], capture_output=True, text=True, timeout=20)
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    if expected == 0:
+                        self.assertFalse(json.loads(result.stdout)["physicalQualification"])
+                    else:
+                        self.assertIn("failed:", result.stderr)
+                        self.assertEqual(result.stdout, "")
