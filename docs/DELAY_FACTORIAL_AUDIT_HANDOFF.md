@@ -185,3 +185,7 @@ Architecture commit 5b480dd documents the hosted research/physical authority bou
 2. Review the final research diff and verify the historical LEGION archive when available; keep current handoff and README main baseline distinct until merge.
 3. Preserve V4 as observed, rejected-candidate evidence. Before additional experimentation, establish a separate comparison specification and evidence review. Do not tune the rejected lookahead parameter on V4 and then relabel V4 as unseen validation.
 4. Keep the physical M1 blockers explicit; none can be closed using a hosted test-runner process.
+
+### Minimum-version and wheel acceptance result
+
+Run 45547937230, job 138981923577, head 4ed8fe8, completed successfully on Ubuntu Python 3.11.18. Independently reviewed its logs: focused archive tests 17/17 in 0.376 s, V4 tests 5/5 in 1.179 s, full suite 523 discovered in 23.025 s (507 passed, 16 Windows-specific skips), wheel built and rift-taxi 0.1.0 installed. All five new research modules resolved from installed site-packages under isolated Python mode; all three archive CLI help invocations succeeded. Earlier hosted tests cover missing paths, wrong digests, valid archive CLI execution and V4 report generation. The historical LEGION archive is not accessible for its exact command replay. No Windows installed-wheel or standalone end-user executable is claimed by this Linux packaging test. The Windows 3.14 full-suite baseline remains separately verified at 523/523.
