@@ -1,0 +1,97 @@
+"""End-to-end offline journey demonstration using the existing synthetic plant.
+
+The three phases are deliberately reported separately: approach, passive
+FIFO drain and optional bounded terminal correction. This module neither
+opens a game process nor sends operating-system input.
+"""
+import argparse
+import json
+from pathlib import Path
+
+from .contracts import TraceError, load_trace
+from .simulation import simulate_route, _bounded_number
+from .simulation_integrity import verify_synthetic_trajectory
+from .simulation_settling import drain_after_arrival
+from .synthetic_terminal_finish import finish_after_drain
+
+
+def journey(trace, *, dt=.1, speed=3., yaw_rate=115., delay_steps=0,
+            approach_budget=40., terminal_budget=5., lookahead=1.5):
+    """Run a synthetic journey with explicit, independently bounded phases."""
+    terminal_budget = _bounded_number(terminal_budget, "terminal budget", .01, 30.)
+    approach = simulate_route(
+        trace, dt=dt, speed=speed, max_yaw_rate=yaw_rate,
+        delay_steps=delay_steps, max_seconds=approach_budget,
+        lookahead=lookahead, max_cross_track=2.,
+        speed_policy="turn-limited-ordered")
+    verify_synthetic_trajectory(approach, trace)
+    drain = drain_after_arrival(approach, trace)
+    correction = None
+    arrived = approach["metrics"]["syntheticArrival"]
+
+    # A failed route is not eligible for terminal-only recovery. Never
+    # reinterpret an approach timeout as a successful journey.
+    if arrived:
+        last = drain["observations"][-1]
+        correction = finish_after_drain(
+            xyz=last["xyz"], yaw=last["yawDegrees"], goal=trace.points[-1].xyz,
+            dt=dt, speed=speed, yaw_rate=yaw_rate, delay_steps=delay_steps,
+            tolerance=trace.arrival_tolerance_xz, budget=terminal_budget)
+
+    settled = bool(correction and correction["settled"])
+    return {
+        "schema": "taxi.synthetic-journey-demo/1",
+        "classification": "SYNTHETIC_ONLY",
+        "routeId": trace.route_id,
+        "inputTraceSHA256": trace.trace_sha256,
+        "approach": approach,
+        "passiveDrain": drain,
+        "terminalCorrection": correction,
+        "summary": {
+            "geometricArrival": arrived,
+            "passiveSettled": bool(drain["settledWithinTolerance"]),
+            "finalModelSettled": settled,
+            "status": ("approach-failed" if not arrived else
+                       "model-settled" if settled else "terminal-unsettled"),
+        },
+        "physicalQualification": False,
+        "gameInputSent": False,
+        "limitations": [
+            "Synthetic flat-plane ideal plant only; no collision or real actuator model.",
+            "Correction budget is separate from approach and passive drain.",
+            "No change to the established approach metrics or runtime policy.",
+        ],
+    }
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("trace", help="versioned synthetic motion-trace JSON")
+    parser.add_argument("--dt", type=float, default=.1)
+    parser.add_argument("--speed", type=float, default=3.)
+    parser.add_argument("--yaw-rate", type=float, default=115.)
+    parser.add_argument("--delay-steps", type=int, default=0)
+    parser.add_argument("--approach-budget", type=float, default=40.)
+    parser.add_argument("--terminal-budget", type=float, default=5.)
+    parser.add_argument("--lookahead", type=float, default=1.5)
+    parser.add_argument("--out", type=Path, help="new JSON file; never overwrite")
+    args = parser.parse_args(argv)
+    try:
+        result = journey(
+            load_trace(args.trace), dt=args.dt, speed=args.speed,
+            yaw_rate=args.yaw_rate, delay_steps=args.delay_steps,
+            approach_budget=args.approach_budget, terminal_budget=args.terminal_budget,
+            lookahead=args.lookahead)
+        encoded = json.dumps(result, indent=2, allow_nan=False) + "\n"
+        if args.out is None:
+            print(encoded, end="")
+        else:
+            with args.out.open("x", encoding="utf-8", newline="\n") as writer:
+                writer.write(encoded)
+        return 0
+    except (TraceError, ValueError, OSError) as error:
+        parser.exit(2, f"Synthetic journey refused: {error}\n")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
