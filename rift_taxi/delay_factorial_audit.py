@@ -47,6 +47,16 @@ def audit(report):
     geometry = {r["geometryCase"]: r["routeId"] for r in report["geometry"]}
     require(len(report["geometry"]) == 36 and set(geometry) == set(range(1, 37)), "geometry coverage")
     rows = report["cases"]
+    # Python bools compare equal to 0/1 and can otherwise masquerade as
+    # integer design identifiers or numeric measurement values.
+    require(all(type(r["geometryCase"]) is int for r in report["geometry"]), "noninteger geometry ID")
+    for row in rows:
+        require(type(row["geometryCase"]) is int, "noninteger case ID")
+        require(all(type(row[n]) in (int, float) and math.isfinite(row[n])
+                    for n in (*FACTORS, "nominalDelaySeconds", "forwardDutyRatio")),
+                "invalid numeric factor or duty")
+        require(all(row[n] is None or (type(row[n]) in (int, float) and math.isfinite(row[n]))
+                    for n in ("settledErrorXZ", "postArrivalDistanceXZ")), "invalid terminal measurement")
     indexed = {key(r): r for r in rows}
     expected = set(product(range(1, 37), *FACTORS.values(), DELAYS))
     require(len(rows) == len(indexed) == 864 and set(indexed) == expected, "missing or duplicate case")
@@ -97,9 +107,26 @@ def audit(report):
     return {"cases": 864, "profiles": 24, "matchedEffects": 9, "physicalQualification": False}
 
 
+def _unique_object(pairs):
+    """Reject ambiguous JSON: Python otherwise keeps only the final duplicate key."""
+    result = {}
+    for name, value in pairs:
+        require(name not in result, f"duplicate JSON key: {name}")
+        result[name] = value
+    return result
+
+
+def _finite_float(token):
+    """Reject both explicit non-finite literals and overflowing exponents."""
+    value = float(token)
+    require(math.isfinite(value), "non-finite JSON number")
+    return value
+
+
 def audit_bytes(raw, expected_sha256):
     require(hashlib.sha256(raw).hexdigest() == expected_sha256, "archive SHA-256 mismatch")
-    return audit(json.loads(raw))
+    return audit(json.loads(raw, object_pairs_hook=_unique_object,
+                            parse_float=_finite_float, parse_constant=_finite_float))
 
 
 def main():
