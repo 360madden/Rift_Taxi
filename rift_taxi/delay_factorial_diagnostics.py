@@ -8,7 +8,7 @@ from collections import defaultdict
 import json
 from pathlib import Path
 
-from .delay_factorial_audit import audit, audit_bytes
+from .delay_factorial_audit import audit, parse_report, read_report
 
 
 def diagnose(report):
@@ -61,9 +61,8 @@ def main():
     parser.add_argument('--sha256', required=True)
     args = parser.parse_args()
     try:
-        raw = args.report.read_bytes()
-        audit_bytes(raw, args.sha256)
-        print(json.dumps(diagnose(json.loads(raw)), sort_keys=True, allow_nan=False))
+        report = parse_report(read_report(args.report), args.sha256)
+        print(json.dumps(diagnose(report), sort_keys=True, allow_nan=False))
     except (OSError, ValueError, KeyError, TypeError, OverflowError) as exc:
         parser.exit(2, f'Diagnostics failed: {exc}\n')
 
