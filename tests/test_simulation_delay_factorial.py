@@ -16,6 +16,7 @@ from unittest.mock import patch
 from rift_taxi.cli import main
 from rift_taxi.delay_factorial_audit import audit_bytes
 from rift_taxi.delay_factorial_diagnostics import diagnose
+from rift_taxi.delay_factorial_stratification import stratify
 from rift_taxi.simulation_delay_factorial import evaluate_delay_factorial
 from rift_taxi.simulation_holdout_v3 import evaluate_holdout_v3
 
@@ -108,6 +109,28 @@ class DelayFactorialTests(unittest.TestCase):
         self.assertEqual(sum(x["outcomes"]["settledWithinTolerance"]["lost"] for x in levels), 63)
         self.assertEqual(sum(x["arrivedButUnsettled"] for x in levels), 38)
         print("FACTORIAL_DIAGNOSTICS " + json.dumps(r, sort_keys=True, allow_nan=False))
+
+    def test_stratified_counts_reconcile_with_frozen_report(self):
+        """Every route contributes to the original aggregate factor counts."""
+        result = stratify(self.report)
+        routes = result["routes"]
+        self.assertEqual(len(routes), 6)
+        self.assertFalse(result["physicalQualification"])
+        for i, expected in enumerate(self.report["matchedEffects"]):
+            self.assertEqual(sum(r["effects"][i]["pairs"] for r in routes), 144)
+            for field, counts in expected["outcomes"].items():
+                for category, count in counts.items():
+                    self.assertEqual(sum(r["effects"][i]["outcomes"][field][category]
+                                         for r in routes), count)
+        for i, expected in enumerate(self.report["byDelay"]):
+            group = [r["terminalDistribution"][i] for r in routes]
+            self.assertEqual(sum(t["total"] for t in group), 288)
+            self.assertEqual(sum(t["arrivals"] for t in group), expected["geometricArrivals"])
+            self.assertEqual(sum(t["outsideTolerance"] for t in group), expected["settledOutside"])
+        for route in routes:
+            for patterns in route["delayHistories"].values():
+                self.assertEqual(sum(patterns.values()), 48)
+        print("FACTORIAL_STRATA " + json.dumps(result, sort_keys=True, allow_nan=False))
 
     def test_cli_preflights_and_preserves_report_bytes(self):
         """Test the actual writer with cached study output to avoid rerunning the grid."""
