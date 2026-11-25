@@ -5,6 +5,7 @@ conditioning effect estimates on successful journeys.
 """
 import contextlib
 import io
+import hashlib
 from itertools import product
 import json
 from pathlib import Path
@@ -13,6 +14,7 @@ import unittest
 from unittest.mock import patch
 
 from rift_taxi.cli import main
+from rift_taxi.delay_factorial_audit import audit_bytes
 from rift_taxi.simulation_delay_factorial import evaluate_delay_factorial
 from rift_taxi.simulation_holdout_v3 import evaluate_holdout_v3
 
@@ -77,6 +79,18 @@ class DelayFactorialTests(unittest.TestCase):
             self.assertEqual(sum(summary["statusCounts"].values()), 288)
             self.assertEqual(summary["settledWithinTolerance"] + summary["settledOutside"],
                              summary["geometricArrivals"])
+
+    def test_independent_archive_auditor_accepts_generated_report(self):
+        """Exercise the real 864-case report, not merely an analytic fixture.
+
+        A fresh report's digest establishes the exact bytes under test. This
+        is NOT validation of the archived LEGION file's historical digest.
+        Reuse the class-level study to avoid rerunning the expensive grid.
+        """
+        raw = json.dumps(self.report, sort_keys=True, allow_nan=False).encode("utf-8")
+        receipt = audit_bytes(raw, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(receipt, {"cases": 864, "profiles": 24,
+                                   "matchedEffects": 9, "physicalQualification": False})
 
     def test_cli_preflights_and_preserves_report_bytes(self):
         """Test the actual writer with cached study output to avoid rerunning the grid."""
