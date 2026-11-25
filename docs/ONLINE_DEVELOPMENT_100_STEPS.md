@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. 73 steps completed at their stated scope. Hosted run 45547479280 confirms the Ubuntu V4 experiment: 507 tests passed, 16 skipped, 523 discovered. The prespecified candidate failed its research screen despite three added high-delay arrivals; no policy change. Windows confirmation and full per-case artifact retention remain pending. Step 070 remains open until archive verification; step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for detailed evidence.
+November 24, 2026. 83 steps completed at their stated scope. Hosted run 45547588448 passed Windows 523/523 and Ubuntu 507 applicable tests (16 skipped). Both V4 report ZIPs were downloaded and independently verified, including all 216 matched pairs and discrete cross-platform outcomes. The candidate remains rejected. Steps 022, 041, 048, 070, 083, 086, 091, 092, 095 and 097 are complete; see DELAY_FACTORIAL_AUDIT_HANDOFF.md and VALIDATION.md. Artifacts expire February 23, 2027; retain original ZIPs separately. Historical LEGION archive, installed packaging and minimum-version validation, final merge and physical qualification remain outstanding. Main is unchanged.
 
 ## Online baseline and acceptance
 
@@ -31,7 +31,7 @@ November 24, 2026. 73 steps completed at their stated scope. Hosted run 45547479
 ## Synthetic model scope
 
 - [x] 021. Document FIFO observation versus actuation assumptions
-- [ ] 022. Inventory existing delay study and replay tests
+- [x] 022. Inventory existing delay study and replay tests
 - [x] 023. Identify geometric arrival definition
 - [x] 024. Identify terminal settling definition
 - [x] 025. Identify duty denominator and time budget
@@ -56,14 +56,14 @@ November 24, 2026. 73 steps completed at their stated scope. Hosted run 45547479
 
 ## Reproducible study infrastructure
 
-- [ ] 041. Define immutable study IDs and parent report identity
+- [x] 041. Define immutable study IDs and parent report identity
 - [x] 042. Add complete case coverage assertions
 - [x] 043. Add duplicate scenario detection regression
 - [x] 044. Add missing scenario rejection regression
 - [x] 045. Add malformed numeric metric tests
 - [x] 046. Add unknown schema rejection regression
 - [x] 047. Check deterministic ordering under shuffled input
-- [ ] 048. Define stable report serialization
+- [x] 048. Define stable report serialization
 - [x] 049. Check cross-platform outcome equivalence
 - [x] 050. Record source digests and command examples
 
@@ -91,7 +91,7 @@ November 24, 2026. 73 steps completed at their stated scope. Hosted run 45547479
 - [x] 067. Evaluate frozen baseline on holdout
 - [x] 068. Evaluate opt-in research candidates
 - [x] 069. Compare terminal error and duty without survivor bias
-- [ ] 070. Archive failures and record decision rationale
+- [x] 070. Archive failures and record decision rationale
 
 ## Robustness and regression
 
@@ -110,10 +110,10 @@ November 24, 2026. 73 steps completed at their stated scope. Hosted run 45547479
 
 - [ ] 081. Verify package discovery includes new modules
 - [ ] 082. Check Python minimum version assumptions
-- [ ] 083. Review stdlib-only runtime dependencies
+- [x] 083. Review stdlib-only runtime dependencies
 - [ ] 084. Verify CLI usage examples
 - [ ] 085. Review README baseline count after confirmed merge
-- [ ] 086. Update validation evidence links
+- [x] 086. Update validation evidence links
 - [ ] 087. Update architecture qualification boundaries
 - [ ] 088. Review comments and docstrings
 - [ ] 089. Update current handoff after confirmed acceptance
@@ -121,13 +121,13 @@ November 24, 2026. 73 steps completed at their stated scope. Hosted run 45547479
 
 ## Release and next-session readiness
 
-- [ ] 091. Review unresolved original archive verification
-- [ ] 092. Record source provenance and missing artifacts
+- [x] 091. Review unresolved original archive verification
+- [x] 092. Record source provenance and missing artifacts
 - [ ] 093. Record physical qualification blockers
 - [ ] 094. Confirm no new live authority claims
-- [ ] 095. Review CI permissions and triggers
+- [x] 095. Review CI permissions and triggers
 - [ ] 096. Check final branch and commit identities
-- [ ] 097. Review all new tests and known skips
+- [x] 097. Review all new tests and known skips
 - [ ] 098. Record exact completion status for this backlog
 - [ ] 099. Prepare next prioritized offline research slice
 - [ ] 100. Produce final SITREP with verified evidence and remaining work
