@@ -21,6 +21,7 @@ from .simulation_holdout_v2 import evaluate_holdout_v2
 from .simulation_holdout_v3 import evaluate_holdout_v3
 from .simulation_v3_failure_audit import audit_v3_failures
 from .simulation_delay_factorial import evaluate_delay_factorial
+from .simulation_latency_prediction import compare_latency_prediction
 from .simulation_receipt_audit import audit_v3_receipt
 from .simulation_ordered_comparison import compare_ordered_corners
 from .simulation_delay_study import evaluate_delay_study
@@ -152,6 +153,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Separate synthetic factor study; no policy, game or actuator changes.
     factors = commands.add_parser("study-delay-factors", help="offline matched speed/yaw/timestep/delay experiment")
     factors.add_argument("--out", help="write factor study to a NEW file")
+    # Opt-in paired ideal-plant experiment; never invokes game control.
+    prediction = commands.add_parser("compare-latency-prediction", help="offline queued-pose prediction comparison")
+    prediction.add_argument("--out", help="write comparison to a NEW file")
     # Strict saved-report audit; an optional separately recorded digest
     # pins the exact input bytes. Replays synthetic data only.
     receipt = commands.add_parser("verify-v3-receipt", help="offline strict JSON, aggregate and replay verification")
@@ -369,6 +373,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             if args.out is not None:
                 _capture_preflight(args.out, 0.)
             _write_or_print(evaluate_delay_factorial(), args.out)
+        elif args.command == "compare-latency-prediction":
+            if args.out is not None:
+                _capture_preflight(args.out, 0.)
+            _write_or_print(compare_latency_prediction(), args.out)
         elif args.command == "verify-v3-receipt":
             _write_or_print(audit_v3_receipt(args.report, expected_sha256=args.expected_sha256), args.out)
         elif args.command == "measure-motion-timing":
