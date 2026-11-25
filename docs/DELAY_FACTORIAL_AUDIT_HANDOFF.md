@@ -154,3 +154,34 @@ Reviewed hosted test inventory: test_replay, test_steering, test_simulation, tes
 All five new production-package modules import only Python standard library and existing local package modules. pyproject.toml has no runtime dependencies; setuptools is build-only. This is an import review, not an installed-wheel or minimum Python 3.11 runtime qualification. CI uses pull_request and workflow_dispatch, contents: read, no persisted checkout credentials, 15-minute job limit, separate OS jobs and artifact names. The workflow action runtime deprecation warning warrants future maintenance; no failed job is suppressed.
 
 Historical LEGION V3 report is still not available in this environment. The original path and pinned digest are retained in this handoff; generated and V4 artifacts cannot replace it. Main merge and physical qualification remain pending. All work confined to the Taxi review branch.
+
+## Packaging and qualification closure checkpoint
+
+The installed-wheel and minimum-version validation job was added in 4ed8fe859f982fbd8820491f67420c88ef056855. It checks Python 3.11 on Ubuntu, runs focused then full source regressions, builds and installs a wheel, and uses Python isolated mode to check that all five research modules resolve from the installed site-packages tree rather than the checkout. The three archive CLI help commands are checked separately. This tests the declared minimum, not a standalone Windows app. At initial observation run 45547937230 had passed the focused 3.11 tests; full regression, wheel and installed CLI checks were still running. Do not report successful packaging until the actual steps complete.
+
+### Frozen source verification
+
+Compared base 2e0a8cf65ea6345bf1b82c8b76ecf367260f7b94 with the review branch. All nine source blobs below are identical; the PR changed-file inventory contains no edits to any of these modules or the live controller.
+
+| Source under rift_taxi/ | Git blob SHA |
+|---|---|
+| simulation.py | 5294c221193e18f067856857428549ebbcac5050 |
+| simulation_holdout.py | 12381004e2c54c794fd4d1faf76b98114d29127c |
+| simulation_holdout_v2.py | 2e9b88856865c918224a862dbb74d9ac85168952 |
+| simulation_holdout_v3.py | 60871fc94ab3c17d0cc8d3154e65d46d3939882e |
+| simulation_delay_factorial.py | b26999c0de6671d7029abb30cf394675ba1b90ea |
+| simulation_delay_study.py | 40d2fd71037e3029fa57dc0842825e05fc2c662b |
+| simulation_settling.py | 52a5f2082fd07502a77bbb6a876486e2566dc894 |
+| simulation_integrity.py | 49eae49711ba4fbbca4d982911094ead060e0df3 |
+| simulation_ordered_comparison.py | a6a730b48186fa7beae820d8f63ccb82d5825e35 |
+
+Reviewed all five new research module headers, public entry-point docstrings and comments for evidence boundaries, paired denominators, stable scenario generation and candidate scope. They describe the synthetic restrictions. Preserve V4 design/comparison blobs as historical source rather than editing them after observing the result. Rechecked both downloaded V4 ZIP hashes and the 216 discrete pairs in Python in this session; exact agreement remains.
+
+Architecture commit 5b480dd documents the hosted research/physical authority boundary. Physical blockers are current game/session/actor and zone/world-instance correspondence, independent body heading and passive XYZ freshness, release under remaining failure modes, game-consumed STOP, and end-to-end physical journey evidence. No hosted result clears any such gate. No sister repository was written by this workflow; their unavailable local checkouts have not been independently inspected. PR #1 remains draft against unchanged main.
+
+### Next prioritized offline slice
+
+1. Inspect completed minimum-version, wheel and installed CLI checks; fix genuine portability defects rather than masking tests.
+2. Review the final research diff and verify the historical LEGION archive when available; keep current handoff and README main baseline distinct until merge.
+3. Preserve V4 as observed, rejected-candidate evidence. Before additional experimentation, establish a separate comparison specification and evidence review. Do not tune the rejected lookahead parameter on V4 and then relabel V4 as unseen validation.
+4. Keep the physical M1 blockers explicit; none can be closed using a hosted test-runner process.
