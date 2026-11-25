@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from itertools import count
 import os
 import sys
 from pathlib import Path
@@ -146,6 +147,14 @@ class CrashReleaseTests(unittest.TestCase):
         self.assertFalse(cr._audit_summary(p, pin)["auditReadable"])
 
     def _run_mock(self, *, child_up=True, write_marker=True):
+        # FakeParent writes evidence in a synthetic monotonic epoch around
+        # 100 seconds. A fresh hosted Linux runner can have a real uptime
+        # below that value, so use a deterministic later clock in the same
+        # fixture epoch. Advance it on every read to keep deadline loops
+        # bounded even when sleep is mocked out.
+        clock = count(start=50000)
+        def monotonic():
+            return next(clock) / 100.
         def popen(cmd, **kwargs):
             return FakeParent(cmd, accepted=child_up, write_marker=write_marker)
         capture = {
@@ -163,6 +172,7 @@ class CrashReleaseTests(unittest.TestCase):
               patch.object(cr, "Win32KeySnapshot", return_value=FakeKeys()),
               patch.object(cr, "Win32ScanSender", return_value=FakeSend()),
               patch.object(cr.subprocess, "Popen", side_effect=popen),
+              patch.object(cr.time, "monotonic", side_effect=monotonic),
               patch.object(cr.time, "sleep", return_value=None)):
             return cr.run_physical_crash_probe(self.args)
 
