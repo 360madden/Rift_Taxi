@@ -46,3 +46,7 @@ M1 is not complete until the client/actor/zone is properly pinned, position upda
 This policy does **not** change the autonomous Taxi application's architecture: the finished runtime must need no AI or connected service to steer from destination to destination.
 
 **Maintainers' note:** When updating roadmap or README, preserve a link to this policy. If a requested action cannot be completed autonomously, document the specific blocker and the automated alternatives attempted, rather than asking the user to perform routine work.
+
+## Functionality-first allocation — approved November 24, 2026
+
+Prioritize measurable standalone functionality and synthetic navigation progress over regression-count growth. Target allocation: 45% core synthetic functionality, 25% M1 qualification preparation, 15% testing and bug fixes, 10% standalone application experience, 5% evidence and documentation. These are planning targets, not reported time measurements. Batch related changes into meaningful CI checkpoints. Do not add further auditors unless a consequential defect or new evidence contract requires one. Reuse mature local modules; keep sister repositories read-only. Distinguish offline code acceptance from historical receipt authentication and live qualification. Never mark blocked physical gates as complete. The rejected V4 experiment remains frozen.
