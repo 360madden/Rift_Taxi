@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. 48 steps completed at their stated scope. Hosted run 45546919255 verifies Windows 514/514 and Ubuntu 498 passed, 16 skipped. Route-specific stratification implementation and tests for 035–039 are committed, but remain unchecked pending hosted confirmation and evidence review. Step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for detailed evidence.
+November 24, 2026. 59 steps completed at their stated scope. Hosted run 45547058953 verifies Windows 518/518 and Ubuntu 502 passed, 16 skipped. Route-specific analysis 035–040 is verified. V4 design 061–065 is prespecified and committed; 066 remains pending hosted design-test execution, and no V4 outcomes have been evaluated. Step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for detailed evidence.
 
 ## Online baseline and acceptance
 
@@ -47,12 +47,12 @@ November 24, 2026. 48 steps completed at their stated scope. Hosted run 45546919
 - [x] 032. Rank route groups by settled loss
 - [x] 033. Separate pre-existing failures from delay-induced failures
 - [x] 034. Reconcile losses and gains per nominal delay
-- [ ] 035. Compare low/high speed at each route
-- [ ] 036. Compare low/high yaw cap at each route
-- [ ] 037. Compare timestep at fixed nominal delay
-- [ ] 038. Identify non-monotonic delayed outcomes
-- [ ] 039. Summarize terminal error distribution for arrivals
-- [ ] 040. Document candidate research priorities from observed cases
+- [x] 035. Compare low/high speed at each route
+- [x] 036. Compare low/high yaw cap at each route
+- [x] 037. Compare timestep at fixed nominal delay
+- [x] 038. Identify non-monotonic delayed outcomes
+- [x] 039. Summarize terminal error distribution for arrivals
+- [x] 040. Document candidate research priorities from observed cases
 
 ## Reproducible study infrastructure
 
@@ -82,11 +82,11 @@ November 24, 2026. 48 steps completed at their stated scope. Hosted run 45546919
 
 ## Independent holdout research
 
-- [ ] 061. Define fresh route shapes without tuning on their outcomes
-- [ ] 062. Define independent initial condition offsets
-- [ ] 063. Define independent heading offsets
-- [ ] 064. Define model factor coverage before evaluation
-- [ ] 065. Record deterministic generator version
+- [x] 061. Define fresh route shapes without tuning on their outcomes
+- [x] 062. Define independent initial condition offsets
+- [x] 063. Define independent heading offsets
+- [x] 064. Define model factor coverage before evaluation
+- [x] 065. Record deterministic generator version
 - [ ] 066. Check every requested scenario appears once
 - [ ] 067. Evaluate frozen baseline on holdout
 - [ ] 068. Evaluate opt-in research candidates
