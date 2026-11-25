@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. Execution is evidence-driven, not a promise of background work. 34 steps completed at their stated scope: 001–019, 021, 023–026, 028–034 and 071–073. The new archive CLI tests for 074–076 are written but remain unchecked pending hosted execution. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for hosted run evidence. Step 020 remains blocked by the Ubuntu regression failure and pending archive acceptance; fixture correction aa2d037 is committed, rerun pending. Other unchecked steps remain pending. Main and physical qualification remain unchanged.
+November 24, 2026. 43 steps completed at their stated scope. Hosted run 45546766551 verifies Windows 510/510 and Ubuntu 494 passed, 16 skipped. The prior Ubuntu clock failure is resolved. Cross-platform discrete diagnostic agreement is verified at run 45546590286. Steps 046, 047, 077–079 have new test implementations committed, but are unchecked pending hosted confirmation. Step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for detailed evidence.
 
 ## Online baseline and acceptance
 
@@ -57,15 +57,15 @@ November 24, 2026. Execution is evidence-driven, not a promise of background wor
 ## Reproducible study infrastructure
 
 - [ ] 041. Define immutable study IDs and parent report identity
-- [ ] 042. Add complete case coverage assertions
-- [ ] 043. Add duplicate scenario detection regression
-- [ ] 044. Add missing scenario rejection regression
-- [ ] 045. Add malformed numeric metric tests
+- [x] 042. Add complete case coverage assertions
+- [x] 043. Add duplicate scenario detection regression
+- [x] 044. Add missing scenario rejection regression
+- [x] 045. Add malformed numeric metric tests
 - [ ] 046. Add unknown schema rejection regression
 - [ ] 047. Check deterministic ordering under shuffled input
 - [ ] 048. Define stable report serialization
-- [ ] 049. Check cross-platform outcome equivalence
-- [ ] 050. Record source digests and command examples
+- [x] 049. Check cross-platform outcome equivalence
+- [x] 050. Record source digests and command examples
 
 ## Synthetic approach research
 
@@ -98,9 +98,9 @@ November 24, 2026. Execution is evidence-driven, not a promise of background wor
 - [x] 071. Review malformed archive handling
 - [x] 072. Review bounded report file size
 - [x] 073. Review CLI exit code contract
-- [ ] 074. Test missing file error
-- [ ] 075. Test invalid digest error
-- [ ] 076. Test non-object report error
+- [x] 074. Test missing file error
+- [x] 075. Test invalid digest error
+- [x] 076. Test non-object report error
 - [ ] 077. Test deterministic diagnostic ordering
 - [ ] 078. Test mixed gain/loss analytic fixture
 - [ ] 079. Test all-failure diagnostic stratum
