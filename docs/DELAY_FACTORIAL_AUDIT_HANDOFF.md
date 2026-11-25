@@ -216,3 +216,19 @@ Online checklist closure is 96/100: verified branch identities, next research sl
 Commits a4f49ce and 29a30cc add a separate descriptive replay of the 12 long-short-ladder V4 scenario pairs at 360 ms (24 simulation calls). The existing baseline, rejected candidate, simulator and terminal drain are unchanged. The diagnostic retains each synthetic pending command and post-arrival observation, first/settled error, queued travel, tolerance exits, and error change. It checks the triangle bound between distance traveled and change in endpoint error. Failed approaches retain null terminal observations.
 
 Two additional regression methods check reproduction of the previously observed 12/12 arrivals and 11/0 settled baseline/candidate outcomes, and reconcile queued travel, drain duration, stationary witness and endpoint tolerance. The prospective full suite is 525 discovered tests; these new tests await hosted validation. This is observed-case diagnosis, not a new independent holdout or an improved controller. Run from repo root: python -B -m rift_taxi.simulation_v4_terminal_observation. The original V4 sources and reports remain frozen; the 100-step backlog remains at 96/100, with its four outstanding gates unchanged.
+
+### Observed terminal diagnostic results
+
+Run 45548405445 at head 29a30cc: Ubuntu Python 3.14, 525 discovered, 509 passed/16 skipped in 28.546 s; Ubuntu Python 3.11, 509 passed/16 skipped in 22.727 s. Both emitted the same terminal summary. Windows job pending at review.
+
+| Metric, 12 observed long-short-ladder pairs at 360 ms | Baseline | Candidate |
+|---|---:|---:|
+| Geometric arrivals | 12 | 12 |
+| Settled within tolerance | 11 | 0 |
+| Sampled tolerance exits | 1 | 12 |
+| Mean queued travel (synthetic units) | 0.3055290409495986 | 0.5070460033469539 |
+| Mean change in endpoint error (synthetic units) | -0.10693706724113833 | 0.19353667471860014 |
+
+The candidate has roughly 66% more queued travel after geometric arrival, and mean endpoint error increases instead of decreasing. These are descriptive means from the selected observed geometry, not independent causal isolation of queue length or a physical overshoot diagnosis. The simulator and original V4 experiment remain frozen; no policy change. Next compare individual queue and observation histories once their full archives are verified.
+
+Commit f016c89 adds separate hosted terminal-observation JSON artifacts, a focused terminal test invocation under Python 3.11 and the sixth installed research-module import check. These new CI steps await verification. Existing V4 artifact paths are unchanged. Main remains unchanged; original roadmap 96/100.
