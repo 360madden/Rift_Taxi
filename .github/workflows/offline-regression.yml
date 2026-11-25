@@ -37,6 +37,17 @@ jobs:
           path: v4-comparison.json
           if-no-files-found: error
           retention-days: 90
+      # The terminal diagnostic is a separate observed-case receipt. Keep
+      # its archive distinct from the frozen V4 comparison artifact.
+      - name: Archive observed V4 terminal queue diagnostic
+        run: python -B -m rift_taxi.simulation_v4_terminal_observation > v4-terminal-observation.json
+      - name: Upload V4 terminal observations
+        uses: actions/upload-artifact@v4
+        with:
+          name: v4-terminal-observation-${{ matrix.os }}
+          path: v4-terminal-observation.json
+          if-no-files-found: error
+          retention-days: 90
   minimum-python:
     name: Python 3.11 / wheel and offline tests
     runs-on: ubuntu-latest
@@ -54,6 +65,7 @@ jobs:
         run: |
           python -B -m unittest discover -s tests -p 'test_delay_factorial*.py' -v
           python -B -m unittest discover -s tests -p 'test_simulation_holdout_v4*.py' -v
+          python -B -m unittest discover -s tests -p 'test_simulation_v4_terminal_observation.py' -v
       - name: Run full minimum-version regression suite
         run: python -B -m unittest discover -s tests -v
       - name: Build and install wheel
@@ -64,7 +76,7 @@ jobs:
       # imports demonstrate package discovery rather than source-tree imports.
       - name: Check installed research modules and CLI help
         run: |
-          python -I -c "import importlib, pathlib, sysconfig; root=pathlib.Path(sysconfig.get_paths()['purelib']).resolve(); names=('delay_factorial_audit','delay_factorial_diagnostics','delay_factorial_stratification','simulation_holdout_v4_design','simulation_holdout_v4_comparison'); modules=[importlib.import_module('rift_taxi.'+n) for n in names]; assert all(pathlib.Path(m.__file__).resolve().is_relative_to(root) for m in modules); print('INSTALLED_RESEARCH_MODULES', len(modules), root)"
+          python -I -c "import importlib, pathlib, sysconfig; root=pathlib.Path(sysconfig.get_paths()['purelib']).resolve(); names=('delay_factorial_audit','delay_factorial_diagnostics','delay_factorial_stratification','simulation_holdout_v4_design','simulation_holdout_v4_comparison','simulation_v4_terminal_observation'); modules=[importlib.import_module('rift_taxi.'+n) for n in names]; assert all(pathlib.Path(m.__file__).resolve().is_relative_to(root) for m in modules); print('INSTALLED_RESEARCH_MODULES', len(modules), root)"
           python -I -m rift_taxi.delay_factorial_audit --help
           python -I -m rift_taxi.delay_factorial_diagnostics --help
           python -I -m rift_taxi.delay_factorial_stratification --help
