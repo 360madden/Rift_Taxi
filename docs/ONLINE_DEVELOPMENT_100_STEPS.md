@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. Execution is evidence-driven, not a promise of background work. Steps 1–10 completed in this session at the stated scope; generated-report tests are committed, not yet verified by the next hosted run. Steps 11–100 are pending unless updated by a later evidence record. Main and physical qualification remain unchanged.
+November 24, 2026. Execution is evidence-driven, not a promise of background work. 23 steps completed at their stated scope: 001–019 and 031–034. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for hosted run evidence. Step 020 remains blocked by the Ubuntu regression failure and pending archive acceptance; fixture correction aa2d037 is committed, rerun pending. Other unchecked steps remain pending. Main and physical qualification remain unchanged.
 
 ## Online baseline and acceptance
 
@@ -17,15 +17,15 @@ November 24, 2026. Execution is evidence-driven, not a promise of background wor
 
 ## Cloud evidence closure
 
-- [ ] 011. Inspect latest hosted job logs for new 507-test suite
-- [ ] 012. Verify fresh generated report passes strict auditor
-- [ ] 013. Check six route diagnostic rows and their loss totals
-- [ ] 014. Record exact hosted run IDs and platform skip counts
-- [ ] 015. Compare generated report outcomes with November 24 receipt
-- [ ] 016. Retrieve and preserve concise diagnostic evidence
-- [ ] 017. Check draft PR diff for unrelated changes
-- [ ] 018. Check CI checkout commit against branch head
-- [ ] 019. Record original LEGION receipt as unavailable unless retrieved
+- [x] 011. Inspect latest hosted job logs for new 507-test suite
+- [x] 012. Verify fresh generated report passes strict auditor
+- [x] 013. Check six route diagnostic rows and their loss totals
+- [x] 014. Record exact hosted run IDs and platform skip counts
+- [x] 015. Compare generated report outcomes with November 24 receipt
+- [x] 016. Retrieve and preserve concise diagnostic evidence
+- [x] 017. Check draft PR diff for unrelated changes
+- [x] 018. Check CI checkout commit against branch head
+- [x] 019. Record original LEGION receipt as unavailable unless retrieved
 - [ ] 020. Review and merge only after relevant acceptance gates
 
 ## Synthetic model scope
@@ -43,10 +43,10 @@ November 24, 2026. Execution is evidence-driven, not a promise of background wor
 
 ## Failure stratification
 
-- [ ] 031. Rank route groups by geometric loss
-- [ ] 032. Rank route groups by settled loss
-- [ ] 033. Separate pre-existing failures from delay-induced failures
-- [ ] 034. Reconcile losses and gains per nominal delay
+- [x] 031. Rank route groups by geometric loss
+- [x] 032. Rank route groups by settled loss
+- [x] 033. Separate pre-existing failures from delay-induced failures
+- [x] 034. Reconcile losses and gains per nominal delay
 - [ ] 035. Compare low/high speed at each route
 - [ ] 036. Compare low/high yaw cap at each route
 - [ ] 037. Compare timestep at fixed nominal delay
