@@ -60,6 +60,30 @@ class LatencyPredictionTests(unittest.TestCase):
         with self.assertRaises(TraceError):
             simulate_route(trace, delay_steps=1, predict_command_application=True)
 
+    def test_near_stall_preserves_arrival_and_zero_delay(self):
+        # V3 is a named opt-in experiment; V2 and the original zero-delay
+        # policy remain reproducible. Check the formerly deadlocked route.
+        trace = short_terminal_trace()
+        kwargs = dict(speed=3.4, max_yaw_rate=65., dt=.11, max_seconds=40.,
+                      speed_policy="turn-limited-ordered",
+                      predict_command_application=True,
+                      prediction_rejoin_policy="near-stall")
+        report = simulate_route(trace, delay_steps=1, **kwargs)
+        verify_synthetic_trajectory(report, trace)
+        self.assertTrue(report["metrics"]["syntheticArrival"])
+        self.assertTrue(drain_after_arrival(report, trace)["settledWithinTolerance"])
+        self.assertEqual(report["syntheticCommandPrediction"]["terminalRejoinFraction"], .1)
+        self.assertEqual(simulate_route(trace, delay_steps=0, **kwargs),
+                         simulate(trace, delay=0, predict=False))
+
+    def test_alternate_policy_requires_explicit_prediction(self):
+        with self.assertRaises(TraceError):
+            simulate_route(short_terminal_trace(), prediction_rejoin_policy="near-stall")
+        with self.assertRaises(TraceError):
+            simulate_route(short_terminal_trace(), speed_policy="turn-limited-ordered",
+                           predict_command_application=True,
+                           prediction_rejoin_policy="unknown")
+
     def test_forecast_tampering_is_rejected(self):
         trace = short_terminal_trace()
         report = copy.deepcopy(simulate(trace))

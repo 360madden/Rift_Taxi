@@ -156,6 +156,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Opt-in paired ideal-plant experiment; never invokes game control.
     prediction = commands.add_parser("compare-latency-prediction", help="offline queued-pose prediction comparison")
     prediction.add_argument("--out", help="write comparison to a NEW file")
+    prediction.add_argument("--rejoin-policy", choices=("near-goal", "near-stall"),
+                            default="near-goal", help="select experimental rejoin timing")
     # Strict saved-report audit; an optional separately recorded digest
     # pins the exact input bytes. Replays synthetic data only.
     receipt = commands.add_parser("verify-v3-receipt", help="offline strict JSON, aggregate and replay verification")
@@ -376,7 +378,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "compare-latency-prediction":
             if args.out is not None:
                 _capture_preflight(args.out, 0.)
-            _write_or_print(compare_latency_prediction(), args.out)
+            _write_or_print(compare_latency_prediction(policy=args.rejoin_policy), args.out)
         elif args.command == "verify-v3-receipt":
             _write_or_print(audit_v3_receipt(args.report, expected_sha256=args.expected_sha256), args.out)
         elif args.command == "measure-motion-timing":

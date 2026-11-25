@@ -22,14 +22,15 @@ _OUTCOMES = ("geometricArrival", "settledWithinTolerance", "arrivalAndDutyTarget
 _POLICY = "turn-limited-ordered"
 
 
-def _run_candidate(spec, digest, delay):
+def _run_candidate(spec, digest, delay, policy):
     """Keep source identity and all model bounds matched to the baseline."""
     trace = _case_trace({k: spec[k] for k in _KEYS}, generator="taxi-holdout-v3")
     if trace.trace_sha256 != digest:
         raise TraceError("latency experiment scenario digest mismatch")
     result = simulate_route(trace, speed=spec["speed"], max_yaw_rate=spec["maxYawRate"],
                             dt=spec["dt"], max_seconds=40., speed_policy=_POLICY,
-                            delay_steps=delay, predict_command_application=True)
+                            delay_steps=delay, predict_command_application=True,
+                            prediction_rejoin_policy=policy)
     verify_synthetic_trajectory(result, trace)
     drain = drain_after_arrival(result, trace)  # Also verifies actual corner witnesses.
     metrics = result["metrics"]
@@ -60,8 +61,8 @@ def _v3_outcome(original):
             "postArrivalDistanceXZ": drain.get("postArrivalDistanceXZ")}
 
 
-def _row(spec, case, digest, delay, baseline):
-    candidate = _run_candidate(spec, digest, delay)
+def _row(spec, case, digest, delay, baseline, policy):
+    candidate = _run_candidate(spec, digest, delay, policy)
     if delay == 0 and candidate != baseline:
         raise TraceError("prediction changed zero-delay baseline")
     return {"case": case, "scenarioSHA256": digest, **{k: spec[k] for k in _KEYS},
@@ -94,32 +95,35 @@ def _group(rows, label, by):
             "cases": rows}
 
 
-def compare_latency_prediction():
+def compare_latency_prediction(*, policy="near-goal"):
     """Compare 216 V3 pairs and 864 factorial pairs; overlapping development sets.
 
     Existing policies and reports remain frozen. Each candidate is checked
     independently for integration/FIFO consistency and actual corner evidence.
     No parameter selection from these observed results is a fresh holdout.
     """
+    if policy not in ("near-goal", "near-stall"):
+        raise TraceError("unknown synthetic prediction rejoin policy")
     v3 = []
     for case in evaluate_holdout_v3()["cases"]:
         for delay in (0, 1, 3):
             baseline = _v3_outcome(case["outcomes"][f"{_POLICY}:{delay}"])
-            v3.append(_row(case, case["case"], case["scenarioSHA256"], delay, baseline))
+            v3.append(_row(case, case["case"], case["scenarioSHA256"], delay, baseline, policy))
     source = evaluate_delay_factorial()
     geometry = {r["geometryCase"]: r for r in source["geometry"]}
     factorial = []
     for case in source["cases"]:
         spec = {**geometry[case["geometryCase"]], **case}
         baseline = {k: case[k] for k in v3[0]["baseline"]}
-        row = _row(spec, case["geometryCase"], case["scenarioSHA256"], case["delaySteps"], baseline)
+        row = _row(spec, case["geometryCase"], case["scenarioSHA256"], case["delaySteps"], baseline, policy)
         # Group on the declared matched nominal delay rather than floating
         # multiplication differences between dt profiles.
         row["nominalDelaySeconds"] = case["nominalDelaySeconds"]
         factorial.append(row)
     return {"schema": "taxi.synthetic-command-prediction-comparison/1",
             "classification": "SYNTHETIC_CLOSED_LOOP_ONLY",
-            "candidate": "queued-pose-midpoint-terminal-rejoin/2",
+            "candidate": ("queued-pose-midpoint-near-stall/3" if policy == "near-stall"
+                          else "queued-pose-midpoint-terminal-rejoin/2"),
             "sets": [_group(v3, "observed-v3", "delaySteps"),
                      _group(factorial, "observed-v3-factorial", "nominalDelaySeconds")],
             "gameInputSent": False, "liveArrivalVerified": False,
