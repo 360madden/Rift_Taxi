@@ -69,6 +69,14 @@ class SyntheticJourneyCLITests(unittest.TestCase):
             self.assertIn("Synthetic journey refused:", result.stderr)
             self.assertEqual(output.read_bytes(), original)
 
+    def test_opt_in_prediction_is_exposed_by_cli(self):
+        result = self.invoke("--approach-mode", "predict-near-stall", "--delay-steps", 2)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = json.loads(result.stdout)
+        self.assertEqual(report["experimentalApproachMode"], "predict-near-stall")
+        self.assertIn("syntheticCommandPrediction", report["approach"])
+        self.assertFalse(report["gameInputSent"])
+
     def test_invalid_budget_refuses_without_creating_output(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "invalid.json"

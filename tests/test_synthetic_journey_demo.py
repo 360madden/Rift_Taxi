@@ -67,6 +67,46 @@ class SyntheticJourneyDemoTests(unittest.TestCase):
         self.assertEqual(summary["finalObservedErrorXZ"], approach["finalXZError"])
         self.assertEqual(summary["totalForwardDutyRatio"], approach["forwardDutyRatio"])
 
+    def test_zero_delay_rejoin_recovers_four_observed_failures(self):
+        # These cases were discovered in the fixed 48-case smoke. Freeze
+        # the original failing approach and demonstrate actual rejoin,
+        # not an arrival-tolerance waiver or terminal correction shortcut.
+        for yaw in (-50., 20.):
+            trace = _case_trace({"routeId": "short-final-z",
+                                "routeXYZ": [[0,0,0],[4,0,0],[4,0,3],[8,0,3],[8,0,3.35]],
+                                "initialXYZ": [0.,0.,.35],
+                                "initialYawDegrees": yaw},
+                               generator="taxi-near-stall-fixed-smoke-20261124")
+            for dt, speed, rate in ((.08,2.8,80.),(.12,3.6,125.)):
+                with self.subTest(yaw=yaw, dt=dt):
+                    kwargs = dict(dt=dt, speed=speed, yaw_rate=rate)
+                    baseline = journey(trace, **kwargs)
+                    self.assertEqual(baseline["approach"]["status"], "lookahead-degenerate")
+                    self.assertIsNone(baseline["terminalCorrection"])
+                    result = journey(trace, approach_mode="zero-delay-rejoin", **kwargs)
+                    self.assertTrue(result["summary"]["geometricArrival"])
+                    self.assertTrue(result["summary"]["passiveSettled"])
+                    self.assertTrue(result["summary"]["finalModelSettled"])
+                    self.assertTrue(any(f.get("targetMode") == "terminal-progress-rejoin"
+                                        for f in result["approach"]["frames"]))
+                    self.assertEqual(result["experimentalApproachMode"], "zero-delay-rejoin")
+                    self.assertFalse(result["gameInputSent"])
+
+    def test_prediction_modes_reach_standalone_approach(self):
+        for mode in ("predict-near-goal", "predict-near-stall"):
+            with self.subTest(mode=mode):
+                result = journey(straight_trace(), delay_steps=2, approach_mode=mode)
+                self.assertTrue(result["summary"]["finalModelSettled"])
+                self.assertEqual(result["experimentalApproachMode"], mode)
+                self.assertIn("syntheticCommandPrediction", result["approach"])
+                self.assertFalse(result["physicalQualification"])
+
+    def test_mismatched_approach_mode_and_delay_refused(self):
+        for mode, delay in (("predict-near-goal", 0), ("predict-near-stall", 0),
+                            ("zero-delay-rejoin", 1), ("unknown", 0)):
+            with self.subTest(mode=mode, delay=delay), self.assertRaises(TraceError):
+                journey(straight_trace(), delay_steps=delay, approach_mode=mode)
+
     def test_historical_trace_is_refused(self):
         with self.assertRaises(TraceError):
             journey(replace(straight_trace(), source_type="historical"))
