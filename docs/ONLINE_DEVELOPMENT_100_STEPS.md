@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. 59 steps completed at their stated scope. Hosted run 45547058953 verifies Windows 518/518 and Ubuntu 502 passed, 16 skipped. Route-specific analysis 035–040 is verified. V4 design 061–065 is prespecified and committed; 066 remains pending hosted design-test execution, and no V4 outcomes have been evaluated. Step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for detailed evidence.
+November 24, 2026. 66 steps completed at their stated scope. Hosted run 45547257578 verifies Windows 520/520 and Ubuntu 504 passed, 16 skipped, including the V4 design. The separate V4 comparison protocol and parameter candidate are committed before outcome inspection; the 432-call comparison and three added tests remain pending hosted confirmation. Step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md and V4_OFFLINE_COMPARISON_PROTOCOL.md for evidence and research limits.
 
 ## Online baseline and acceptance
 
@@ -69,16 +69,16 @@ November 24, 2026. 59 steps completed at their stated scope. Hosted run 45547058
 
 ## Synthetic approach research
 
-- [ ] 051. Specify separate opt-in experiment contract
-- [ ] 052. Freeze existing policy and geometry outputs
-- [ ] 053. Define model-only command latency parameter
-- [ ] 054. Specify terminal objective and comparison metrics
-- [ ] 055. Select bounded model-only research candidates
+- [x] 051. Specify separate opt-in experiment contract
+- [x] 052. Freeze existing policy and geometry outputs
+- [x] 053. Define model-only command latency parameter
+- [x] 054. Specify terminal objective and comparison metrics
+- [x] 055. Select bounded model-only research candidates
 - [ ] 056. Evaluate zero-delay negative control
 - [ ] 057. Evaluate known delay cases
 - [ ] 058. Retain every failed approach
 - [ ] 059. Compare gains and losses against frozen baseline
-- [ ] 060. Document limits and reject unqualified policy promotion
+- [x] 060. Document limits and reject unqualified policy promotion
 
 ## Independent holdout research
 
@@ -87,7 +87,7 @@ November 24, 2026. 59 steps completed at their stated scope. Hosted run 45547058
 - [x] 063. Define independent heading offsets
 - [x] 064. Define model factor coverage before evaluation
 - [x] 065. Record deterministic generator version
-- [ ] 066. Check every requested scenario appears once
+- [x] 066. Check every requested scenario appears once
 - [ ] 067. Evaluate frozen baseline on holdout
 - [ ] 068. Evaluate opt-in research candidates
 - [ ] 069. Compare terminal error and duty without survivor bias
