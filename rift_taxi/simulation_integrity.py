@@ -112,6 +112,14 @@ def _verify(result,trace):
                 or delay["terminalFrameIsObservationBoundary"] is not True):
             raise TraceError("invalid synthetic terminal delay classification")
     queue = deque([(0.,0.)]*n)
+    prediction = result.get("syntheticCommandPrediction")
+    predicting = "syntheticCommandPrediction" in result
+    if predicting:
+        if (not n or model.get("speedPolicy") != "turn-limited-ordered"
+                or prediction["method"] != "queued-pose-midpoint/1"
+                or prediction["observedProgressOnly"] is not True):
+            raise TraceError("invalid synthetic command prediction declaration")
+        _same(prediction["nominalHorizonSeconds"], n*dt, "prediction horizon")
 
     # Accumulate using the actual applied velocity and duration, never
     # requested motion. Stationary and turning-only intervals stay in the
@@ -136,6 +144,29 @@ def _verify(result,trace):
             _same(_yaw_delta(yaw,initial_yaw),0.,"initial yaw")
             _same(progress,0.,"initial progress")
         terminal = i==len(frames)-1
+        # Independently replay the pending FIFO before adding the new request.
+        # A future pose is diagnostic only; never replace the actual frame
+        # position used below for integration, progress or arrival checks.
+        prediction_fields = {"predictedApplicationXYZ", "predictedApplicationYawDegrees"}
+        if predicting and not terminal:
+            px, py, pz = position
+            forecast_yaw = yaw
+            for queued_speed, queued_rate in queue:
+                turn = queued_rate*dt
+                direction = math.radians(forecast_yaw+turn/2.)
+                px += queued_speed*dt*math.cos(direction)
+                pz += queued_speed*dt*math.sin(direction)
+                forecast_yaw = _yaw_delta(forecast_yaw+turn, 0.)
+            for actual, expected in zip(_xyz(a["predictedApplicationXYZ"]), (px,py,pz)):
+                _same(actual, expected, "predicted application XYZ")
+            _same(_yaw_delta(_number(a["predictedApplicationYawDegrees"], "predicted yaw", -180., 180.),
+                             forecast_yaw), 0., "predicted application yaw")
+            tx, _, tz = _xyz(a["lookaheadXYZ"])
+            bearing = math.degrees(math.atan2(tz-pz, tx-px))
+            _same(_yaw_delta(_number(a["headingErrorDegrees"], "predicted heading error"),
+                             _yaw_delta(bearing, forecast_yaw)), 0., "predicted heading error")
+        elif prediction_fields.intersection(a):
+            raise TraceError("unexpected synthetic prediction fields")
         if terminal:
             if step!=0. or velocity!=0. or rate!=0.:
                 raise TraceError("invalid synthetic terminal frame")

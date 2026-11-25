@@ -17,6 +17,7 @@ adjusting the model, rather than loosening arrival or deviation thresholds.
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Iterable
 import math
 from typing import Any
 
@@ -72,17 +73,45 @@ def _sharp_vertices(points, cumulative) -> list[tuple[int, float]]:
     return result
 
 
+def _predict_pending_pose(
+    position: tuple[float, float, float], yaw: float,
+    pending: Iterable[tuple[float, float]], dt: float,
+) -> tuple[tuple[float, float, float], float]:
+    """Forecast ideal pose just before a newly queued request takes effect.
+
+    Every existing FIFO entry is an already requested velocity (units/s)
+    and turn rate (degrees/s), applied in order for one nominal dt. This
+    is exact only for the declared midpoint plant and known deterministic
+    queue. No prediction is admitted as observed position, route progress,
+    sharp-corner passage, arrival or release evidence. The iterable is read
+    without dequeuing or mutating it; the actual plant advances separately.
+    """
+    for velocity, rate in pending:
+        turn = rate * dt
+        mid = math.radians(yaw + turn / 2.)
+        delta = velocity * dt
+        position = (position[0] + delta * math.cos(mid), position[1],
+                    position[2] + delta * math.sin(mid))
+        yaw = _angle_delta(yaw + turn, 0.)
+    return position, yaw
+
+
 def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                    lookahead: float = 1.5, max_yaw_rate: float = 180.,
                    max_seconds: float = 30., max_cross_track: float = 2.,
-                   speed_policy: str = "fixed", delay_steps: int = 0) -> dict[str, Any]:
+                   speed_policy: str = "fixed", delay_steps: int = 0,
+                   predict_command_application: bool = False) -> dict[str, Any]:
     """Run a deterministic ideal kinematic plant with feedback, no OS input.
 
     Units, speed, yaw rate, turn response and stopping are explicitly synthetic.
     No physical actuator, obstacle, collision, elevation or coasting model.
     Optional delay_steps is an ideal FIFO transport delay of both requested
     velocity and yaw rate, in whole integration steps. Zero preserves the
-    original instant-response model and its report format.
+    original instant-response model and its report format. The optional
+    prediction experiment is restricted to the ordered policy. It uses the
+    queued ideal motion to compute a future control pose, but preserves
+    actual observed arc progress, corner witnesses and terminal criteria.
+    With zero delay the flag is an exact no-op, including report bytes.
 
     dt: integration step (seconds); speed: nominal positive units/s;
     lookahead: route arc-length distance (units); max_yaw_rate: degrees/s;
@@ -100,6 +129,11 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("unknown synthetic speed policy")
     if type(delay_steps) is not int or not 0 <= delay_steps <= 10:
         raise TraceError("delay_steps must be an integer within 0..10")
+    if type(predict_command_application) is not bool:
+        raise TraceError("predict_command_application must be boolean")
+    if predict_command_application and speed_policy != "turn-limited-ordered":
+        raise TraceError("command prediction requires the ordered synthetic policy")
+    prediction_active = predict_command_application and delay_steps > 0
     dt = _bounded_number(dt, "dt", .01, .2)
     speed = _bounded_number(speed, "speed", .1, 20.)
     lookahead = _bounded_number(lookahead, "lookahead", .1, 20.)
@@ -201,11 +235,19 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         if i == max_steps or remaining_time <= 1e-10:
             break
         step = min(dt, remaining_time)
+        # Only steering's reference pose is predicted. The target arc, rejoin
+        # decisions, passage witnesses and progress budget still use actual
+        # observations above. A prediction must never skip a sharp corner.
+        control_position, control_yaw = position, yaw
+        control_distance = distance
+        if prediction_active:
+            control_position, control_yaw = _predict_pending_pose(position, yaw, pending, dt)
+            control_distance = _xz_distance(control_position, goal)
         target_arc = min(total, progress+lookahead)
         if ordered and sharp_cursor < len(sharp):
             target_arc = min(target_arc, sharp[sharp_cursor][1])
         target = _lookahead_point(trace.points, cumulative, target_arc)
-        dx, dz = target[0]-position[0], target[2]-position[2]
+        dx, dz = target[0]-control_position[0], target[2]-control_position[2]
         chord = math.hypot(dx, dz)
         if speed_policy in ("turn-limited-rejoin", "turn-limited-ordered"):
             # A short chord can occur even when substantial arc remains:
@@ -225,15 +267,29 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                 rejoin_entries += 1
             if rejoining:
                 target = _lookahead_point(trace.points, cumulative, progress)
-                dx, dz = target[0]-position[0], target[2]-position[2]
+                dx, dz = target[0]-control_position[0], target[2]-control_position[2]
                 chord = math.hypot(dx, dz)
+        # A forecast can approach the endpoint while observed, displacement-
+        # bounded route progress remains short. Braking toward that same
+        # endpoint then eliminates the motion needed to earn progress.
+        # Rejoin the local admitted arc instead; do not assign progress,
+        # bypass outstanding sharp gates, or relax the arrival tolerance.
+        terminal_rejoin = (prediction_active and target_arc == total
+                           and sharp_cursor == len(sharp)
+                           and progress < total-tolerance
+                           and distance <= tolerance
+                           and control_distance <= tolerance)
+        if terminal_rejoin:
+            target = _lookahead_point(trace.points, cumulative, progress)
+            dx, dz = target[0]-control_position[0], target[2]-control_position[2]
+            chord = math.hypot(dx, dz)
         # A coincident target has no well-defined bearing. Keep the failure
         # explicit rather than guessing a yaw or skipping an unverified leg.
         # Holdout v1 exposes this limitation on tightly spaced zigzags.
         if chord <= 1e-9:
             status = "lookahead-degenerate"
             break
-        heading_error = _angle_delta(math.degrees(math.atan2(dz,dx)), yaw)
+        heading_error = _angle_delta(math.degrees(math.atan2(dz,dx)), control_yaw)
         # Proportional heading feedback, rate-limited. An ideal actuator,
         # not RIFT A/D or a physical steering calibration.
         yaw_rate = max(-max_yaw_rate, min(max_yaw_rate, 5.*heading_error))
@@ -247,8 +303,12 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
             # Avoid stepping past a close anchor while aligning. Keep the
             # curvature cap; no forced minimum velocity at a singularity.
             velocity = min(velocity, chord/step)
-        if total-progress <= lookahead:
-            velocity = min(velocity, max(.15, 2.*distance), distance/step)
+        if terminal_rejoin:
+            # Bound the return by its local chord, not distance to the
+            # already-near endpoint. Only applied motion earns progress.
+            velocity = min(velocity, chord/step)
+        elif total-progress <= lookahead:
+            velocity = min(velocity, max(.15, 2.*control_distance), control_distance/step)
         # Record both requested and applied commands for nonzero delay.
         # Motion metrics and projection budget use the applied values only.
         requested_velocity, requested_yaw_rate = velocity, yaw_rate
@@ -260,13 +320,18 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                        "lookaheadXYZ": list(target), "headingErrorDegrees": heading_error,
                        "speed": velocity, "yawRateDegreesPerSecond": yaw_rate,
                        "stepSeconds": step})
+        if prediction_active:
+            frames[-1]["predictedApplicationXYZ"] = list(control_position)
+            frames[-1]["predictedApplicationYawDegrees"] = control_yaw
         if delay_steps:
             frames[-1]["requestedSpeed"] = requested_velocity
             frames[-1]["requestedYawRateDegreesPerSecond"] = requested_yaw_rate
         # Only the recovery variant adds target-mode diagnostics, keeping
         # prior policy reports byte-reproducible.
         if speed_policy in ("turn-limited-rejoin", "turn-limited-ordered"):
-            frames[-1]["targetMode"] = "local-projection-rejoin" if rejoining else "lookahead"
+            frames[-1]["targetMode"] = (
+                "terminal-progress-rejoin" if terminal_rejoin else
+                "local-projection-rejoin" if rejoining else "lookahead")
         if ordered:
             frames[-1]["orderedSharpCornersPassed"] = sharp_cursor
         # Midpoint integration of an ideal planar velocity/turn plant.
@@ -323,6 +388,10 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     return {
         **recovery,
         **delay_diagnostics,
+        **({"syntheticCommandPrediction": {"method": "queued-pose-midpoint/1",
+                                           "observedProgressOnly": True,
+                                           "nominalHorizonSeconds": delay_steps*dt}}
+           if prediction_active else {}),
         "schema": "taxi.synthetic-feedback/1",
         "classification": "SYNTHETIC_CLOSED_LOOP_ONLY",
         "status": status, "routeId": trace.route_id, "inputTraceSHA256": trace.trace_sha256,
