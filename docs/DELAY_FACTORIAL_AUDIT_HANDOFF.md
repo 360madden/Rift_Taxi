@@ -35,3 +35,25 @@ The auditor now rejects duplicate JSON keys, nonfinite numbers (including overfl
 - Tests: `99a8e30111f2b75ce1b9363f86fa66f5bb0e4a46`
 
 Full integrated acceptance and the original archived report remain pending. Main and frozen synthetic policies are unchanged. Direct Git DNS remains unavailable in the Linux execution environment; use the GitHub connector and hosted CI where supported.
+
+## Hosted regression and diagnostic evidence
+
+GitHub Actions run 45540802854, head d16632b: Windows 503/503 (46.282 s), Ubuntu 487 passed and 16 skipped (21.526 s). Run 45541077013, head 576dcb2, base 2e0a8cf: Windows 507/507 (34.987 s); Ubuntu 489 passed, 2 failed, 16 skipped (21.650 s). Windows checkout log confirms synthetic PR merge b0ce121 with the expected head and base. Both platforms generated and audited the complete 864-case study and reconciled these route-level counts.
+
+| Route | Approach losses at 330 ms | Arrived but unsettled | Total settling losses |
+|---|---:|---:|---:|
+| double-crossing | 13 | 6 | 19 |
+| narrow-return | 12 | 5 | 17 |
+| mixed-angle-fan | 0 | 10 | 10 |
+| short-leg-staircase | 0 | 7 | 7 |
+| translated-curve | 0 | 7 | 7 |
+| short-terminal-leg | 0 | 3 | 3 |
+| Total | 25 | 38 | 63 |
+
+Zero and 110 ms: all 288 approach and settling outcomes successful. At 330 ms: 263 arrivals, 225 settled, 32 arrival-plus-duty successes. These counts match the historical study, but small platform-specific floating-point differences occur in terminal error values; do not claim cross-platform byte identity. For duty success, zero delay has 104, 110 ms has 89 (15 gains, 30 losses), 330 ms has 32 (16 gains, 88 losses), all compared to zero delay. All observed geometric losses concentrate in two route shapes. Original ignored LEGION archive still unavailable; generated report SHA validation is not a substitute for historical archive verification.
+
+## Cross-platform test defect
+
+The two failing Ubuntu tests in run 45541077013 are existing mocked crash-release tests. Their synthetic marker is at 100.03 monotonic seconds, but the fixture uses the real host monotonic clock to judge whether that marker is in the past. A newly started host can violate that assumption. Commit aa2d037 pins the mocked clock to a deterministic advancing epoch beginning at 500 seconds, independent of uptime; production behavior is unchanged. This is a proposed fixture correction pending hosted rerun, not confirmation of a physical release event. Keep PR draft pending acceptance.
+
+Evidence: https://github.com/360madden/Rift_Taxi/actions/runs/45541077013
