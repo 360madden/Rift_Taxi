@@ -15,6 +15,9 @@ from pathlib import Path
 FACTORS = {"speed": (2.2, 3.4), "maxYawRate": (65., 140.), "dt": (.055, .11)}
 DELAYS = (0., .11, .33)
 OUTCOMES = ("geometricArrival", "settledWithinTolerance", "arrivalAndDutyTarget")
+# Original report is ~668 KiB. Bound reads before JSON parsing, allowing
+# substantial formatting growth without admitting arbitrary-size archives.
+MAX_REPORT_BYTES = 8 * 1024 * 1024
 
 
 def require(condition, message):
@@ -37,6 +40,7 @@ def summary(rows):
 
 def audit(report):
     """Check complete fixed design, case invariants and independent pair counts."""
+    require(type(report) is dict, "report must be a JSON object")
     require(report["schema"] == "taxi.synthetic-delay-factorial/1" and
             report["classification"] == "SYNTHETIC_CLOSED_LOOP_ONLY" and
             report["speedPolicy"] == "turn-limited-ordered" and
@@ -123,10 +127,29 @@ def _finite_float(token):
     return value
 
 
-def audit_bytes(raw, expected_sha256):
+def read_report(path):
+    """Read at most one byte beyond the size limit, even if a file grows."""
+    with path.open("rb") as stream:
+        raw = stream.read(MAX_REPORT_BYTES + 1)
+    require(len(raw) <= MAX_REPORT_BYTES, "archive exceeds size limit")
+    return raw
+
+
+def parse_report(raw, expected_sha256):
+    """Authenticate exact bytes and decode once with strict JSON semantics."""
+    require(len(raw) <= MAX_REPORT_BYTES, "archive exceeds size limit")
     require(hashlib.sha256(raw).hexdigest() == expected_sha256, "archive SHA-256 mismatch")
-    return audit(json.loads(raw, object_pairs_hook=_unique_object,
-                            parse_float=_finite_float, parse_constant=_finite_float))
+    try:
+        report = json.loads(raw, object_pairs_hook=_unique_object,
+                            parse_float=_finite_float, parse_constant=_finite_float)
+    except RecursionError as exc:
+        raise ValueError("archive JSON nesting too deep") from exc
+    require(type(report) is dict, "report must be a JSON object")
+    return report
+
+
+def audit_bytes(raw, expected_sha256):
+    return audit(parse_report(raw, expected_sha256))
 
 
 def main():
@@ -135,7 +158,7 @@ def main():
     parser.add_argument("--sha256", required=True)
     args = parser.parse_args()
     try:
-        print(json.dumps(audit_bytes(args.report.read_bytes(), args.sha256), sort_keys=True))
+        print(json.dumps(audit_bytes(read_report(args.report), args.sha256), sort_keys=True))
     except (OSError, ValueError, KeyError, TypeError, OverflowError) as exc:
         parser.exit(2, f"Audit failed: {exc}\n")
 
