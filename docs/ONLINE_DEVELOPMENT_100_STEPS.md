@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. Execution is evidence-driven, not a promise of background work. 23 steps completed at their stated scope: 001–019 and 031–034. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for hosted run evidence. Step 020 remains blocked by the Ubuntu regression failure and pending archive acceptance; fixture correction aa2d037 is committed, rerun pending. Other unchecked steps remain pending. Main and physical qualification remain unchanged.
+November 24, 2026. Execution is evidence-driven, not a promise of background work. 34 steps completed at their stated scope: 001–019, 021, 023–026, 028–034 and 071–073. The new archive CLI tests for 074–076 are written but remain unchecked pending hosted execution. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for hosted run evidence. Step 020 remains blocked by the Ubuntu regression failure and pending archive acceptance; fixture correction aa2d037 is committed, rerun pending. Other unchecked steps remain pending. Main and physical qualification remain unchanged.
 
 ## Online baseline and acceptance
 
@@ -30,16 +30,16 @@ November 24, 2026. Execution is evidence-driven, not a promise of background wor
 
 ## Synthetic model scope
 
-- [ ] 021. Document FIFO observation versus actuation assumptions
+- [x] 021. Document FIFO observation versus actuation assumptions
 - [ ] 022. Inventory existing delay study and replay tests
-- [ ] 023. Identify geometric arrival definition
-- [ ] 024. Identify terminal settling definition
-- [ ] 025. Identify duty denominator and time budget
-- [ ] 026. Check timestep versus delay representability
+- [x] 023. Identify geometric arrival definition
+- [x] 024. Identify terminal settling definition
+- [x] 025. Identify duty denominator and time budget
+- [x] 026. Check timestep versus delay representability
 - [ ] 027. Preserve all frozen source hashes
-- [ ] 028. Write explicit no-live-qualification boundary
-- [ ] 029. Define baseline comparison outcome schema
-- [ ] 030. Define negative result retention policy
+- [x] 028. Write explicit no-live-qualification boundary
+- [x] 029. Define baseline comparison outcome schema
+- [x] 030. Define negative result retention policy
 
 ## Failure stratification
 
@@ -95,9 +95,9 @@ November 24, 2026. Execution is evidence-driven, not a promise of background wor
 
 ## Robustness and regression
 
-- [ ] 071. Review malformed archive handling
-- [ ] 072. Review bounded report file size
-- [ ] 073. Review CLI exit code contract
+- [x] 071. Review malformed archive handling
+- [x] 072. Review bounded report file size
+- [x] 073. Review CLI exit code contract
 - [ ] 074. Test missing file error
 - [ ] 075. Test invalid digest error
 - [ ] 076. Test non-object report error
