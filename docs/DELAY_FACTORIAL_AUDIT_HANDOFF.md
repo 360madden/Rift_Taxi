@@ -71,3 +71,15 @@ Commits 94653fc, fb876ec and 170cbc5 add a shared digest-verified strict parser,
 Run 45546590286 (aa2d037) completed successfully: Windows 507/507 in 50.375 s; Ubuntu 491 passed, 16 skipped in 35.214 s. Independently parsed the diagnostic JSON from both job logs: all discrete outcomes across 12 route/delay groups match exactly. The maximum absolute difference in the 12 maximum-settled-error measurements is 5.717648576819556e-15 synthetic units. This is aggregate diagnostic equivalence, not a per-case trajectory comparison or byte-identical archive reproduction.
 
 Run 45546766551 (ed17b2c): Ubuntu 494 passed, 16 skipped, 21.150 s; Windows pending at observation. The archive size, non-object/deep JSON, and both CLI error/success tests therefore have verified Linux execution. Four additional test methods are committed at c48bec2 and 2e8e7a8: deterministic diagnostic case ordering, all-failure report, matched gains/losses that cancel in marginal counts, and unknown schema with correct digest. Prospective discovery count is 514; no pass claim until hosted execution.
+
+## Route-factor stratification checkpoint
+
+Hosted run 45546919255 at head 3828af4: Windows 514/514 (39.941 s); Ubuntu 498 passed, 16 skipped (19.729 s). Both succeeded. This validates the preceding four new tests and bounded archive changes. Source blobs for simulation.py (5294c221193e18f067856857428549ebbcac5050), simulation_settling.py (52a5f2082fd07502a77bbb6a876486e2566dc894), simulation_delay_factorial.py (b26999c0de6671d7029abb30cf394675ba1b90ea), and simulation_holdout_v3.py (60871fc94ab3c17d0cc8d3154e65d46d3939882e) independently match base 2e0a8cf.
+
+Commits ca637e6, 0739369 and 92e8603 introduce a separate descriptive stratification command: route-specific matched effects for speed, yaw cap and timestep; binary outcome histories across three delays; and min/median/max terminal errors with failed-approach denominators. The four new tests (three analytic, one actual-grid reconciliation) are committed but not yet verified by hosted CI. Prospective discovery count: 518. Keep the historical archive and controller unchanged. The analysis is descriptive, not an independent holdout or a physical performance claim.
+
+Usage (from repo root):
+```powershell
+python -B -m rift_taxi.delay_factorial_stratification artifacts/m2-m3-delay-factorial-20261124-1326.json --sha256 83c749b68236c62a8a3e85c94f9349016298eb3e53e2b9cd6971b18cc81cb65f
+```
+The original file remains unavailable; above is a future verification command, not an execution receipt.
