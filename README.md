@@ -169,6 +169,9 @@ python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json 
 # Zero-delay synthetic approach recovery
 python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json --approach-mode zero-delay-rejoin
 
+# Concise automation output while preserving the full report (new path)
+python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json --summary --require-settled --out artifacts\new-journey.json
+
 # Re-run the regression suite
 python -B -m unittest discover -s tests -v
 ```

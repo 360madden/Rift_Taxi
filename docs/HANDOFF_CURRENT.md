@@ -1,5 +1,12 @@
 # Current RIFT Taxi handoff — November 24, 2026
 
+## November 25 morning — recovery and standalone automation
+
+PR #8 accepted at 93199e2; hosted synthetic Windows recovery rehearsal and independent verifier succeeded (556/556, 29 files). LEGION synchronized to that main; current-main recovery replay using archived manifests passed 556/556 and 29-file verification. Current executable hash matches the baseline, but updater completion and full current inventory remain unverified. RIFT login unavailable. See [recovery runbook section 9](PATCH_RECOVERY_2026-11-24.md#9-november-25-morning-legion-validation).
+
+New standalone CLI reporting supports --summary (compact JSON, with optional full receipt saved separately) and --require-settled (exit 1 for a completed but unsettled model run; invalid inputs and I/O refusals remain exit 2). Legacy defaults unchanged. Local focused suite 17/17; full 559/559 passed (66.049 s, exit 0). Keep all modes synthetic and production disarmed.
+
+
 ## Accepted baseline and recovery rehearsal (November 24 PST)
 
 PR #7 accepted at `4803c92`; hosted run 45563551288 passed 556 Windows tests and installed all three experimental modes. Latest LEGION doctor returned offline-replay-ready; historic V2 receipt independently reverified (29 files, no-content-change). LEGION subsequently returned session terminated; no new installation state or local sync is asserted. New hosted synthetic recovery rehearsal is under review, using fake manifest data on a Windows runner and the actual recovery commands, not RIFT or LEGION evidence. Current test floor 556; see [patch runbook section 8](PATCH_RECOVERY_2026-11-24.md#8-current-accepted-baseline-and-hosted-synthetic-rehearsal--november-24-pst). Keep production disarmed. Resume actual post-patch capture only after host and updater readiness are confirmed.

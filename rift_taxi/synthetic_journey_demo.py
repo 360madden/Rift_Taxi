@@ -104,6 +104,29 @@ def journey(trace, *, dt=.1, speed=3., yaw_rate=115., delay_steps=0,
     }
 
 
+def compact_report(result):
+    """Extract an automation-oriented summary without dropping failure reasons.
+
+    The full report remains the evidence source. The compact view includes
+    provenance, policy, phase statuses, timing and explicit synthetic flags;
+    a failed approach is not represented as a successful journey.
+    """
+    correction = result["terminalCorrection"]
+    return {
+        "schema": "taxi.synthetic-journey-summary/1",
+        "classification": result["classification"],
+        "routeId": result["routeId"],
+        "inputTraceSHA256": result["inputTraceSHA256"],
+        "approachMode": result.get("experimentalApproachMode", "baseline"),
+        "approachStatus": result["approach"]["status"],
+        "passiveDrainStatus": result["passiveDrain"]["status"],
+        "terminalCorrectionStatus": correction["status"] if correction else None,
+        "summary": result["summary"],
+        "physicalQualification": result["physicalQualification"],
+        "gameInputSent": result["gameInputSent"],
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("trace", help="versioned synthetic motion-trace JSON")
@@ -117,7 +140,11 @@ def main(argv=None):
     parser.add_argument("--approach-budget", type=float, default=40.)
     parser.add_argument("--terminal-budget", type=float, default=5.)
     parser.add_argument("--lookahead", type=float, default=1.5)
-    parser.add_argument("--out", type=Path, help="new JSON file; never overwrite")
+    parser.add_argument("--out", type=Path, help="new full JSON report; never overwrite")
+    parser.add_argument("--summary", action="store_true",
+                        help="print compact JSON to stdout; --out still saves the full report")
+    parser.add_argument("--require-settled", action="store_true",
+                        help="return exit 1 for a valid but unsettled model journey")
     args = parser.parse_args(argv)
     try:
         result = journey(
@@ -126,12 +153,18 @@ def main(argv=None):
             approach_budget=args.approach_budget, terminal_budget=args.terminal_budget,
             lookahead=args.lookahead, approach_mode=args.approach_mode)
         encoded = json.dumps(result, indent=2, allow_nan=False) + "\n"
-        if args.out is None:
-            print(encoded, end="")
-        else:
+        # Write the complete receipt first. A refusal to create the file
+        # must not be masked by printing a successful-looking summary.
+        if args.out is not None:
             with args.out.open("x", encoding="utf-8", newline="\n") as writer:
                 writer.write(encoded)
-        return 0
+        if args.summary:
+            print(json.dumps(compact_report(result), indent=2, allow_nan=False))
+        elif args.out is None:
+            print(encoded, end="")
+        # Keep legacy exit semantics unless the caller explicitly requests
+        # a settled model journey. Exit 2 remains invalid input/I/O refusal.
+        return 1 if args.require_settled and not result["summary"]["finalModelSettled"] else 0
     except (TraceError, ValueError, OSError) as error:
         parser.exit(2, f"Synthetic journey refused: {error}\n")
 
