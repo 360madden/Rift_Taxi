@@ -58,3 +58,19 @@ class AuditTests(unittest.TestCase):
         self.assertEqual(audit_bytes(raw,digest)['profiles'],24)
         with self.assertRaisesRegex(ValueError,'SHA-256'):
             audit_bytes(raw+b' ',digest)
+
+    def test_ambiguous_json_rejected_even_with_matching_digest(self):
+        """Byte integrity alone cannot establish unambiguous JSON semantics."""
+        raw = json.dumps(fixture()).encode()
+        for extra in (b'"schema":"ignored",', b'"extra":NaN,', b'"extra":1e999,'):
+            candidate = b'{' + extra + raw[1:]
+            with self.subTest(extra=extra), self.assertRaises(ValueError):
+                audit_bytes(candidate, hashlib.sha256(candidate).hexdigest())
+
+    def test_bool_does_not_masquerade_as_number(self):
+        for field, value in (("geometryCase", True), ("nominalDelaySeconds", False),
+                             ("forwardDutyRatio", True), ("postArrivalDistanceXZ", False)):
+            r = fixture()
+            r["cases"][0][field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                audit(r)
