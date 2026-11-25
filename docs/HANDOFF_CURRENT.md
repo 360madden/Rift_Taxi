@@ -5,6 +5,36 @@
 **Remote:** https://github.com/360madden/Rift_Taxi.git
 **State:** M1 in progress; production navigation disarmed. M0 complete. M2/M3 experiments are offline only; M4–M6 remain planned.
 
+## Latest accepted functionality checkpoint — November 24, 2026 (EST)
+
+**Remote main:** merged [PR #2](https://github.com/360madden/Rift_Taxi/pull/2) at `946e6952992420f114232931a8ecccd1adb70f7a`. The exact tested PR head was `a2779094562552766548205ac97871ed69662650`, based on `c4a3bd6b213020c301442e3d874231929fd1c0ed`. [Hosted run 45549457994](https://github.com/360madden/Rift_Taxi/actions/runs/45549457994) completed all three jobs: Windows Python 3.14 539/539 (47.280 s), Ubuntu Python 3.14 523 passed/16 Windows-specific skips (22.503 s), Ubuntu Python 3.11 523 passed/16 skipped (37.284 s). Nine new functional tests passed. Local LEGION checkout was not synchronized or inspected; this is a GitHub-hosted checkpoint.
+
+### New functionality
+
+- `rift_taxi.synthetic_terminal_finish`: bounded stop-align-translate reference in an ideal synthetic plant, from an already drained stationary endpoint. Five-second default correction budget, rate bounds, FIFO delay and final stationary witness; preserve already-settled endpoints without extra motion. Observed V4 long-short-ladder cases: 24/24 settled after correction versus 11/24 passively, preserving 11 successes and correcting 13 failures. These are observed development cases, not fresh validation. The V4 lookahead candidate remains rejected.
+- `rift_taxi.synthetic_journey_demo`: composes unchanged ordered approach, passive FIFO drain, and optional terminal correction in one synthetic journey report. Four integrated tests cover phase continuity, failed approach exclusion, historical trace refusal and invalid budget. A failed approach cannot become a terminal success. CLI uses an existing versioned synthetic trace and refuses overwriting output.
+- Main remains disarmed for production movement. These modules neither open a game process nor send input; exact fractional commands, ideal flat geometry and no collision/inertia model are explicit limitations.
+
+### Resume checklist
+
+1. Read AGENTS.md, AUTONOMY_POLICY.md and this handoff. Confirm actual remote head and machine before making local claims.
+2. Prioritize a usable standalone offline journey demonstration: identify existing synthetic fixtures, run the module CLI on them, preserve failed journeys, and expose concise status/phase results. CLI end-to-end execution and installed-package use of these two new modules are not yet independently verified.
+3. Evaluate independently specified synthetic cases and budget refusals before considering any model-policy change. Measure elapsed time, final error and motion duty; keep approach and terminal correction costs distinct. No more audit-only work unless a consequential issue appears.
+4. Keep M1 preparation practical and bounded; current actor/session, zone/world identity, independent heading and freshness, release and physical journey evidence remain outstanding. Existing sister-project assets are read-only development references, never runtime dependencies.
+5. Batch related edits, run focused and full hosted regressions, and merge/push at meaningful verified checkpoints. The earlier 100-step online backlog is 99/100; step 090 requires independent local sister-repository verification. Original LEGION factorial archive remains unavailable and unverified; it is a separate evidence task, not a blocker for independently tested offline code.
+
+Commands from repo root (synthetic input only):
+
+```powershell
+python -B -m rift_taxi.synthetic_terminal_finish
+python -B -m rift_taxi.synthetic_journey_demo --help
+python -B -m rift_taxi.synthetic_journey_demo PATH_TO_SYNTHETIC_TRACE --delay-steps 2 --out NEW_REPORT.json
+python -B -m unittest discover -s tests -p 'test_synthetic*.py' -v
+python -B -m unittest discover -s tests -q
+```
+
+The commands are reproduction instructions, not a claim that these CLI invocations have already been run. Preserve earlier physical and patch receipts, frozen V4 outputs, and negative results. No native or physical test was performed during this session.
+
 ## Accepted main checkpoint — November 24, 2026
 
 **Merged:** PR #1 at `4a25968c2826f888f40a3509639c72ace5006c75`. Run [45549011214](https://github.com/360madden/Rift_Taxi/actions/runs/45549011214) verified exact premerge head `8d2bb60225652a7f4b617c73ebdad1b0851da3a1`: Windows 530/530, Ubuntu Python 3.11/3.14 each 514 passed and 16 skipped. User-approved strategy separates historical archive authentication from offline code acceptance. The original archive remains unavailable; physical M1 qualification and production disarm are unchanged. Stop expanding auditors unless a consequential defect appears; prioritize bounded offline functionality and meaningful grouped CI checkpoints.
