@@ -232,3 +232,18 @@ Run 45548405445 at head 29a30cc: Ubuntu Python 3.14, 525 discovered, 509 passed/
 The candidate has roughly 66% more queued travel after geometric arrival, and mean endpoint error increases instead of decreasing. These are descriptive means from the selected observed geometry, not independent causal isolation of queue length or a physical overshoot diagnosis. The simulator and original V4 experiment remain frozen; no policy change. Next compare individual queue and observation histories once their full archives are verified.
 
 Commit f016c89 adds separate hosted terminal-observation JSON artifacts, a focused terminal test invocation under Python 3.11 and the sixth installed research-module import check. These new CI steps await verification. Existing V4 artifact paths are unchanged. Main remains unchanged; original roadmap 96/100.
+
+### Terminal archive independent verification
+
+Run 45548405445 completed Windows Python 3.14 with 525/525 in 49.967 s. The Windows terminal summary agrees with both Ubuntu summaries (negligible float differences only). The expanded minimum-version job 138983755205, run 45548498152, passed all 24 focused tests and 509 applicable full-suite tests (525 discovered, 16 platform-specific skips; 22.481 s). All six installed research modules resolved from Python 3.11.18 site-packages.
+
+Retrieved Ubuntu terminal artifact 14993235441 from run 45548498152. Independently verified ZIP SHA-256 477312d2bcd94bae6f31b7e577f2770439ac15361ba9b59a65251ff246875825 (11675 bytes). Its sole JSON member v4-terminal-observation.json has SHA-256 e3f652afbfceec2ed54aa9e68773cab14827673494903f14cee6758aaf3c23f3 (58376 bytes). Checked 12 unique scenario identities, all 24 terminal queues, queued travel against sum of speed times dt, endpoint error triangle bound, observation count, final zero-speed witness and tolerance outcome. All checks passed. Windows terminal artifact was not yet listed at review; do not claim independent per-case Windows archive comparison.
+
+| Metric (synthetic units) | Baseline | Candidate |
+|---|---:|---:|
+| Mean first arrival error | 0.258300065 | 0.247264939 |
+| Mean final error | 0.151362998 | 0.440801614 |
+| Minimum final error | 0.064649375 | 0.300847458 |
+| Maximum final error | 0.302692275 | 0.593542170 |
+
+All 12 candidate endpoints exceed 0.30 tolerance; the smallest miss is approximately 0.000847 units, so the failures are not uniformly large. The candidate actually starts closer on average before the queue drains. Retain this distinction when reviewing future ideal-model settling studies. This selected observed geometry and the archived synthetic model do not establish physical causation or qualify production navigation. No controller changes. Next check the Windows archive and review a terminal-only experimental protocol without changing the frozen V4 evidence. Original backlog and merge gates remain unchanged.
