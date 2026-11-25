@@ -109,3 +109,11 @@ Terminal distributions at 330 ms, conditional on geometric arrival:
 | translated-curve | 48 | .049575 | .184857 | .412727 | 7 |
 
 The three-delay geometric and settled histories are exclusively 110 and 111. The combined arrival/duty outcome is not monotone: eleven short-terminal-leg cases have 010 (succeed only at 110 ms), four have 011, five have 001, and seven narrow-return cases have 001. All double-crossing cases have 000 for the combined objective even at zero delay. These observations argue against treating delay as the only cause or choosing a universal faster/slower profile from marginal counts. Prioritize separate approach and terminal studies, retain all failed starts, and evaluate independent geometry before making any generalization. This is descriptive analysis of observed synthetic cases, not a new steering policy, physical calibration, or live qualification.
+
+## V4 prespecified holdout design
+
+Windows run 45547058953 subsequently completed 518/518 in 28.343 s. Both platforms are green for the stratification checkpoint.
+
+Commit d31c7ae fixes six new authored synthetic geometries, two perpendicular initial offsets, three heading offsets, and two new coupled speed/yaw/dt profiles. Three matched nominal delay levels (0, 120 and 360 ms) give 216 intended runs across 72 scenario identities. Commit d693df4 adds two design-only regression tests; prospective discovery count 520, hosted confirmation pending. The generator returns scenario specifications, not outcomes. No V4 simulations have been run by these additions. Freeze a candidate and its matched comparison protocol before evaluating this set; once inspected, treat the set as observed and preserve it unchanged. New authored geometry is separate from V1–V3 but not an independent external physical dataset. Existing simulation code and prior reports are unchanged.
+
+Future results must distinguish geometric arrival, terminal settling and forward duty, preserve failed starts, and report matched gains/losses rather than relying on marginal success. The historical LEGION archive remains unavailable. No production qualification or merge claim.
