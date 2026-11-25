@@ -83,3 +83,29 @@ Usage (from repo root):
 python -B -m rift_taxi.delay_factorial_stratification artifacts/m2-m3-delay-factorial-20261124-1326.json --sha256 83c749b68236c62a8a3e85c94f9349016298eb3e53e2b9cd6971b18cc81cb65f
 ```
 The original file remains unavailable; above is a future verification command, not an execution receipt.
+
+## Route-stratification results and next research priority
+
+Hosted run 45547058953 at head 92e8603: Ubuntu discovered 518 tests, 502 passed and 16 skipped in 35.612 s. Windows was still running at initial review. All six route strata reconcile to the original 864-case study. Matched changes at 330 ms (low to high factor value, gains/losses):
+
+| Route | Speed arrival | Speed settled | Yaw arrival | Yaw settled | dt arrival | dt settled |
+|---|---:|---:|---:|---:|---:|---:|
+| double-crossing | 0/11 | 5/10 | 0/13 | 4/13 | 0/1 | 0/5 |
+| narrow-return | 0/12 | 0/13 | 0/12 | 0/11 | 0/0 | 0/3 |
+| mixed-angle-fan | 0/0 | 5/5 | 0/0 | 5/5 | 0/0 | 0/8 |
+| short-leg-staircase | 0/0 | 2/5 | 0/0 | 0/5 | 0/0 | 3/4 |
+| short-terminal-leg | 0/0 | 3/0 | 0/0 | 0/3 | 0/0 | 1/2 |
+| translated-curve | 0/0 | 0/7 | 0/0 | 0/5 | 0/0 | 0/7 |
+
+Terminal distributions at 330 ms, conditional on geometric arrival:
+
+| Route | Arrivals / 48 | Min | Median | Max | Outside tolerance |
+|---|---:|---:|---:|---:|---:|
+| double-crossing | 35 | .059563 | .198077 | .406516 | 6 |
+| narrow-return | 36 | .049080 | .218367 | .372131 | 5 |
+| mixed-angle-fan | 48 | .095572 | .182495 | .444542 | 10 |
+| short-leg-staircase | 48 | .080966 | .210559 | .474761 | 7 |
+| short-terminal-leg | 48 | .040119 | .165944 | .332633 | 3 |
+| translated-curve | 48 | .049575 | .184857 | .412727 | 7 |
+
+The three-delay geometric and settled histories are exclusively 110 and 111. The combined arrival/duty outcome is not monotone: eleven short-terminal-leg cases have 010 (succeed only at 110 ms), four have 011, five have 001, and seven narrow-return cases have 001. All double-crossing cases have 000 for the combined objective even at zero delay. These observations argue against treating delay as the only cause or choosing a universal faster/slower profile from marginal counts. Prioritize separate approach and terminal studies, retain all failed starts, and evaluate independent geometry before making any generalization. This is descriptive analysis of observed synthetic cases, not a new steering policy, physical calibration, or live qualification.
