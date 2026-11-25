@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 from rift_taxi.cli import main
 from rift_taxi.delay_factorial_audit import audit_bytes
+from rift_taxi.delay_factorial_diagnostics import diagnose
 from rift_taxi.simulation_delay_factorial import evaluate_delay_factorial
 from rift_taxi.simulation_holdout_v3 import evaluate_holdout_v3
 
@@ -91,6 +92,22 @@ class DelayFactorialTests(unittest.TestCase):
         receipt = audit_bytes(raw, hashlib.sha256(raw).hexdigest())
         self.assertEqual(receipt, {"cases": 864, "profiles": 24,
                                    "matchedEffects": 9, "physicalQualification": False})
+
+    def test_real_route_diagnostics_reconcile_to_frozen_delay_counts(self):
+        """Check per-route matched losses against the known aggregate study.
+
+        The six observed route shapes are not new holdouts. Output the
+        small descriptive summary for hosted CI inspection; no live claims.
+        """
+        r = diagnose(self.report)
+        self.assertEqual(r["matchedStarts"], 288)
+        self.assertEqual(len(r["routes"]), 6)
+        levels = [route["levels"][1] for route in r["routes"]]
+        self.assertTrue(all(level["matchedPairs"] == 48 for level in levels))
+        self.assertEqual(sum(x["outcomes"]["geometricArrival"]["lost"] for x in levels), 25)
+        self.assertEqual(sum(x["outcomes"]["settledWithinTolerance"]["lost"] for x in levels), 63)
+        self.assertEqual(sum(x["arrivedButUnsettled"] for x in levels), 38)
+        print("FACTORIAL_DIAGNOSTICS " + json.dumps(r, sort_keys=True, allow_nan=False))
 
     def test_cli_preflights_and_preserves_report_bytes(self):
         """Test the actual writer with cached study output to avoid rerunning the grid."""
