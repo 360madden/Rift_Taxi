@@ -1,6 +1,6 @@
 # Online development backlog — 100 steps
 
-November 24, 2026. 43 steps completed at their stated scope. Hosted run 45546766551 verifies Windows 510/510 and Ubuntu 494 passed, 16 skipped. The prior Ubuntu clock failure is resolved. Cross-platform discrete diagnostic agreement is verified at run 45546590286. Steps 046, 047, 077–079 have new test implementations committed, but are unchecked pending hosted confirmation. Step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for detailed evidence.
+November 24, 2026. 48 steps completed at their stated scope. Hosted run 45546919255 verifies Windows 514/514 and Ubuntu 498 passed, 16 skipped. Route-specific stratification implementation and tests for 035–039 are committed, but remain unchecked pending hosted confirmation and evidence review. Step 020 remains pending original archive acceptance and merge review. Main and physical qualification remain unchanged. See DELAY_FACTORIAL_AUDIT_HANDOFF.md for detailed evidence.
 
 ## Online baseline and acceptance
 
@@ -61,8 +61,8 @@ November 24, 2026. 43 steps completed at their stated scope. Hosted run 45546766
 - [x] 043. Add duplicate scenario detection regression
 - [x] 044. Add missing scenario rejection regression
 - [x] 045. Add malformed numeric metric tests
-- [ ] 046. Add unknown schema rejection regression
-- [ ] 047. Check deterministic ordering under shuffled input
+- [x] 046. Add unknown schema rejection regression
+- [x] 047. Check deterministic ordering under shuffled input
 - [ ] 048. Define stable report serialization
 - [x] 049. Check cross-platform outcome equivalence
 - [x] 050. Record source digests and command examples
@@ -101,9 +101,9 @@ November 24, 2026. 43 steps completed at their stated scope. Hosted run 45546766
 - [x] 074. Test missing file error
 - [x] 075. Test invalid digest error
 - [x] 076. Test non-object report error
-- [ ] 077. Test deterministic diagnostic ordering
-- [ ] 078. Test mixed gain/loss analytic fixture
-- [ ] 079. Test all-failure diagnostic stratum
+- [x] 077. Test deterministic diagnostic ordering
+- [x] 078. Test mixed gain/loss analytic fixture
+- [x] 079. Test all-failure diagnostic stratum
 - [ ] 080. Run focused then full hosted suites
 
 ## Distribution and documentation
