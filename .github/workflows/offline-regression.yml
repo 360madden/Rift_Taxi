@@ -1,0 +1,27 @@
+# Hosted checks require no RIFT installation, credentials or local PC.
+name: Offline regression
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  regression:
+    name: Python 3.14 / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      # Runtime is stdlib-only; running from the root avoids unnecessary
+      # package downloads and tests the exact checked-out source.
+      - name: Run full offline regression suite
+        run: python -B -m unittest discover -s tests -v
