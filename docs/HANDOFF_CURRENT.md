@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 26, 2026
 
+## November 26 — observation timing and inert control-gate replay
+
+Added `rift_taxi.synthetic_observation_replay` with 28 cases (four verified synthetic truth prefixes, seven delivery schedules). Sixteen normal/short-gap cases completed; twelve long-dropout, reordered and stale cases latched STOP, released inert held keys or never pressed, and refused 532 later packets. V2 tracks gaps and held-pose age/errors separately from packet latency; two report hashes match. Nine focused tests passed. See [observation replay evidence](LEGION_OBSERVATION_REPLAY_2026-11-26.md). Truth is fixed, not closed-loop; no live input, no native freshness or physical release claim. Next: bounded closed-loop sampled-observation study, keeping production disarmed.
+
 ## November 26 — assumed command-delay mismatch
 
 Added an opt-in separate estimator FIFO and independent report verification; preserved exact-estimate and legacy output. New fixed 36-condition/144-journey study: no prediction 30/36 settled, exact prediction 36/36, mismatched estimates 71/72; one severe-underestimate cross-track failure retained. Two reports byte-identical; historical 48-case benchmark also byte-identical after change. Six focused tests passed. See [latency mismatch evidence](LEGION_LATENCY_MISMATCH_2026-11-26.md). Next: observation timing uncertainty and bounded synthetic comparison; no controller promotion or live input.
