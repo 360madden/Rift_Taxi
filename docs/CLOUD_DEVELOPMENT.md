@@ -149,3 +149,47 @@ Ordinary hosted regression now verifies the actual repository samples plus negat
 fixtures, without new Actions permission. The initial catalog is intentionally
 small. Add only explicitly reviewed portable synthetic inputs; keep generated
 reports ignored and never scan or publish physical capture directories automatically.
+
+## Continuous integration as a development gate
+
+Verified baseline: fixture-library PR head 005a8bc, run 45888651814, all three jobs
+successful. Windows 680/680 in 70.702 s; both Linux lanes 664 passed + 16 platform
+skips (3.14: 54.101 s; 3.11: 39.021 s). Total workflow 98 s from creation to last
+update. Windows was the critical lane (95 s job elapsed, versus 64 s Linux 3.14
+and 53 s Linux 3.11). These are individual observed runs, not a stable benchmark.
+
+The normal development loop is focused checks -> coherent commit -> push ->
+**exact-head hosted CI gate** -> review failures or accept checkpoint -> next
+dependent change. Independent design/review can proceed while CI runs, but do
+not claim validation of untested changes or merge a stale green head.
+
+`scripts/ci_checkpoint.py` verifies a successful existing Offline regression PR
+run and all three exact attempt-specific job receipts, including required tests,
+patch rehearsal, packaging and artifact steps. It rejects stale head, wrong
+branch/run/attempt, missing or duplicated jobs, skipped required steps and
+invalid timestamps. It reports the longest job and summed job elapsed time
+(not billing), and never treats metadata alone as a verified test count,
+authenticated attestation, or physical qualification. Selective reruns lacking
+the entire attempt inventory are refused rather than mixing attempts.
+
+Example from a cloud checkout with a separately authenticated gh CLI:
+```sh
+python -B -m scripts.ci_checkpoint --head 005a8bcd8b2c1169b02420f3793a5a3f94e1e5af --branch research/journey-automation-reporting --run-id 45888651814 --attempt 1
+```
+Or supply both `--run-json` and `--jobs-json` (exact attempt response), with
+optional exclusive `--out`. The coordinator must independently check that the
+expected head is still the remote branch tip before and after collecting evidence.
+
+`docs/offline-regression-optimized.yml.example` is an **inactive** minimal
+optimization proposal for the existing workflow: cancel obsolete same-PR runs
+and remove the duplicate 29 focused minimum-version test executions already
+covered by its full suite. Keep all three required job names, Windows recovery,
+full minimum-Python suite, packaging, and existing research artifacts. No active
+workflow or branch protection is changed. Workflow-write authorization is still
+required before installation; do not circumvent the earlier GitHub refusal.
+
+Measure three comparable successful runs after activation before adopting further
+changes. Prioritize the Windows critical path and a genuine full-checkout parallel
+benchmark, not more unmeasured runners. Keep the four-job pilot optional until
+it demonstrates improved end-to-end latency and exact coverage. Separate long
+research benchmarks only after preserving required checks and artifact parity.

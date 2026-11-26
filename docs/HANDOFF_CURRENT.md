@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — tight CI checkpoint admission
+
+Fixture-library head 005a8bc passed all three hosted jobs in 98 s (Windows 680/680; both Linux 664 passed +16 skips). Added exact-head/attempt CI metadata gate and latency reporting, eight focused tests, durable CI acceptance policy, and inactive optimized existing-workflow proposal (obsolete-run cancellation and removal of redundant minimum-version focused tests). Windows is currently the longest observed lane. Active CI remains unchanged because workflow-write permission is unresolved. See [cloud development](CLOUD_DEVELOPMENT.md#continuous-integration-as-a-development-gate). No physical qualification or service deployment.
+
 ## November 27 — hosted portable batch validation and fixture library
 
 Cloud-only commit 5e79dcd passed all three hosted jobs (PR run 45888250727, 69 s total; Windows 672/672, Linux 656 passed + 16 platform skips on both Python versions). Added explicit SHA-256-pinned synthetic fixture catalog and standalone verification against existing trace contracts, plus eight focused corruption/coverage tests. No physical capture or proprietary assets imported. New parallel Actions template still inactive pending authorized workflow-write scope. See [cloud development](CLOUD_DEVELOPMENT.md). The full-suite parallel speedup remains unmeasured; no LEGION edit or live activity.
