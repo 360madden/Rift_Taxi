@@ -22,12 +22,15 @@ from .synthetic_journey_batch import paired_metrics
 from .synthetic_response_estimator import ResponseEstimator, NOMINAL
 from .synthetic_response_estimator_v2 import RobustResponseEstimator
 from .synthetic_sensor_noise import measurement, PROFILES as NOISE_PROFILES
+from .synthetic_corner_certificate import AXIS_ERROR_BOUND, worst_case_distance_xz
 
 MODES = ("held-pose", "predict-application", "predict-age-cap")
 MAX_TICKS = 640  # 40 synthetic seconds, before terminal queue drain.
 LOOKAHEAD = 1.5
 MAX_ERROR = 2.
 ZERO = (0., 0.)
+CORNER_POLICIES = ("legacy","bounded")
+CORNER_APPROACH_GAIN = 4.  # per-second cap toward a pending sharp vertex
 # Author the comparison geometry and profiles before inspecting outcomes.
 ROUTES = (
     ("sampled-long-s", ((0,0,0),(6,0,0),(10,0,4),(17,0,4),(22,0,7))),
@@ -94,12 +97,16 @@ class SampledController:
     linearly with sample age, with a 25% floor before the hard expiry gate.
     This fixed heuristic is a research candidate, not an optimized threshold.
     """
-    def __init__(self, trace, speed, rate, delay, mode, *, speed_gain=1., yaw_gain=1.):
+    def __init__(self, trace, speed, rate, delay, mode, *, speed_gain=1., yaw_gain=1.,
+                 corner_policy="legacy"):
         self.trace = trace
         # Here delay and gains belong to the controller estimate ONLY. No
         # actual plant parameters are visible to the decision algorithm.
         self.speed, self.rate, self.delay, self.mode = speed, rate, delay, mode
         self.speed_gain, self.yaw_gain = speed_gain, yaw_gain
+        if corner_policy not in CORNER_POLICIES:
+            raise TraceError("invalid synthetic corner policy")
+        self.corner_policy = corner_policy
         self.cumulative, self.total = _segments(trace.points)
         self.sharp = _sharp_vertices(trace.points, self.cumulative)
         self.cursor = 0
@@ -147,9 +154,16 @@ class SampledController:
         if self.cursor < len(self.sharp):
             index, arc = self.sharp[self.cursor]
             radius = min(.10*LOOKAHEAD, .5*self.trace.arrival_tolerance_xz)
-            if arc-self.progress <= radius and _xz_distance(sample.xyz, self.trace.points[index].xyz) <= radius:
+            vertex = self.trace.points[index].xyz
+            upper = (worst_case_distance_xz(sample.xyz,vertex) if self.corner_policy=="bounded"
+                     else _xz_distance(sample.xyz,vertex))
+            # Certify the captured position against the declared rectangle,
+            # without exposing truth or the hidden noise profile.
+            if arc-self.progress <= radius and upper <= radius:
                 self.witnesses.append({"vertexIndex": index, "captureTick": sample.tick,
-                                       "deliveryTick": tick, "progress": self.progress})
+                                       "deliveryTick": tick, "progress": self.progress,
+                                       **({"upperDistanceXZ":upper,"radiusXZ":radius}
+                                          if self.corner_policy=="bounded" else {})})
                 self.cursor += 1
                 self.passed_arc = arc
                 self.rejoining = False
@@ -202,7 +216,13 @@ class SampledController:
             target = _lookahead_point(self.trace.points, self.cumulative, self.progress)
             dx, dz = target[0]-position[0], target[2]-position[2]
             chord = math.hypot(dx, dz)
+        pending_corner = (self.cursor < len(self.sharp) and arc == self.sharp[self.cursor][1]
+                          and not self.rejoining)
         if chord <= 1e-9:
+            if self.corner_policy=="bounded" and pending_corner:
+                # A zero forecast chord is not passage evidence.
+                return ZERO, {"xyz":list(position),"yaw":yaw,"sourceTick":sample.tick,
+                              "targetXYZ":list(target)}
             self.status = "lookahead-degenerate"
             return ZERO, None
         heading = _angle_delta(math.degrees(math.atan2(dz, dx)), yaw)
@@ -210,9 +230,11 @@ class SampledController:
         velocity = self.speed if abs(heading) < 85. else 0.
         if velocity:
             velocity = _turn_limited_speed(velocity, heading, chord, self.rate)
-        if (self.cursor < len(self.sharp) and arc == self.sharp[self.cursor][1]
-                and not self.rejoining) or terminal_rejoin:
+        if pending_corner or terminal_rejoin:
             velocity = min(velocity, chord/DT)
+            if pending_corner and self.corner_policy=="bounded":
+                # Local braking does not relax spatial or arc admission.
+                velocity = min(velocity, CORNER_APPROACH_GAIN*chord)
         elif self.total-self.progress <= LOOKAHEAD:
             velocity = min(velocity, max(.15, 2.*distance), distance/DT)
         if self.mode == "predict-age-cap":
@@ -226,7 +248,8 @@ class SampledController:
 def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-pose",
         assumed_delay=None, actual_speed_gain=1., actual_yaw_gain=1.,
         assumed_speed_gain=1., assumed_yaw_gain=1., adaptive=False,
-        response_change=None, adaptive_policy="legacy", sensor_noise="none"):
+        response_change=None, adaptive_policy="legacy", sensor_noise="none",
+        corner_policy="legacy"):
     """Run closed-loop approach, then real model FIFO drain and zero witness.
 
     Optional gain multipliers are constant ideal actuator response errors,
@@ -239,6 +262,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     in the plant, with the same fixed command delay; no advance notice.
     Optional sensor_noise changes only captured measurements. The robust
     adaptive policy is experimental; original output is preserved by default.
+    corner_policy="bounded" uses a fixed research error envelope and local
+    velocity cap, not hidden sensor metadata or plant truth.
     Only a synthetic flat route with bounded coordinates is admitted. All
     actual frame states are retained for independent internal consistency
     checks; reports do not claim collision clearance or physical stopping.
@@ -261,6 +286,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     cumulative, total = _segments(trace.points)
     if total <= tol or any(b-a <= 1e-9 for a,b in zip(cumulative, cumulative[1:])):
         raise TraceError("invalid sampled route segments")
+    if corner_policy not in CORNER_POLICIES:
+        raise TraceError("invalid sampled corner policy")
     if (adaptive_policy not in ("legacy","robust") or sensor_noise not in NOISE_PROFILES
             or (adaptive_policy != "legacy" and adaptive is not True)):
         raise TraceError("invalid sampled estimator or sensor profile")
@@ -287,7 +314,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     extended = (assumed_delay != delay or any(model[key] != 1. for key in
                 ("actualSpeedGain","actualYawGain","assumedSpeedGain","assumedYawGain")))
     controller = SampledController(trace, speed, rate, assumed_delay, mode,
-                                   speed_gain=assumed_speed_gain, yaw_gain=assumed_yaw_gain)
+                                   speed_gain=assumed_speed_gain, yaw_gain=assumed_yaw_gain,
+                                   corner_policy=corner_policy)
     estimator = (RobustResponseEstimator() if adaptive_policy=="robust" else ResponseEstimator()) if adaptive else None
     position, yaw = seed.xyz, _angle_delta(seed.actor_yaw_deg, 0.)
     # Truth at capture is kept outside the controller, for retrospective
@@ -355,7 +383,7 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
         trace.points[w["vertexIndex"]].xyz) for w in controller.witnesses), default=0.)
     truth_witnesses_valid = truth_witness_error <= min(.10*LOOKAHEAD,.5*tol)
     settled = (observed_arrival and final_error <= tol and
-               (sensor_noise=="none" or truth_witnesses_valid))
+               ((sensor_noise=="none" and corner_policy=="legacy") or truth_witnesses_valid))
     elapsed = (len(frames)+len(drain))*DT
     forward = DT*(sum(f["applied"][0] > 0. for f in frames) + sum(f["applied"][0] > 0. for f in drain))
     result = {"schema": "taxi.synthetic-sampled-steering/1", "classification": "SYNTHETIC_ONLY",
@@ -365,6 +393,9 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
               **({"adaptiveResponse": True} if adaptive else {}),
               **({"adaptivePolicy": adaptive_policy} if adaptive_policy!="legacy" else {}),
               **({"sensorNoise": sensor_noise} if sensor_noise!="none" else {}),
+              **({"cornerPolicy":{"name":"bounded","axisErrorBound":AXIS_ERROR_BOUND,
+                                 "approachGainPerSecond":CORNER_APPROACH_GAIN}}
+                 if corner_policy=="bounded" else {}),
               **({"actualResponseChange": list(change)} if change is not None else {}),
               "frames": frames, "delivered": delivered, "admissions": controller.admissions,
               "sharpWitnesses": controller.witnesses, "stop": stop, "drain": drain,
@@ -376,7 +407,7 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
                           "drainSeconds": len(drain)*DT, "sharpCornersPassed": controller.cursor,
                           **({"truthSharpWitnessesValid": truth_witnesses_valid,
                               "maxSharpWitnessTruthErrorXZ": truth_witness_error}
-                             if sensor_noise!="none" else {}),
+                              if sensor_noise!="none" or corner_policy=="bounded" else {}),
                           "maxObservedCrossTrackErrorXZ": max(
                               (a["crossTrackErrorXZ"] for a in controller.admissions), default=None)},
               "gameInputSent": False, "physicalQualification": False}
@@ -433,6 +464,11 @@ def verify(result, trace):
                              and (estimate,ev,er) == NOMINAL), "adaptive initial model")
     policy = result.get("adaptivePolicy","legacy")
     noise = result.get("sensorNoise","none")
+    bounded_corners = "cornerPolicy" in result
+    if bounded_corners:
+        insist(result["cornerPolicy"]=={"name":"bounded","axisErrorBound":AXIS_ERROR_BOUND,
+                                        "approachGainPerSecond":CORNER_APPROACH_GAIN},
+               "corner policy declaration")
     insist(("adaptivePolicy" not in result or (adaptive and policy=="robust")) and
            policy in ("legacy","robust"), "adaptive policy declaration")
     insist(noise in NOISE_PROFILES and ("sensorNoise" not in result or noise!="none"), "sensor profile declaration")
@@ -478,9 +514,22 @@ def verify(result, trace):
         if cursor < len(sharp):
             index,arc = sharp[cursor]
             radius = min(.10*LOOKAHEAD,.5*trace.arrival_tolerance_xz)
-            if arc-progress <= radius and _xz_distance(measured[i][0],trace.points[index].xyz) <= radius:
+            vertex = trace.points[index].xyz
+            if bounded_corners:
+                # Independent enumeration of the four rectangle corners.
+                dx = measured[i][0][0]-vertex[0]
+                dz = measured[i][0][2]-vertex[2]
+                upper = max(math.hypot(dx+sx*AXIS_ERROR_BOUND,dz+sz*AXIS_ERROR_BOUND)
+                            for sx in (-1,1) for sz in (-1,1))
+            else:
+                upper = _xz_distance(measured[i][0],vertex)
+            if arc-progress <= radius and upper <= radius:
+                if bounded_corners:
+                    insist(_xz_distance(truth[i]["xyz"],vertex)<=radius,"corner certificate truth")
                 verified_witnesses.append({"vertexIndex":index,"captureTick":i,
-                                           "deliveryTick":tick,"progress":progress})
+                                            "deliveryTick":tick,"progress":progress,
+                                            **({"upperDistanceXZ":upper,"radiusXZ":radius}
+                                               if bounded_corners else {})})
                 cursor += 1
                 passed_arc = arc
         previous = a
@@ -557,11 +606,11 @@ def verify(result, trace):
     truth_witness_error = max((_xz_distance(truth[w["captureTick"]]["xyz"],
         trace.points[w["vertexIndex"]].xyz) for w in verified_witnesses), default=0.)
     truth_witnesses_valid = truth_witness_error <= min(.10*LOOKAHEAD,.5*trace.arrival_tolerance_xz)
-    if noise!="none":
+    if noise!="none" or bounded_corners:
         insist(same(summary["maxSharpWitnessTruthErrorXZ"],truth_witness_error) and
                summary["truthSharpWitnessesValid"] is truth_witnesses_valid,"noisy truth witness scoring")
     insist(summary["finalModelSettled"] == (arrived and error<=trace.arrival_tolerance_xz
-           and (noise=="none" or truth_witnesses_valid)), "false settled arrival")
+           and ((noise=="none" and not bounded_corners) or truth_witnesses_valid)), "false settled arrival")
     insist(result["gameInputSent"] is False and result["physicalQualification"] is False, "classification")
 
 
