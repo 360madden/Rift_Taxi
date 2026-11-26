@@ -176,6 +176,38 @@ class MotionAuditTests(unittest.TestCase):
         with self.assertRaises(MotionAuditRefused):
             self.check()
 
+    def test_replay_integer_aliases_are_refused(self):
+        # Equal Python values are not equivalent JSON contract types.
+        for key,value in (("savedFrames",[2.,2]),("uniqueSourceSequences",3.),
+                          ("firstSourceSequence",True),("lastSourceSequence",4.),
+                          ("newAdvancingSourceFrames",True)):
+            with self.subTest(key=key):
+                self.build()
+                self.replay_doc[key]=value
+                self.write_replay()
+                with self.assertRaises(MotionAuditRefused):
+                    self.check()
+
+    def test_malformed_agreeing_process_pins_are_refused(self):
+        for key,value in (("hostName",""),("hostName"," LEGION"),
+                          ("processStartUtcTicks",None),("processStartUtcTicks",456),
+                          ("processStartUtcTicks","0456"),("processStartUtcTicks","0"),
+                          ("executableSha256","not-a-sha"),("processId",2**32)):
+            with self.subTest(key=key,value=value):
+                self.build()
+                self.summary_doc["target"][key]=value
+                self.replay_doc[key]=value
+                self.rehash()
+                with self.assertRaises(MotionAuditRefused):
+                    self.check()
+
+    def test_unrecognized_skipped_frame_is_refused(self):
+        self.build()
+        self.summary_doc["passes"][0]["frames"].append({"error":"unknown"})
+        self.rehash()
+        with self.assertRaises(MotionAuditRefused):
+            self.check()
+
     def test_cli_refuses_overwrite(self):
         self.build()
         out=self.root/"motion.json"

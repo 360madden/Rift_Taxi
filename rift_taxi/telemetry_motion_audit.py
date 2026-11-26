@@ -44,6 +44,16 @@ def positive(value):
     return type(value) is int and 0 < value <= 2**63-1
 
 
+def epoch_ticks(value):
+    """The upstream contract uses canonical decimal text for the process epoch."""
+    return (isinstance(value,str) and re.fullmatch(r"[1-9][0-9]{0,18}",value)
+            is not None and int(value)<=2**63-1)
+
+
+def sha_text(value):
+    return isinstance(value,str) and re.fullmatch(r"[0-9a-fA-F]{64}",value) is not None
+
+
 def finite(value, low=-1e9, high=1e9):
     return type(value) in (int,float) and low <= value <= high
 
@@ -119,8 +129,15 @@ def _audit(summary_path, summary_sha, replay_path, replay_sha):
     target=summary["target"]
     require(positive(target.get("processId")) and positive(replay.get("processId"))
             and target["processId"]==replay["processId"]
-            and target.get("hostName")==replay.get("hostName")
-            and str(target.get("processStartUtcTicks"))==str(replay.get("processStartUtcTicks"))
+            and target["processId"]<=2**32-1
+            and isinstance(target.get("hostName"),str) and bool(target["hostName"].strip())
+            and target["hostName"]==target["hostName"].strip()
+            and target["hostName"]==replay.get("hostName")
+            and epoch_ticks(target.get("processStartUtcTicks"))
+            and epoch_ticks(replay.get("processStartUtcTicks"))
+            and target["processStartUtcTicks"]==replay["processStartUtcTicks"]
+            and sha_text(target.get("executableSha256"))
+            and sha_text(replay.get("executableSha256"))
             and target["executableSha256"].lower()==replay["executableSha256"].lower(),
             "upstream process pin mismatch")
     require(isinstance(replay.get("playerUnitId"),str)
@@ -135,6 +152,15 @@ def _audit(summary_path, summary_sha, replay_path, replay_sha):
     root=Path(summary_path).parent
     passes=summary["passes"]
     require(isinstance(passes,list) and len(passes)==2,"capture pass count")
+    # Refuse JSON bool/float aliases of integer counts. An upstream replay
+    # receipt is an integrity-pinned dependency, not a reason to trust an
+    # ill-typed projection at this downstream boundary.
+    saved=replay.get("savedFrames")
+    require(isinstance(saved,list) and len(saved)==2
+            and all(positive(n) and n<=50 for n in saved)
+            and all(positive(replay.get(k)) for k in
+                    ("uniqueSourceSequences","firstSourceSequence","lastSourceSequence",
+                     "newAdvancingSourceFrames")),"upstream count types")
     unique={}; pass_sequences=[]; counts=[]
     for i,entry in enumerate(passes,1):
         frames=entry["frames"]
@@ -143,7 +169,11 @@ def _audit(summary_path, summary_sha, replay_path, replay_sha):
         for n,row in enumerate(frames,1):
             require(isinstance(row,dict),"frame row")
             if "sha" not in row:
-                require("error" in row,"unclassified skipped frame")
+                # Match the known upstream refusal categories. We do not
+                # revalidate excluded raw wires or the full zone proof here.
+                require(row.get("error") in ("incomplete","schema-or-player-zone",
+                        "invalid-json-or-frame","nonselected-publisher-generation"),
+                        "unclassified skipped frame")
                 continue
             name=f"frame-{n:02d}.wire"
             require(isinstance(row.get("wire"),str) and ntpath.basename(row["wire"])==name,
