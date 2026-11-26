@@ -41,7 +41,7 @@ python -B -m rift_taxi.telemetry_motion_audit --summary artifacts/m1-20261127-02
 python -B -m unittest discover -s tests -p test_telemetry_motion_audit.py -v
 ```
 
-Both real-original audit executions passed. Reports `motion-audit-01.json` and `motion-audit-02.json`, each 22,597 bytes, byte-identical SHA-256 `37bd785a3652297df753c79da1c059d60b47e12b8df731ec68b6df0283342b62`. Nine focused regressions passed, covering missing/invalid coordinates, changes across retained gaps, generation/identity/count/hash/index corruption, conflicting repeated samples, and exclusive output. Code SHA-256 `cad423a1fe27315c2b098d0af6add5d4185a116d997e6be266bab5939535a094`. Reports and wire originals remain Git ignored. The full regression job had not completed at this checkpoint (status running). Do not claim a new complete regression result; the previous fully verified baseline was 642/642.
+Both real-original audit executions passed. Reports `motion-audit-01.json` and `motion-audit-02.json`, each 22,597 bytes, byte-identical SHA-256 `37bd785a3652297df753c79da1c059d60b47e12b8df731ec68b6df0283342b62`. Nine focused regressions passed, covering missing/invalid coordinates, changes across retained gaps, generation/identity/count/hash/index corruption, conflicting repeated samples, and exclusive output. Code SHA-256 `cad423a1fe27315c2b098d0af6add5d4185a116d997e6be266bab5939535a094`. Reports and wire originals remain Git ignored. The full regression job subsequently completed successfully: 651/651 tests in 162.942 seconds, exit 0. The baseline-byte-hash rejection is expected negative-test output.
 
 ## Decision
 
