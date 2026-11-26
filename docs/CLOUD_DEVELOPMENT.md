@@ -88,3 +88,32 @@ python -B -m scripts.cloud_test_runner merge --shards 4 --dir cloud-results --ou
 The proposed 85% cloud workload is a target, not a measured result. This first
 slice deliberately avoids extra orchestration infrastructure until hosted
 evidence establishes its value.
+
+## Portable single-runner orchestration
+
+`scripts/cloud_parallel.py` launches independently bounded unittest shard subprocesses
+and a separate merge subprocess from an exact **clean Git checkout**. It works on a
+standard cloud compute host, ordinary developer PC, or isolated CI fixture with Python
+3.11+ and Git; no new workflow permission is required. Example (new ignored output
+folder, or an output path outside the checkout):
+
+```sh
+python -B -m scripts.cloud_parallel --shards 4 --workers 4 --timeout-seconds 300 --out-dir cloud-results/NEW-batch
+```
+
+The batch generates a unique execution ID and carries it through each plan/shard/merge.
+Hosted identities additionally include GitHub repository, run ID and retry attempt.
+A receipt from another batch or attempt cannot satisfy the merger even at the same
+commit. Each direct subprocess has a bounded timeout, a separate retained log and
+an explicit outcome. Missing/failed/timed-out shards prevent a successful aggregate.
+A timeout does not prove that all descendants have settled; no retry or live release
+claim is implied. Batch wall time, shard wall time and summed process durations are
+separate measures, not billing or CPU consumption. Do not upload arbitrary raw logs.
+
+The first cloud-only source checkpoint uses GitHub's repository connector and existing
+PR CI; no LEGION edit/build is needed. Disposable integration tests exercise real
+Git checkouts, successful and failed subprocess shards, declared skips, dirty checkout
+refusal, batch/attempt isolation and exclusive output. The new four-job Actions
+workflow remains inactive pending workflow-write permission. Full-repository timing
+comparisons require an actual full checkout run; miniature fixtures do not qualify
+performance of the complete suite.

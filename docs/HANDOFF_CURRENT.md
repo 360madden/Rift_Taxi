@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — portable cloud batch execution
+
+Cloud foundation 4183046 passed hosted PR CI run 45887826247 (Linux 3.14, Windows 3.14 recovery, Linux 3.11 wheel). Added portable single-host subprocess sharding/merge, run/batch/attempt identity and real disposable Git checkout integration tests. See [cloud development](CLOUD_DEVELOPMENT.md). This change is authored directly through the GitHub connector, without LEGION edits. New Actions workflow remains an inactive template; do not claim full pilot timing or M1 physical qualification.
+
 ## November 27 — cloud-first development foundation
 
 User approved cloud-first workflow. LEGION full release-clock regression completed 660/660 in 112.650 s; hosted PR run 45886526464 succeeded in 86 s (Linux full test step 42 s, Windows recovery 62 s, Linux minimum-version full test step 49 s). Added [cloud development policy](CLOUD_DEVELOPMENT.md), deterministic whole-module sharding and exact-coverage receipt merge, plus inactive four-lane hosted Linux pilot template. GitHub denied the workflow file push (missing OAuth workflow scope); original local commit a1322aa preserved on cloud/pilot-workflow-local-20261127. Publish ordinary code and inactive template through existing PR CI only; actual pilot requires authorized workflow-write access. Existing PR validation remains authoritative. Cloud results are development-only; physical M1, Workbridge desktop recovery, native freshness/heading/release gates remain separate and unqualified.

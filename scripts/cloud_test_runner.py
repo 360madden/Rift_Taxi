@@ -62,11 +62,29 @@ def checkout_identity():
     sha = git("rev-parse", "HEAD")
     require(re.fullmatch(r"[0-9a-f]{40}", sha) is not None, "invalid checkout SHA")
     clean = not bool(git("status", "--porcelain", "--untracked-files=normal"))
+    identity = {"commit": sha, "cleanCheckout": clean,
+                "platform": platform.system(), "python": platform.python_version()}
     if os.environ.get("GITHUB_ACTIONS") == "true":
         require(clean and os.environ.get("GITHUB_SHA") == sha,
                 "hosted checkout is dirty or differs from workflow SHA")
-    return {"commit": sha, "cleanCheckout": clean,
-            "platform": platform.system(), "python": platform.python_version()}
+        # Keep retries/other runs of the same commit from mixing receipts.
+        run_id = os.environ.get("GITHUB_RUN_ID", "")
+        attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+        repo = os.environ.get("GITHUB_REPOSITORY", "")
+        require(re.fullmatch(r"[1-9][0-9]{0,19}", run_id) is not None
+                and re.fullmatch(r"[1-9][0-9]{0,9}", attempt) is not None
+                and re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo) is not None,
+                "hosted run/attempt/repository identity missing or invalid")
+        identity["hostedRun"] = {"repository": repo, "runId": run_id,
+                                 "attempt": attempt}
+    # Portable single-runner orchestration adds a unique batch ID to every
+    # child process. Plain plan/run/merge remains available for manual use.
+    batch_id = os.environ.get("RIFT_TAXI_CLOUD_BATCH_ID")
+    if batch_id is not None:
+        require(re.fullmatch(r"[0-9a-f]{32}", batch_id) is not None,
+                "invalid cloud batch identity")
+        identity["batchId"] = batch_id
+    return identity
 
 
 def flatten(suite):
