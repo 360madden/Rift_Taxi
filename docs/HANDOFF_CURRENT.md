@@ -1,4 +1,8 @@
-# Current RIFT Taxi handoff — November 26, 2026
+# Current RIFT Taxi handoff — November 27, 2026
+
+## November 26–27 — adaptive synthetic response estimator
+
+Added opt-in causal rolling delay/gain estimation and hidden plant response-change support, with no changes to legacy defaults. New benchmark: 336 matched conditions / 672 runs (144 prior plus 192 new). Prior usable 108/108 both, new usable nominal 123/144 vs adaptive 144/144; 21 gains, no losses. All 84 adaptive prolonged-dropout cases expired. New common-success mean time 18.9502 vs 15.2165 s; five adaptive slowdowns, mean forward duty slightly lower. New qualified-estimate conditional accuracy 89.78% (95.11% frame coverage); all 72 usable switched-gain cases reacquired in 2.5–3.125 s. The prior report and repeated adaptive reports match byte-for-byte; 144 prior nominal outcomes independently matched. Fourteen focused tests passed. See [adaptive response evidence](LEGION_ADAPTIVE_RESPONSE_2026-11-27.md). Next: measurement noise and faster change detection, then live M1 qualification when eligible. Production disarmed; no live input or physical claims.
 
 ## November 26 — combined observation and actuator uncertainty
 

@@ -19,6 +19,7 @@ from .simulation_holdout import _case_trace
 from .steering import _angle_delta, _lookahead_point, _project, _segments, _xz_distance
 from .synthetic_observation_replay import DT, MAX_POSE_AGE, PROFILES, TICKS, delivery_tick
 from .synthetic_journey_batch import paired_metrics
+from .synthetic_response_estimator import ResponseEstimator, NOMINAL
 
 MODES = ("held-pose", "predict-application", "predict-age-cap")
 MAX_TICKS = 640  # 40 synthetic seconds, before terminal queue drain.
@@ -60,6 +61,26 @@ def arrival_tick(capture, profile):
 def _actuator_gain(value, label):
     """Bound research-only dimensionless velocity/rate response multipliers."""
     return _bounded_number(value, label, .5, 1.5)
+
+
+def _response_change(value):
+    """One optional piecewise-constant actuator change, applied at a plant tick.
+
+    The switch belongs to the plant only; it is never given to the predictor.
+    A queued request experiences the response in effect when it is applied,
+    including commands still pending at STOP. Fixed latency remains unchanged.
+    """
+    if value is None:
+        return None
+    if (not isinstance(value,(tuple,list)) or len(value)!=3
+            or type(value[0]) is not int or not 1 <= value[0] <= MAX_TICKS+10):
+        raise TraceError("invalid synthetic actuator change")
+    return (value[0],_actuator_gain(value[1],"changed speed gain"),
+            _actuator_gain(value[2],"changed yaw gain"))
+
+
+def _gains_at(tick, initial_v, initial_r, change):
+    return change[1:] if change is not None and tick >= change[0] else (initial_v,initial_r)
 
 
 class SampledController:
@@ -202,13 +223,18 @@ class SampledController:
 
 def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-pose",
         assumed_delay=None, actual_speed_gain=1., actual_yaw_gain=1.,
-        assumed_speed_gain=1., assumed_yaw_gain=1.):
+        assumed_speed_gain=1., assumed_yaw_gain=1., adaptive=False,
+        response_change=None):
     """Run closed-loop approach, then real model FIFO drain and zero witness.
 
     Optional gain multipliers are constant ideal actuator response errors,
     not inertia, friction, collision or physical measurements. Assumed delay
     defaults to the actual delay for legacy exact-model runs; assumed gains
     default to unit response. Only the plant applies actual gains.
+    The opt-in adaptive predictor starts from a fixed nominal model, then
+    learns only from admitted consecutive source poses and issued commands.
+    response_change=(tick, speed_gain, yaw_gain) is an optional step change
+    in the plant, with the same fixed command delay; no advance notice.
     Only a synthetic flat route with bounded coordinates is admitted. All
     actual frame states are retained for independent internal consistency
     checks; reports do not claim collision clearance or physical stopping.
@@ -231,14 +257,19 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     cumulative, total = _segments(trace.points)
     if total <= tol or any(b-a <= 1e-9 for a,b in zip(cumulative, cumulative[1:])):
         raise TraceError("invalid sampled route segments")
+    if type(adaptive) is not bool or (adaptive and mode != "predict-application"):
+        raise TraceError("adaptive research requires predictive application mode")
     if assumed_delay is None:
-        assumed_delay = delay
+        assumed_delay = NOMINAL[0] if adaptive else delay
     if type(assumed_delay) is not int or not 0 <= assumed_delay <= 10:
         raise TraceError("invalid assumed sampled delay")
     actual_speed_gain = _actuator_gain(actual_speed_gain,"actual speed gain")
     actual_yaw_gain = _actuator_gain(actual_yaw_gain,"actual yaw gain")
     assumed_speed_gain = _actuator_gain(assumed_speed_gain,"assumed speed gain")
     assumed_yaw_gain = _actuator_gain(assumed_yaw_gain,"assumed yaw gain")
+    change = _response_change(response_change)
+    if adaptive and (assumed_delay, assumed_speed_gain, assumed_yaw_gain) != NOMINAL:
+        raise TraceError("adaptive research starts with the fixed nominal model")
     # Explicit opt-in declaration only when parameters depart from the
     # legacy default. Baseline estimates are meaningless and must not vary.
     if mode == "held-pose" and (assumed_delay != delay or assumed_speed_gain != 1. or assumed_yaw_gain != 1.):
@@ -250,6 +281,7 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
                 ("actualSpeedGain","actualYawGain","assumedSpeedGain","assumedYawGain")))
     controller = SampledController(trace, speed, rate, assumed_delay, mode,
                                    speed_gain=assumed_speed_gain, yaw_gain=assumed_yaw_gain)
+    estimator = ResponseEstimator() if adaptive else None
     position, yaw = seed.xyz, _angle_delta(seed.actor_yaw_deg, 0.)
     pending = deque([ZERO]*delay)
     requests, frames = [], []
@@ -263,7 +295,18 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
         controller.expire(tick)
         for obs in deliveries.pop(tick, []):
             delivered.append({"captureTick": obs.tick, "deliveryTick": tick})
+            count = len(controller.admissions)
             controller.observe(obs, tick)
+            if estimator is not None and len(controller.admissions) > count:
+                # The estimator gets neither actual gain nor current truth;
+                # the capture may precede its delivery by several ticks.
+                estimator.observe(obs.tick, obs.xyz, obs.yaw, tick, requests)
+        response = None
+        if estimator is not None:
+            response = estimator.estimate(tick)
+            controller.delay = response["delay"]
+            controller.speed_gain = response["speedGain"]
+            controller.yaw_gain = response["yawGain"]
         request, reference = controller.decide(tick, requests)
         if controller.status is None and tick == MAX_TICKS:
             controller.status = "time-budget-exhausted"
@@ -274,18 +317,21 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
         requests.append(request)
         pending.append(request)
         queued_v, queued_r = pending.popleft()
-        applied = (queued_v*actual_speed_gain, queued_r*actual_yaw_gain)
+        gv,gr = _gains_at(tick,actual_speed_gain,actual_yaw_gain,change)
+        applied = (queued_v*gv,queued_r*gr)
         frames.append({"tick": tick, "xyz": list(position), "yaw": yaw,
                        "requested": list(request), "applied": list(applied),
-                       "controlPose": reference})
+                       "controlPose": reference,
+                       **({"responseEstimate": response} if adaptive else {})})
         position, yaw = _predict_pending_pose(position, yaw, (applied,), DT)
 
     # A STOP request cannot erase in-flight commands. The ideal actuator
     # applies every queued request in order, then a full stationary interval.
     # Fault termination is never counted as an arrived journey.
     drain = []
-    for v,r in [*pending, ZERO]:
-        command = (v*actual_speed_gain, r*actual_yaw_gain)
+    for j,(v,r) in enumerate([*pending, ZERO]):
+        gv,gr = _gains_at(stop["tick"]+j,actual_speed_gain,actual_yaw_gain,change)
+        command = (v*gv,r*gr)
         position, yaw = _predict_pending_pose(position, yaw, (command,), DT)
         drain.append({"applied": list(command), "xyz": list(position), "yaw": yaw})
     final_error = _xz_distance(position, trace.points[-1].xyz)
@@ -297,6 +343,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
               "scenarioSHA256": trace.trace_sha256, "profile": profile, "mode": mode,
               "speed": speed, "rate": rate, "actualDelaySteps": delay, "dtSeconds": DT,
               **({"actuatorModel": model} if extended else {}),
+              **({"adaptiveResponse": True} if adaptive else {}),
+              **({"actualResponseChange": list(change)} if change is not None else {}),
               "frames": frames, "delivered": delivered, "admissions": controller.admissions,
               "sharpWitnesses": controller.witnesses, "stop": stop, "drain": drain,
               "summary": {"finalModelSettled": settled, "observedArrival": observed_arrival,
@@ -354,6 +402,12 @@ def verify(result, trace):
     else:
         estimate, av, ar, ev, er = delay, 1., 1., 1., 1.
     insist(mode != "held-pose" or (estimate == delay and (ev,er) == (1.,1.)), "baseline estimate")
+    change = _response_change(result.get("actualResponseChange"))
+    insist("actualResponseChange" not in result or change is not None,"response change declaration")
+    adaptive = "adaptiveResponse" in result
+    insist(not adaptive or (result["adaptiveResponse"] is True and mode == "predict-application"
+                             and (estimate,ev,er) == NOMINAL), "adaptive initial model")
+    estimator = ResponseEstimator() if adaptive else None
     insist(len(frames) == stop["tick"] <= MAX_TICKS and len(drain) == delay+1, "bounded duration")
     requests = [f["requested"] for f in frames]
     truth = [*frames, stop]
@@ -409,11 +463,24 @@ def verify(result, trace):
         v,r = requests[i]
         insist(0. <= v <= result["speed"] and abs(r) <= result["rate"], "request bound")
         v,r = requests[i-delay] if i>=delay else ZERO
-        applied = [v*av,r*ar]
+        gv,gr = _gains_at(i,av,ar,change)
+        applied = [v*gv,r*gr]
         insist(f["applied"] == applied, "actual command FIFO and actuator gains")
         while admission_cursor < len(admitted) and admitted[admission_cursor]["deliveryTick"] <= i:
             latest = admitted[admission_cursor]["captureTick"]
+            if estimator is not None:
+                # Independently rebuild the causal estimator feed, limiting
+                # the command list to already-issued requests at delivery.
+                delivery = admitted[admission_cursor]["deliveryTick"]
+                estimator.observe(latest, truth[latest]["xyz"], truth[latest]["yaw"],
+                                  delivery, requests[:delivery])
             admission_cursor += 1
+        if estimator is not None:
+            learned = estimator.estimate(i)
+            insist(f.get("responseEstimate") == learned, "causal response estimate")
+            estimate, ev, er = learned["delay"], learned["speedGain"], learned["yawGain"]
+        else:
+            insist("responseEstimate" not in f, "unexpected response estimate")
         ref = f["controlPose"]
         if latest is None:
             insist(ref is None and requests[i] == list(ZERO), "motion before observation")
@@ -431,7 +498,8 @@ def verify(result, trace):
     for j,row in enumerate(drain):
         index = len(frames)+j-delay
         v,r = requests[index] if 0 <= index < len(frames) else ZERO
-        cmd = [v*av,r*ar]
+        gv,gr = _gains_at(len(frames)+j,av,ar,change)
+        cmd = [v*gv,r*gr]
         insist(row["applied"] == cmd, "terminal FIFO drain and actuator gains")
         position,yaw = integrate(position,yaw,cmd)
         check_pose(position,yaw,row)
