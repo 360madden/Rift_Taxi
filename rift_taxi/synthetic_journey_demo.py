@@ -17,12 +17,14 @@ from .synthetic_terminal_finish import finish_after_drain
 
 def journey(trace, *, dt=.1, speed=3., yaw_rate=115., delay_steps=0,
             approach_budget=40., terminal_budget=5., lookahead=1.5,
-            approach_mode="baseline"):
+            approach_mode="baseline", prediction_delay_steps=None):
     """Run bounded synthetic phases; experimental approach modes are opt-in.
 
     Prediction modes model nonzero transport delay. The zero-delay rejoin
     mode addresses local arc progress without forecasting. All modes share
     the same observation gates, drain and correction, never live input.
+    An explicit prediction_delay_steps changes only the approach estimator;
+    drain and terminal correction still use the actual ideal plant delay.
     """
     if approach_mode not in ("baseline", "predict-near-goal", "predict-near-stall", "zero-delay-rejoin"):
         raise TraceError("unknown synthetic journey approach mode")
@@ -37,7 +39,8 @@ def journey(trace, *, dt=.1, speed=3., yaw_rate=115., delay_steps=0,
         speed_policy="turn-limited-ordered",
         predict_command_application=predicting,
         prediction_rejoin_policy="near-stall" if approach_mode == "predict-near-stall" else "near-goal",
-        recover_terminal_progress=approach_mode == "zero-delay-rejoin")
+        recover_terminal_progress=approach_mode == "zero-delay-rejoin",
+        prediction_delay_steps=prediction_delay_steps)
     verify_synthetic_trajectory(approach, trace)
     drain = drain_after_arrival(approach, trace)
     correction = None
@@ -118,6 +121,8 @@ def compact_report(result):
         "routeId": result["routeId"],
         "inputTraceSHA256": result["inputTraceSHA256"],
         "approachMode": result.get("experimentalApproachMode", "baseline"),
+        **({"assumedDelaySteps": result["approach"]["syntheticCommandPrediction"]["assumedDelaySteps"]}
+           if "assumedDelaySteps" in result["approach"].get("syntheticCommandPrediction", {}) else {}),
         "approachStatus": result["approach"]["status"],
         "passiveDrainStatus": result["passiveDrain"]["status"],
         "terminalCorrectionStatus": correction["status"] if correction else None,

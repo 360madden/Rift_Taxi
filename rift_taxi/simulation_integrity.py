@@ -114,12 +114,22 @@ def _verify(result,trace):
     queue = deque([(0.,0.)]*n)
     prediction = result.get("syntheticCommandPrediction")
     predicting = "syntheticCommandPrediction" in result
+    assumed = n
     if predicting:
         if (not n or model.get("speedPolicy") != "turn-limited-ordered"
-                or prediction["method"] != "queued-pose-midpoint/1"
                 or prediction["observedProgressOnly"] is not True):
             raise TraceError("invalid synthetic command prediction declaration")
-        _same(prediction["nominalHorizonSeconds"], n*dt, "prediction horizon")
+        method = prediction["method"]
+        if method == "assumed-queue-midpoint/1":
+            assumed = prediction["assumedDelaySteps"]
+            if type(assumed) is not int or not 1 <= assumed <= 10 or assumed == n:
+                raise TraceError("invalid synthetic assumed delay")
+        elif method != "queued-pose-midpoint/1" or "assumedDelaySteps" in prediction:
+            raise TraceError("invalid synthetic command prediction declaration")
+        _same(prediction["nominalHorizonSeconds"], assumed*dt, "prediction horizon")
+    # Independently reconstruct the controller's assumed request history
+    # alongside the actual FIFO. Neither forecast can alter observed motion.
+    forecast_queue = deque([(0., 0.)]*assumed) if assumed != n else queue
 
     # Accumulate using the actual applied velocity and duration, never
     # requested motion. Stationary and turning-only intervals stay in the
@@ -151,7 +161,7 @@ def _verify(result,trace):
         if predicting and not terminal:
             px, py, pz = position
             forecast_yaw = yaw
-            for queued_speed, queued_rate in queue:
+            for queued_speed, queued_rate in forecast_queue:
                 turn = queued_rate*dt
                 direction = math.radians(forecast_yaw+turn/2.)
                 px += queued_speed*dt*math.cos(direction)
@@ -180,6 +190,9 @@ def _verify(result,trace):
                          _number(a["requestedYawRateDegreesPerSecond"],"requested yaw rate",-yaw_cap,yaw_cap))
             queue.append(requested)
             expected = queue.popleft()
+            if assumed != n:
+                forecast_queue.append(requested)
+                forecast_queue.popleft()
             if (velocity,rate)!=expected:
                 raise TraceError("synthetic FIFO applied command disagrees with request history")
         elif "requestedSpeed" in a or "requestedYawRateDegreesPerSecond" in a:
