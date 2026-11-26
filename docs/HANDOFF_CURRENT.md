@@ -1,4 +1,8 @@
-# Current RIFT Taxi handoff — November 24, 2026
+# Current RIFT Taxi handoff — November 26, 2026
+
+## November 26 — verified patch recovery and repeatable synthetic comparison
+
+LEGION checkout recovery at 7323d03 passed 559/559 tests and an independent 29-file receipt verification. Reused today's independently verified Update Helper two-pass inventory: all 266 files unchanged, executable SHA unchanged. Fresh OS identity passed but the RIFT window was not foreground; no game-memory read or movement occurred. The standalone `rift_taxi.synthetic_journey_batch` CLI now reconstructs all 48 previously observed smoke cases, executes 128 eligible complete journeys, and reports matched settled gains/losses and common-success time/duty. All 128 prior compact outcomes reproduced; two new reports were byte-identical. Five focused tests passed. See [November 26 recovery and batch benchmark](LEGION_RECOVERY_JOURNEY_BATCH_2026-11-26.md) for exact pins, paths, results, and reproduction instructions. Keep production disarmed. Next offline research: prespecified timing mismatch and independent geometry; live M1 qualification remains pending an eligible session.
 
 ## November 25 morning — recovery and standalone automation
 
