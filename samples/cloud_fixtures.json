@@ -1,0 +1,34 @@
+{
+  "schema": "taxi.cloud-fixture-library/1",
+  "classification": "SYNTHETIC_ONLY",
+  "fixtures": [
+    {
+      "id": "synthetic_continuous",
+      "path": "samples/synthetic_continuous.json",
+      "sha256": "88f62c0b71e7d1396fbe0d19b32085faca8c7195f61639ca7eef5aacaf7aabac",
+      "sizeBytes": 2384,
+      "traceSchema": "taxi.motion-trace/1",
+      "sourceType": "synthetic",
+      "generator": "hand-authored-continuous-turning-comparison/1",
+      "routeId": "three-bend-synthetic-course",
+      "units": "synthetic-units",
+      "pointCount": 5,
+      "poseCount": 6,
+      "eventCount": 8
+    },
+    {
+      "id": "synthetic_stop_go",
+      "path": "samples/synthetic_stop_go.json",
+      "sha256": "afb617153be67dd56f3e99d031eecf9c41ad4a2d6ce470cc91b72a0d30d02c5a",
+      "sizeBytes": 3094,
+      "traceSchema": "taxi.motion-trace/1",
+      "sourceType": "synthetic",
+      "generator": "hand-authored-stop-turn-run-comparison/1",
+      "routeId": "three-bend-synthetic-course",
+      "units": "synthetic-units",
+      "pointCount": 5,
+      "poseCount": 9,
+      "eventCount": 14
+    }
+  ]
+}

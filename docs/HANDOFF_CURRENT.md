@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — hosted portable batch validation and fixture library
+
+Cloud-only commit 5e79dcd passed all three hosted jobs (PR run 45888250727, 69 s total; Windows 672/672, Linux 656 passed + 16 platform skips on both Python versions). Added explicit SHA-256-pinned synthetic fixture catalog and standalone verification against existing trace contracts, plus eight focused corruption/coverage tests. No physical capture or proprietary assets imported. New parallel Actions template still inactive pending authorized workflow-write scope. See [cloud development](CLOUD_DEVELOPMENT.md). The full-suite parallel speedup remains unmeasured; no LEGION edit or live activity.
+
 ## November 27 — portable cloud batch execution
 
 Cloud foundation 4183046 passed hosted PR CI run 45887826247 (Linux 3.14, Windows 3.14 recovery, Linux 3.11 wheel). Added portable single-host subprocess sharding/merge, run/batch/attempt identity and real disposable Git checkout integration tests. See [cloud development](CLOUD_DEVELOPMENT.md). This change is authored directly through the GitHub connector, without LEGION edits. New Actions workflow remains an inactive template; do not claim full pilot timing or M1 physical qualification.

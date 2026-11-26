@@ -117,3 +117,35 @@ refusal, batch/attempt isolation and exclusive output. The new four-job Actions
 workflow remains inactive pending workflow-write permission. Full-repository timing
 comparisons require an actual full checkout run; miniature fixtures do not qualify
 performance of the complete suite.
+
+## Verified portable batch checkpoint
+
+GitHub-only source commit `5e79dcd` passed hosted PR run 45888250727 in 69 s.
+Windows 3.14: 672/672 (39.119 s); Linux 3.14: 656 passed, 16 Windows-only skips
+(55.038 s); Linux 3.11: 656 passed, 16 skips (31.562 s). The six new integration
+tests passed on all three environments. The underlying PR merge checkout is not the
+head SHA (Windows receipt recorded c79d1089e82b1b1d9da853b45e0c6171e38a3d94).
+These are real hosted full-regression results, not a full-suite parallel speedup
+measurement. The miniature Git/subprocess tests establish the orchestration contract.
+
+## Portable synthetic fixture library
+
+`samples/cloud_fixtures.json` explicitly lists the two existing authored synthetic
+motion traces. Each row pins its exact raw SHA-256, byte length, generator,
+route/units and point/pose/event counts. `scripts/cloud_fixture_library.py` refuses
+unknown, missing, malformed, historical or mismatched entries; verifies each exact
+byte sequence; and reuses the existing Taxi trace parser on an isolated copy.
+No local captures, proprietary game files, historical originals or raw player data
+are imported. A committed fixture manifest is a content-integrity boundary, not
+source authenticity or physical qualification.
+
+```sh
+python -B -m scripts.cloud_fixture_library
+# Optional, with an existing output parent and a new filename:
+python -B -m scripts.cloud_fixture_library --out cloud-results/NEW-fixtures.json
+```
+
+Ordinary hosted regression now verifies the actual repository samples plus negative
+fixtures, without new Actions permission. The initial catalog is intentionally
+small. Add only explicitly reviewed portable synthetic inputs; keep generated
+reports ignored and never scan or publish physical capture directories automatically.
