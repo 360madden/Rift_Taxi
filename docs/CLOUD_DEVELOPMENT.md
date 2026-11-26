@@ -263,3 +263,28 @@ complete unique sorted cost rows; all actual discovered tests remain required.
 Profile digest and estimated loads are bound into the plan and aggregate.
 No raw logs or physical data are added. Verify the next hosted run and compare
 actual longest shard and total workflow time before promoting this as faster.
+
+## Windows exact-inventory and timing checkpoint
+
+Weighted head acfd567 passed the comprehensive PR run 45891478942 in 101 s.
+Windows executed all 694 tests in 69.124 s, with its recovery step taking 74 s
+and the complete job 97 s. Both Linux jobs passed. Weighted pilot 45891470995
+passed in 37 s, 694 discovered/678 passed/16 skips, longest shard 13.859407 s,
+sum test time 41.088964 s. Compared with the preceding 40 s timing-enabled
+pilot, the observed wall gain was modest and total job elapsed seconds rose
+from 84 to 90; there is no controlled causal speedup claim.
+
+The Windows rehearsal now derives an exact count from the existing clean
+checkout discovery planner (single shard, no declared skips), requires at
+least the historically verified 694 tests, and binds the producer and
+independent verifier count and Git HEAD to that inventory. The old workflow
+CLI floor of 556 no longer silently permits an unexpectedly reduced suite.
+The actual patch-check and verifier commands, original bundle format and
+unskipped serial regression requirement are unchanged. The rehearsal summary
+adds discovery, recovery and independent verification wall durations, plan
+digest, module count and exact test count. This is a stricter coverage gate
+and phase measurement, not a demonstrated Windows latency reduction. The
+inventory preflight adds some overhead. Exact count is not equivalent to
+exact executed-ID verification; the parallel pilot retains the latter.
+Next use measured Windows module costs in an isolated hosted experiment
+rather than prematurely replacing the required serial patch rehearsal.

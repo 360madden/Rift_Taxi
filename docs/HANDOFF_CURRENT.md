@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — Windows exact-inventory CI admission
+
+acfd567 comprehensive PR 45891478942 passed (101 s, Windows 694/694 in 69.124 s); weighted pilot 45891470995 passed (37 s, 678 passes/16 skips, max shard 13.859407 s). Hardened synthetic Windows recovery wrapper to require exact single-shard discovery count/HEAD, historical floor 694, zero declared skips, and independently matched receipt counts; added phase timings and five focused tests. Underlying serial patch-check/verifier remain unchanged. New hosted checkpoint pending. No live game or service changes.
+
 ## November 27 — measured module-cost allocation experiment
 
 Timing-enabled pilot 45891235786 at 6c04452 passed in 40 s, 691 discovered/675 passed/16 skips, 68 modules. Count-balanced max 14.326 s; historical weighted allocation predicts ~10.37 s. Added explicit source-pinned Linux/Python 3.14 module cost catalog, deterministic weighted planner, count fallback and three focused regressions. No coverage reduction. Validate new hosted result before claiming speed improvement; Windows/minimum-Python remain comprehensive gates.
