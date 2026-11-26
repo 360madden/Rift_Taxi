@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27, 04:25 PHT — workflow scope resolved and CI activation
+
+User completed OAuth authorization; LEGION verified account 360madden and workflow scope. Fast-forwarded clean local branch 4183046 -> 5bd9be7, then exact-head CI gate passed for run 45889172411 attempt 1 (96 s; Windows longest 92 s). Activated optimized existing PR workflow and separate four-shard Linux pilot with narrower infrastructure-only push paths and attempt-specific artifact names. Main and required cross-platform gate unchanged. Hosted activation and speed/coverage remain to be verified. This supersedes the historical inactive-workflow permission blocker. See [cloud development](CLOUD_DEVELOPMENT.md#november-27-0425-pht--authorized-ci-activation).
+
 ## November 27 — tight CI checkpoint admission
 
 Fixture-library head 005a8bc passed all three hosted jobs in 98 s (Windows 680/680; both Linux 664 passed +16 skips). Added exact-head/attempt CI metadata gate and latency reporting, eight focused tests, durable CI acceptance policy, and inactive optimized existing-workflow proposal (obsolete-run cancellation and removal of redundant minimum-version focused tests). Windows is currently the longest observed lane. Active CI remains unchanged because workflow-write permission is unresolved. See [cloud development](CLOUD_DEVELOPMENT.md#continuous-integration-as-a-development-gate). No physical qualification or service deployment.

@@ -5,6 +5,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# Cancel obsolete runs of the same PR/ref rather than queue stale commits.
+concurrency:
+  group: offline-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   regression:
     name: Python 3.14 / ${{ matrix.os }}
@@ -77,11 +81,7 @@ jobs:
           python-version: '3.11'
       # Check the declared minimum on the source tree before verifying an
       # installed wheel. No physical game client or sibling checkout is used.
-      - name: Run focused archive and comparison tests
-        run: |
-          python -B -m unittest discover -s tests -p 'test_delay_factorial*.py' -v
-          python -B -m unittest discover -s tests -p 'test_simulation_holdout_v4*.py' -v
-          python -B -m unittest discover -s tests -p 'test_simulation_v4_terminal_observation.py' -v
+      # The full suite includes the previously repeated focused tests.
       - name: Run full minimum-version regression suite
         run: python -B -m unittest discover -s tests -v
       - name: Build and install wheel

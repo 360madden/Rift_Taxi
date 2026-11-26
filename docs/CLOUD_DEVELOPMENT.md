@@ -193,3 +193,29 @@ changes. Prioritize the Windows critical path and a genuine full-checkout parall
 benchmark, not more unmeasured runners. Keep the four-job pilot optional until
 it demonstrates improved end-to-end latency and exact coverage. Separate long
 research benchmarks only after preserving required checks and artifact parity.
+
+## November 27, 04:25 PHT — authorized CI activation
+
+User completed GitHub CLI authorization. LEGION independently verified the active
+360madden account and OAuth workflow scope; the clean research branch was
+fast-forwarded from 4183046 to 5bd9be7. The exact-head CI checkpoint verifier
+admitted prior run 45889172411, attempt 1, all three required jobs, 96 s from
+creation, 92 s Windows critical job. The historical permission-blocked notes
+above describe earlier checkpoints and are superseded by this authorization.
+
+Activate the reviewed minimal optimized Offline regression workflow: cancel
+obsolete runs on the same PR/ref, remove the 29 duplicate focused test executions
+on the minimum-version lane, preserve required job names and existing regression,
+recovery, installed-package and research artifact steps. Activate the separate
+Cloud validation pilot using four hosted Linux shards and an independent merge.
+The pilot's push filters are deliberately narrower than the initial template:
+only cloud runner/test/workflow changes on research/cloud branches trigger it,
+so ordinary development does not continually duplicate the comprehensive suite.
+Artifacts are named by run attempt to prevent retry collisions and merge only
+receipts from the current attempt. Full-suite parallel timing remains a measured
+pilot, not a replacement gate. Keep main, branch protection and production game
+input unchanged. The older local workflow branch remains a historical record.
+
+Activation is not proof of CI success. Record fresh hosted outcomes and aggregate
+coverage before accepting the pilot, then compare actual wall time and total job
+seconds. No paid infrastructure, game input or sibling-service changes.
