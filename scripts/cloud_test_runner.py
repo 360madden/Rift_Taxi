@@ -11,9 +11,9 @@ Run from the repository root:
   python -B -m scripts.cloud_test_runner run --shards 4 --index 0 --out cloud-results/shard-0.json
   python -B -m scripts.cloud_test_runner merge --shards 4 --dir cloud-results --out cloud-results/merged.json
 
-The first plan balances test counts. Record complete module wall durations,
-including class/module fixtures, for a later measured weighting experiment.
-Keep modules intact and execute in original discovery order. Timing is observational.
+Plan complete modules using an explicit recorded timing profile when it
+matches the runner platform/Python minor, otherwise use test counts. All
+module durations include fixtures. Timing is observational, not a coverage gate.
 """
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 MAX_RECEIPT = 2 * 1024 * 1024
 MAX_SHARDS = 8
+COST_PROFILE = ROOT / "cloud" / "test_module_costs.json"
 
 
 class CloudValidationError(ValueError):
@@ -112,8 +113,62 @@ def declared_skip(test):
                 or getattr(method, "__unittest_skip__", False))
 
 
-def make_plan(test_ids, skips, shards, identity, *, module_by_id=None):
-    """Greedy count balancing with stable tie breaks and whole-module ownership."""
+def profile_weights(modules, profile, identity):
+    """Return integer microsecond estimates, or None for a different platform.
+
+    Historical runtime estimates never determine which tests are eligible.
+    Scale known costs for current test counts and use the median measured
+    per-test cost for new modules. A single profile is only a planning input;
+    runner variability and fixture costs can invalidate a speed prediction.
+    """
+    require(isinstance(profile, dict) and set(profile) ==
+            {"schema", "platform", "pythonMinor", "source", "modules"}
+            and profile["schema"] == "taxi.cloud-module-cost-profile/1"
+            and profile["platform"] in ("Linux", "Windows", "Darwin")
+            and isinstance(profile["pythonMinor"], str)
+            and re.fullmatch(r"[0-9]+\.[0-9]+", profile["pythonMinor"]),
+            "invalid module cost profile")
+    source = profile["source"]
+    require(isinstance(source, dict) and set(source) == {"commit", "runId", "attempt", "planSHA256"}
+            and isinstance(source["commit"], str) and re.fullmatch(r"[0-9a-f]{40}", source["commit"])
+            and isinstance(source["planSHA256"], str) and re.fullmatch(r"[0-9a-f]{64}", source["planSHA256"])
+            and isinstance(source["runId"], str) and re.fullmatch(r"[1-9][0-9]{0,19}", source["runId"])
+            and isinstance(source["attempt"], str) and re.fullmatch(r"[1-9][0-9]{0,9}", source["attempt"]),
+            "invalid module cost provenance")
+    rows = profile["modules"]
+    require(isinstance(rows, list) and 0 < len(rows) <= 1000, "module cost inventory")
+    history, per_test = {}, []
+    for row in rows:
+        require(isinstance(row, dict) and set(row) ==
+                {"module", "testsRun", "elapsedMicroseconds"}, "module cost row")
+        name, count, micros = row["module"], row["testsRun"], row["elapsedMicroseconds"]
+        require(isinstance(name, str) and 0 < len(name) <= 200 and name not in history
+                and exact_int(count, 1, 100000)
+                and exact_int(micros, 0, 3600000000), "invalid or duplicate module cost")
+        # Floor tiny measurements at 100 microseconds so a skipped module
+        # never has zero weight and integer tie-breaking stays deterministic.
+        cost = max(100, micros)
+        history[name] = (count, cost)
+        per_test.append(max(100, (cost+count-1)//count))
+    require(list(history) == sorted(history), "unordered module cost inventory")
+    if (identity.get("platform") != profile["platform"]
+            or ".".join(identity.get("python", "").split(".")[:2]) != profile["pythonMinor"]):
+        return None
+    per_test.sort()
+    fallback = per_test[len(per_test)//2]
+    weights = {}
+    for name, ids in modules.items():
+        count = len(ids)
+        if name in history:
+            old_count, cost = history[name]
+            weights[name] = max(100, (cost*count+old_count-1)//old_count)
+        else:
+            weights[name] = fallback*count
+    return weights
+
+
+def make_plan(test_ids, skips, shards, identity, *, module_by_id=None, cost_profile=None):
+    """Stable longest-estimated-module-first balancing; preserve coverage."""
     require(exact_int(shards, 1, MAX_SHARDS), "shard count outside 1..8")
     require(isinstance(test_ids, list) and bool(test_ids)
             and all(isinstance(i, str) and i.count(".") >= 2 for i in test_ids)
@@ -132,12 +187,16 @@ def make_plan(test_ids, skips, shards, identity, *, module_by_id=None):
     for name in test_ids:
         modules.setdefault(module_by_id[name], []).append(name)
     require(len(modules) >= shards, "more shards than test modules")
+    estimated = None if cost_profile is None else profile_weights(modules, cost_profile, identity)
+    weights = estimated if estimated is not None else {m: len(ids) for m, ids in modules.items()}
     groups = [[] for _ in range(shards)]
     loads = [0] * shards
-    for name in sorted(modules, key=lambda m: (-len(modules[m]), m)):
-        i = min(range(shards), key=lambda i: (loads[i], i))
+    test_loads = [0] * shards
+    for name in sorted(modules, key=lambda m: (-weights[m], -len(modules[m]), m)):
+        i = min(range(shards), key=lambda i: (loads[i], test_loads[i], i))
         groups[i].append(name)
-        loads[i] += len(modules[name])
+        loads[i] += weights[name]
+        test_loads[i] += len(modules[name])
     assignment = []
     for i, names in enumerate(groups):
         ids = sorted(t for m in names for t in modules[m])
@@ -146,15 +205,22 @@ def make_plan(test_ids, skips, shards, identity, *, module_by_id=None):
                            "declaredSkipIds": sorted(set(ids) & set(skips))})
     body = {"schema": "taxi.cloud-test-plan/1", "identity": identity,
             "testCount": len(test_ids), "moduleCount": len(modules),
-            "shardCount": shards, "assignment": assignment}
+            "shardCount": shards, "assignment": assignment,
+            "balancingMode": "measured-module-cost" if estimated is not None else "test-count"}
+    if estimated is not None:
+        body["costProfileSHA256"] = digest(cost_profile)
+        body["costProfileSource"] = dict(cost_profile["source"])
+        body["estimatedShardMicroseconds"] = loads
     return {**body, "planSHA256": digest(body)}
 
 
 def current_plan(shards):
     tests = discover()
+    profile = read(COST_PROFILE) if COST_PROFILE.exists() else None
     return make_plan([t.id() for t in tests], [t.id() for t in tests if declared_skip(t)],
                      shards, checkout_identity(),
-                     module_by_id={t.id(): type(t).__module__ for t in tests}), tests
+                     module_by_id={t.id(): type(t).__module__ for t in tests},
+                     cost_profile=profile), tests
 
 
 class RecordingResult(unittest.TextTestResult):
@@ -284,6 +350,10 @@ def merge(plan, receipts):
     return {"schema": "taxi.cloud-test-merge/1", "status": "passed",
             "identity": plan["identity"], "planSHA256": plan["planSHA256"],
             "shardCount": plan["shardCount"], "testsDiscovered": tests,
+            "balancingMode": plan["balancingMode"],
+            "costProfileSHA256": plan.get("costProfileSHA256"),
+            "costProfileSource": plan.get("costProfileSource"),
+            "estimatedShardMicroseconds": plan.get("estimatedShardMicroseconds"),
             "testsPassed": tests-skipped, "testsSkipped": skipped,
             "allDiscoveredTestsAccountedFor": True,
             "sumShardSeconds": round(sum(r["elapsedSeconds"] for r in ordered), 6),

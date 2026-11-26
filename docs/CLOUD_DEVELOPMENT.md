@@ -242,3 +242,24 @@ runner; successful coverage is still decided by the actual test IDs, skips and
 failures. This additive receipt field changes the plan hash; old receipts are
 replayed using their producing commit, not mixed with the new plan.
 The next pilot will measure module cost. Only then choose weighted assignments.
+
+## Measured weighting experiment
+
+Timing pilot at 6c04452, run 45891235786, attempt 1, passed in 40 s: 691
+discovered, 675 passed and 16 expected skips; 68 complete modules. The four
+count-balanced shard durations were 5.391778, 13.873269, 14.325827 and 7.900759 s.
+The independent aggregate produced plan SHA-256
+e425d29cdfc8ff046a29cedfee4d10445bc4ae15a7c36c86a23930d8445439ae.
+Using those observed module durations, greedy largest-cost-first allocation
+predicts about 10.37 s per shard on that historical sample. This is a
+prediction, not a measured speedup.
+
+Commit the observed module cost catalog at cloud/test_module_costs.json
+(source run, commit, plan hash, exact observed microseconds and test counts).
+The planner uses it only on Linux Python 3.14, scales known costs by current
+test counts, estimates unseen modules by median historical per-test cost and
+retains count balancing on other platforms. It checks source metadata and
+complete unique sorted cost rows; all actual discovered tests remain required.
+Profile digest and estimated loads are bound into the plan and aggregate.
+No raw logs or physical data are added. Verify the next hosted run and compare
+actual longest shard and total workflow time before promoting this as faster.

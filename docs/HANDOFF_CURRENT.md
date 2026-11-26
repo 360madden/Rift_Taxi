@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — measured module-cost allocation experiment
+
+Timing-enabled pilot 45891235786 at 6c04452 passed in 40 s, 691 discovered/675 passed/16 skips, 68 modules. Count-balanced max 14.326 s; historical weighted allocation predicts ~10.37 s. Added explicit source-pinned Linux/Python 3.14 module cost catalog, deterministic weighted planner, count fallback and three focused regressions. No coverage reduction. Validate new hosted result before claiming speed improvement; Windows/minimum-Python remain comprehensive gates.
+
 ## November 27 — first parallel pilot and module profiling
 
 20294ee pilot 45890935749 succeeded (46 s, 688 discovered, 672 passed/16 skips, exact coverage); shards 172 tests each took 9.845/5.143/18.108/7.588 s. Comprehensive PR run 45890943852 passed in 78 s. Added complete per-module fixture-inclusive timing and independent timing-inventory checks, actual module identity, and focused regressions. Use the next pilot to obtain real weighting evidence. No change to active workflow, physical gates, or main. See [cloud development](CLOUD_DEVELOPMENT.md).

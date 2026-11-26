@@ -4,7 +4,7 @@ import io
 import unittest
 
 from scripts.cloud_test_runner import (
-    CloudValidationError, make_plan, merge, execute_shard,
+    CloudValidationError, make_plan, merge, execute_shard, profile_weights,
 )
 
 IDENTITY={"commit":"a"*40,"cleanCheckout":True,"platform":"Linux","python":"3.14.10"}
@@ -141,3 +141,46 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(r["status"],"passed")
         self.assertEqual(r["moduleTimings"][0]["testsRun"],2)
         self.assertEqual(merge(plan,[r])["testsPassed"],2)
+
+    def cost_profile(self):
+        return {"schema":"taxi.cloud-module-cost-profile/1","platform":"Linux",
+                "pythonMinor":"3.14","source":{"commit":"a"*40,"runId":"123",
+                "attempt":"1","planSHA256":"b"*64},
+                "modules":[{"module":m,"testsRun":count,"elapsedMicroseconds":cost}
+                           for m,count,cost in (("test_a",5,5000),("test_b",3,3000),
+                                                ("test_c",1,100000),("test_d",1,20000))]}
+
+    def test_weighted_plan_is_deterministic_and_preserves_exact_coverage(self):
+        profile=self.cost_profile()
+        plan=make_plan(self.ids,self.skips,3,IDENTITY,cost_profile=profile)
+        self.assertEqual(plan["balancingMode"],"measured-module-cost")
+        self.assertEqual(plan,make_plan(list(reversed(self.ids)),self.skips,3,
+                                        IDENTITY,cost_profile=profile))
+        self.assertEqual(sum(plan["estimatedShardMicroseconds"]),128000)
+        self.assertEqual(sorted(t for a in plan["assignment"] for t in a["testIds"]),
+                         sorted(self.ids))
+        self.assertEqual(sorted(t for a in plan["assignment"] for t in a["declaredSkipIds"]),
+                         self.skips)
+        self.assertEqual(max(plan["estimatedShardMicroseconds"]),100000)
+        self.assertNotEqual(plan["planSHA256"],self.plan["planSHA256"])
+
+    def test_profile_fallback_and_new_module_cost(self):
+        profile=self.cost_profile()
+        self.assertEqual(make_plan(self.ids,self.skips,3,{**IDENTITY,"platform":"Windows"},
+                                   cost_profile=profile)["balancingMode"],"test-count")
+        self.assertEqual(make_plan(self.ids,self.skips,3,{**IDENTITY,"python":"3.11.9"},
+                                   cost_profile=profile)["balancingMode"],"test-count")
+        weights=profile_weights({"test_a":["a"]*10,"test_new":["n"]*2},profile,IDENTITY)
+        self.assertEqual(weights["test_a"],10000)
+        self.assertGreater(weights["test_new"],0)
+
+    def test_invalid_cost_profile_refused_even_on_other_platform(self):
+        for mutation in ("duplicate","unordered","boolean","negative","source"):
+            p=self.cost_profile()
+            if mutation=="duplicate": p["modules"].append(deepcopy(p["modules"][0]))
+            elif mutation=="unordered": p["modules"].reverse()
+            elif mutation=="boolean": p["modules"][0]["testsRun"]=True
+            elif mutation=="negative": p["modules"][0]["elapsedMicroseconds"]=-1
+            else: p["source"]["planSHA256"]="invalid"
+            with self.subTest(mutation=mutation),self.assertRaises(CloudValidationError):
+                make_plan(self.ids,self.skips,3,{**IDENTITY,"platform":"Windows"},cost_profile=p)

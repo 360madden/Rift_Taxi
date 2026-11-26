@@ -1,0 +1,353 @@
+{
+  "schema": "taxi.cloud-module-cost-profile/1",
+  "platform": "Linux",
+  "pythonMinor": "3.14",
+  "source": {
+    "commit": "6c044522e48706b6e37c209a813c1b8814fdc39d",
+    "runId": "45891235786",
+    "attempt": "1",
+    "planSHA256": "e425d29cdfc8ff046a29cedfee4d10445bc4ae15a7c36c86a23930d8445439ae"
+  },
+  "modules": [
+    {
+      "module": "test_camera_probe",
+      "testsRun": 11,
+      "elapsedMicroseconds": 12171
+    },
+    {
+      "module": "test_capture_launch",
+      "testsRun": 4,
+      "elapsedMicroseconds": 53380
+    },
+    {
+      "module": "test_ci_checkpoint",
+      "testsRun": 8,
+      "elapsedMicroseconds": 21209
+    },
+    {
+      "module": "test_cloud_fixture_library",
+      "testsRun": 8,
+      "elapsedMicroseconds": 13421
+    },
+    {
+      "module": "test_cloud_parallel",
+      "testsRun": 6,
+      "elapsedMicroseconds": 2869954
+    },
+    {
+      "module": "test_cloud_test_runner",
+      "testsRun": 9,
+      "elapsedMicroseconds": 2878
+    },
+    {
+      "module": "test_control",
+      "testsRun": 37,
+      "elapsedMicroseconds": 29533
+    },
+    {
+      "module": "test_crash_release_probe",
+      "testsRun": 11,
+      "elapsedMicroseconds": 12889
+    },
+    {
+      "module": "test_delay_factorial_audit",
+      "testsRun": 9,
+      "elapsedMicroseconds": 472378
+    },
+    {
+      "module": "test_delay_factorial_diagnostics",
+      "testsRun": 5,
+      "elapsedMicroseconds": 65029
+    },
+    {
+      "module": "test_delay_factorial_stratification",
+      "testsRun": 3,
+      "elapsedMicroseconds": 48580
+    },
+    {
+      "module": "test_facing_signature",
+      "testsRun": 12,
+      "elapsedMicroseconds": 76497
+    },
+    {
+      "module": "test_forward_bearing",
+      "testsRun": 12,
+      "elapsedMicroseconds": 27665
+    },
+    {
+      "module": "test_import_rr2",
+      "testsRun": 7,
+      "elapsedMicroseconds": 18228
+    },
+    {
+      "module": "test_key_observation",
+      "testsRun": 7,
+      "elapsedMicroseconds": 444
+    },
+    {
+      "module": "test_motion_timing",
+      "testsRun": 12,
+      "elapsedMicroseconds": 14862
+    },
+    {
+      "module": "test_native_burst",
+      "testsRun": 24,
+      "elapsedMicroseconds": 23609
+    },
+    {
+      "module": "test_native_candidate",
+      "testsRun": 30,
+      "elapsedMicroseconds": 4271
+    },
+    {
+      "module": "test_native_capture",
+      "testsRun": 22,
+      "elapsedMicroseconds": 26773
+    },
+    {
+      "module": "test_native_memory",
+      "testsRun": 11,
+      "elapsedMicroseconds": 929
+    },
+    {
+      "module": "test_native_pair",
+      "testsRun": 11,
+      "elapsedMicroseconds": 33634
+    },
+    {
+      "module": "test_native_series",
+      "testsRun": 26,
+      "elapsedMicroseconds": 20307
+    },
+    {
+      "module": "test_patch_check",
+      "testsRun": 12,
+      "elapsedMicroseconds": 159511
+    },
+    {
+      "module": "test_patch_readiness",
+      "testsRun": 15,
+      "elapsedMicroseconds": 219025
+    },
+    {
+      "module": "test_release_supervisor",
+      "testsRun": 28,
+      "elapsedMicroseconds": 2078
+    },
+    {
+      "module": "test_replay",
+      "testsRun": 24,
+      "elapsedMicroseconds": 655185
+    },
+    {
+      "module": "test_simulation",
+      "testsRun": 13,
+      "elapsedMicroseconds": 494796
+    },
+    {
+      "module": "test_simulation_delay_factorial",
+      "testsRun": 7,
+      "elapsedMicroseconds": 3656941
+    },
+    {
+      "module": "test_simulation_delay_study",
+      "testsRun": 4,
+      "elapsedMicroseconds": 1541559
+    },
+    {
+      "module": "test_simulation_holdout",
+      "testsRun": 8,
+      "elapsedMicroseconds": 1519363
+    },
+    {
+      "module": "test_simulation_holdout_v2",
+      "testsRun": 3,
+      "elapsedMicroseconds": 1857082
+    },
+    {
+      "module": "test_simulation_holdout_v3",
+      "testsRun": 3,
+      "elapsedMicroseconds": 2890723
+    },
+    {
+      "module": "test_simulation_holdout_v4_comparison",
+      "testsRun": 3,
+      "elapsedMicroseconds": 1630586
+    },
+    {
+      "module": "test_simulation_holdout_v4_design",
+      "testsRun": 2,
+      "elapsedMicroseconds": 5062
+    },
+    {
+      "module": "test_simulation_integrity",
+      "testsRun": 7,
+      "elapsedMicroseconds": 17983
+    },
+    {
+      "module": "test_simulation_latency_prediction",
+      "testsRun": 7,
+      "elapsedMicroseconds": 9998
+    },
+    {
+      "module": "test_simulation_ordered_comparison",
+      "testsRun": 3,
+      "elapsedMicroseconds": 1691871
+    },
+    {
+      "module": "test_simulation_receipt_audit",
+      "testsRun": 5,
+      "elapsedMicroseconds": 5915748
+    },
+    {
+      "module": "test_simulation_recovery_audit",
+      "testsRun": 3,
+      "elapsedMicroseconds": 537585
+    },
+    {
+      "module": "test_simulation_settling",
+      "testsRun": 4,
+      "elapsedMicroseconds": 1554767
+    },
+    {
+      "module": "test_simulation_stress",
+      "testsRun": 7,
+      "elapsedMicroseconds": 914252
+    },
+    {
+      "module": "test_simulation_terminal_errors",
+      "testsRun": 3,
+      "elapsedMicroseconds": 2157577
+    },
+    {
+      "module": "test_simulation_v3_failure_audit",
+      "testsRun": 3,
+      "elapsedMicroseconds": 1036565
+    },
+    {
+      "module": "test_simulation_v4_terminal_observation",
+      "testsRun": 7,
+      "elapsedMicroseconds": 105139
+    },
+    {
+      "module": "test_steering",
+      "testsRun": 14,
+      "elapsedMicroseconds": 143391
+    },
+    {
+      "module": "test_supervised_input",
+      "testsRun": 5,
+      "elapsedMicroseconds": 481
+    },
+    {
+      "module": "test_synthetic_adaptive_study",
+      "testsRun": 7,
+      "elapsedMicroseconds": 244368
+    },
+    {
+      "module": "test_synthetic_combined_uncertainty",
+      "testsRun": 6,
+      "elapsedMicroseconds": 1256561
+    },
+    {
+      "module": "test_synthetic_corner_certificate",
+      "testsRun": 9,
+      "elapsedMicroseconds": 2633654
+    },
+    {
+      "module": "test_synthetic_corner_speed",
+      "testsRun": 9,
+      "elapsedMicroseconds": 1629008
+    },
+    {
+      "module": "test_synthetic_journey_batch",
+      "testsRun": 5,
+      "elapsedMicroseconds": 217509
+    },
+    {
+      "module": "test_synthetic_journey_cli",
+      "testsRun": 8,
+      "elapsedMicroseconds": 830331
+    },
+    {
+      "module": "test_synthetic_journey_demo",
+      "testsRun": 9,
+      "elapsedMicroseconds": 15504
+    },
+    {
+      "module": "test_synthetic_latency_mismatch",
+      "testsRun": 6,
+      "elapsedMicroseconds": 362654
+    },
+    {
+      "module": "test_synthetic_observation_replay",
+      "testsRun": 9,
+      "elapsedMicroseconds": 89654
+    },
+    {
+      "module": "test_synthetic_response_estimator",
+      "testsRun": 7,
+      "elapsedMicroseconds": 80149
+    },
+    {
+      "module": "test_synthetic_robust_estimator",
+      "testsRun": 10,
+      "elapsedMicroseconds": 883865
+    },
+    {
+      "module": "test_synthetic_sampled_steering",
+      "testsRun": 7,
+      "elapsedMicroseconds": 354961
+    },
+    {
+      "module": "test_synthetic_terminal_finish",
+      "testsRun": 5,
+      "elapsedMicroseconds": 84421
+    },
+    {
+      "module": "test_telemetry_motion_audit",
+      "testsRun": 12,
+      "elapsedMicroseconds": 68375
+    },
+    {
+      "module": "test_turn_probe",
+      "testsRun": 17,
+      "elapsedMicroseconds": 23974
+    },
+    {
+      "module": "test_two_forward_bearings",
+      "testsRun": 8,
+      "elapsedMicroseconds": 15846
+    },
+    {
+      "module": "test_verify_native_series",
+      "testsRun": 8,
+      "elapsedMicroseconds": 28701
+    },
+    {
+      "module": "test_verify_patch_check",
+      "testsRun": 18,
+      "elapsedMicroseconds": 57914
+    },
+    {
+      "module": "test_win32_identity",
+      "testsRun": 11,
+      "elapsedMicroseconds": 1122
+    },
+    {
+      "module": "test_win32_input",
+      "testsRun": 15,
+      "elapsedMicroseconds": 1615
+    },
+    {
+      "module": "test_zone_correlation",
+      "testsRun": 16,
+      "elapsedMicroseconds": 34142
+    },
+    {
+      "module": "test_zone_key",
+      "testsRun": 14,
+      "elapsedMicroseconds": 10512
+    }
+  ]
+}
