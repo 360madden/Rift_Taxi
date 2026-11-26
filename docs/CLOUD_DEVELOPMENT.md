@@ -288,3 +288,23 @@ inventory preflight adds some overhead. Exact count is not equivalent to
 exact executed-ID verification; the parallel pilot retains the latter.
 Next use measured Windows module costs in an isolated hosted experiment
 rather than prematurely replacing the required serial patch rehearsal.
+
+## Opt-in Windows parallel profiling experiment
+
+Use .github/workflows/cloud-windows-profile.yml to measure the full Windows
+suite with four independent standard hosted machines and a fifth independent
+coverage merger. Unlike a single Windows host with concurrent test processes,
+separate runners avoid cross-shard collision of named kernel mutex fixtures
+and other process-global resources. The existing Windows serial patch recovery
+and its original receipt verifier remain mandatory. The first experiment
+uses count balancing (the Linux cost profile is platform-specific); it records
+complete Windows module costs, requires zero skips and at least 694 actual
+passes, and checks exact discovered test IDs using the existing merge contract.
+Artifacts are attempt-specific and retained for 14 days. Trigger only when the
+experiment workflow changes on research/cloud branches or via explicit dispatch
+where GitHub exposes it; ordinary source changes do not repeat the experiment.
+Do not use self-hosted or larger paid runners. Compare actual Windows shard and
+merge overhead against the same-head comprehensive rehearsal; do not equate
+pure regression wall time to full patch recovery qualification. A passing
+experiment is not authorization to substitute sharded execution inside the
+existing patch-check receipt contract. Preserve main and physical M1 gates.

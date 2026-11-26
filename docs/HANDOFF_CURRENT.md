@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — isolated Windows profiling experiment
+
+Added opt-in four-host Windows test-shard workflow, independent Windows merge and strict no-skip/floor check. Triggers only its own workflow changes or explicit dispatch, no routine duplicated runs. Keep original comprehensive serial recovery gate; collect measured Windows module costs and compare wall/job seconds before deciding whether a parallel contract is worthwhile. No game activity or additional paid runner infrastructure.
+
 ## November 27 — Windows exact-inventory CI admission
 
 acfd567 comprehensive PR 45891478942 passed (101 s, Windows 694/694 in 69.124 s); weighted pilot 45891470995 passed (37 s, 678 passes/16 skips, max shard 13.859407 s). Hardened synthetic Windows recovery wrapper to require exact single-shard discovery count/HEAD, historical floor 694, zero declared skips, and independently matched receipt counts; added phase timings and five focused tests. Underlying serial patch-check/verifier remain unchanged. New hosted checkpoint pending. No live game or service changes.
