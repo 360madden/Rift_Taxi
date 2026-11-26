@@ -19,6 +19,10 @@ RIFT Taxi is a standalone, offline-decision, destination-first RIFT navigation a
 - Ask the user **only when essential**: required human-only authentication/permission, unavailable physical observation that cannot be automated, an irreversible/destructive choice, or material risk/consent outside established project scope. Otherwise decide from documented project goals and proceed.
 - Give succinct timestamped progress and grounded SITREPs; make validated commits/pushes instead of promising background work. Preserve read-only sibling policies and do not modify unrelated user settings, installed addons or repositories merely to speed up an experiment.
 
+## Cloud-first development policy (user directive — November 27, 2026)
+
+Cloud-first is now the default development workflow; see [Cloud development](docs/CLOUD_DEVELOPMENT.md). Prefer GitHub-accessible source, independent hosted tests and replay, and parallel jobs only where measured beneficial. Reserve physical machines for actual installed-build and session evidence. Maintain exact commit/receipt provenance, commit and push validated development checkpoints, and avoid duplicate CI or unmeasured infrastructure expansion. Keep raw physical captures and private data outside public GitHub/CI; no paid infrastructure without separate approval. This policy does not alter the standalone runtime, physical M1 gates, or sibling ownership boundaries.
+
 ## AI-readable code and script commentary (user directive — November 23, 2026)
 
 **Default: write heavily commented, self-explanatory code for future AI maintainers.** This applies to all new and substantially modified Taxi-owned Python modules, CLI helpers, tests, shell scripts, and configuration examples. Improve existing comments when touching a file; do not edit read-only sibling repositories for this purpose.

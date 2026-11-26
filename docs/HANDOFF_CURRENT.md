@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — cloud-first development foundation
+
+User approved cloud-first workflow. LEGION full release-clock regression completed 660/660 in 112.650 s; hosted PR run 45886526464 succeeded in 86 s (Linux full test step 42 s, Windows recovery 62 s, Linux minimum-version full test step 49 s). Added [cloud development policy](CLOUD_DEVELOPMENT.md), deterministic whole-module sharding and exact-coverage receipt merge, plus inactive four-lane hosted Linux pilot template. GitHub denied the workflow file push (missing OAuth workflow scope); original local commit a1322aa preserved on cloud/pilot-workflow-local-20261127. Publish ordinary code and inactive template through existing PR CI only; actual pilot requires authorized workflow-write access. Existing PR validation remains authoritative. Cloud results are development-only; physical M1, Workbridge desktop recovery, native freshness/heading/release gates remain separate and unqualified.
+
 ## November 27, 03:48 PHT — independent release lease clock hardening
 
 Six new state regressions reproduced unsafe lease clock admission on the old implementation. Corrected `ReleaseState` to use one validated monotonic clock sample per operation, refuse invalid/rollback time even when idle, latch STOP and attempt every reserved release, retaining failed-release uncertainty. 28/28 supervisor tests passed (all inert/dry-run, including actual child/parent-crash fixtures); full regression pending. See [release supervisor evidence](M1_RELEASE_SUPERVISOR.md#november-27--independent-lease-clock-admission-hardening). Workbridge validated-release directory listing refused PROTECTED_PATH; no alternative access attempted, no service deployment or restart. Keep existing desktop prerequisite and all physical M1 gates. No actual RIFT input or new physical evidence.

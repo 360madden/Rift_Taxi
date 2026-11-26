@@ -43,3 +43,6 @@ config/*.local.json
 # OS
 Thumbs.db
 .DS_Store
+
+# Development-only generated cloud receipts
+cloud-results/

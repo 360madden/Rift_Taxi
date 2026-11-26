@@ -1,0 +1,90 @@
+# Cloud-first development — Rift_Taxi
+
+Approved 2026-11-27. This policy is for **development**, not the deployed Taxi runtime.
+GitHub is the source of truth; the standalone Python application must never depend
+on GitHub, ChatGPT, Workbridge, cloud services, sibling repositories or network
+access for local operation.
+
+## Baseline and decision
+
+At commit 9c44930, LEGION Python 3.14.10: 660/660 tests, 112.650 seconds.
+Discovery found 660 unique IDs across 64 modules, no loader errors. The existing
+GitHub Actions PR run 45886526464 succeeded on the same PR head in 86 seconds:
+Linux Python 3.14 test step 42 s, Windows recovery rehearsal 62 s, Linux Python
+3.11 full test step 49 s. The workflow already runs automatically on updates to
+the open PR, though it has no independent push trigger. Do not assume four runners
+will outperform this existing baseline; measure overhead and runner-seconds.
+
+## Workflow
+
+- Start with GitHub status, exact branch/commit, CI receipts and current handoff.
+  Prefer cloud-accessible source, tests, simulation, evidence analysis, and package
+  verification. Do not require a physical PC for ordinary development.
+- Reserve LEGION/AMD-DESKTOP for real installed-build/session checks and explicitly
+  admitted physical experiments. No cloud-hosted job attaches to RIFT, accesses
+  local game files, or sends game input. Physical evidence stays separately scoped.
+- Use branch-local commits, non-force pushes and actual remote verification.
+  Prefer one coherent change per checkpoint; preserve main and existing required
+  PR checks. Do not mistake a PR head SHA for a checked-out merge SHA.
+- Use independent jobs where parallel execution reduces elapsed time or isolates
+  failures. Never count CI jobs as AI subagents; do not invent background workers.
+- Default zero additional paid infrastructure; standard hosted runners only.
+  No paid/larger runners, self-hosted runners or persistent cloud services without
+  a demonstrated requirement and separate approval.
+- Keep raw physical captures, credentials, proprietary game data and private
+  configuration out of the public repository and public CI artifacts. Use synthetic
+  or explicitly approved portable fixtures; record origin, content digest, scope
+  and evidence classification. Generated cloud test receipts retain only test IDs,
+  counts, source identity and timing. Upload only explicit generated paths.
+
+## First implementation: measured parallel validation pilot
+
+`scripts/cloud_test_runner.py` discovers all unittest tests and deterministically
+balances complete modules by test count, preserving class/module fixtures and
+discovery order. Each shard derives its own inventory from the exact checkout.
+The merger independently recomputes the plan and refuses missing/duplicate
+shards, wrong commit/plan, lost test coverage, unexpected skips or unsuccessful
+outcomes. Linux declared Windows-only skips are counted explicitly, not called
+passes. Hosted clean checkout and workflow SHA are required. Local dirty checkout
+runs are labeled as such and are not remote proof.
+
+`docs/cloud-fast.yml.example` is an **inactive** template for a proposed opt-in measured pilot on research/cloud
+branch pushes affecting source/test/runner/workflow/package paths. Four standard
+Linux 3.14 jobs and one aggregate verifier, no game, read-only token permissions,
+obsolete same-ref pilot cancellation, 14-day receipt retention. The existing
+cross-platform PR workflow stays intact during the pilot; duplication is temporary
+and deliberate to measure relative latency and preserve required checks.
+GitHub rejected the original workflow-containing push because the current OAuth authorization lacks `workflow` scope. The complete original commit `a1322aa` is retained on local branch `cloud/pilot-workflow-local-20261127`. The regular research branch publishes the runner, tests and inactive template only. No workflow permission bypass, credential change, or pilot activation occurred. Existing PR CI can validate the new Python tooling independently of the physical PC. After explicitly granted workflow-write access, review and install the template as `.github/workflows/cloud-fast.yml` and measure a real run.
+
+Do not enable branch protection on the pilot until successful real runs and
+coverage/skip parity are established.
+
+Commands from repository root (each output path must be new):
+```sh
+python -B -m scripts.cloud_test_runner plan --shards 4 --out cloud-results/plan.json
+python -B -m scripts.cloud_test_runner run --shards 4 --index 0 --out cloud-results/shard-0.json
+# Run indices 1, 2, 3 independently with their corresponding output paths.
+python -B -m scripts.cloud_test_runner merge --shards 4 --dir cloud-results --out cloud-results/merged.json
+```
+
+## Acceptance and next roadmap
+
+1. Verify deterministic inventory, module grouping and negative receipt tests.
+2. Verify a real hosted run and aggregate, including all skips and exact checkout.
+3. Compare end-to-end wall time, longest shard, total runner-seconds and setup
+   overhead against the existing Linux test step/whole PR workflow. Count balance
+   is a first approximation, not a speed guarantee. If the pilot loses, keep
+   useful receipt tooling and consolidate instead of adding more jobs.
+4. Introduce measured module-time balancing if skew dominates; keep Windows
+   recovery and minimum-Python packaging authoritative.
+5. Separate extended synthetic benchmark execution from ordinary validation
+   when measured cost warrants it. Reuse existing simulation modules and pinned
+   scenario designs; never promote synthetic results to physical qualification.
+6. Build a small portable synthetic evidence library and artifact manifest,
+   then demonstrate a full cloud-only change/test/commit with LEGION not required.
+7. Continue physical M1 qualification in its separate lane; existing desktop
+   deployment blocker and position/heading/release gates remain unchanged.
+
+The proposed 85% cloud workload is a target, not a measured result. This first
+slice deliberately avoids extra orchestration infrastructure until hosted
+evidence establishes its value.
