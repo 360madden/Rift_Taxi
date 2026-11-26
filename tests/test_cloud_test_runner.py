@@ -24,7 +24,9 @@ class PlannerTests(unittest.TestCase):
                  "status":"passed","startedTestIds":a["testIds"],
                  "skippedTestIds":a["declaredSkipIds"],"testsRun":len(a["testIds"]),
                  "failures":0,"errors":0,"unexpectedSuccesses":0,"expectedFailures":0,
-                 "elapsedSeconds":1.5,"physicalQualification":False}
+                 "elapsedSeconds":1.5,"physicalQualification":False,
+                 "moduleTimings":[{"module":m,"testsRun":len(a["moduleTestIds"][m]),
+                                   "elapsedSeconds":.1} for m in a["modules"]]}
                 for a in self.plan["assignment"]]
 
     def test_order_independent_exact_coverage(self):
@@ -88,3 +90,54 @@ class PlannerTests(unittest.TestCase):
         tests=[Fixture("test_unplanned")]
         plan=make_plan([t.id() for t in tests],[],1,IDENTITY)
         self.assertEqual(execute_shard(plan,tests,0,stream=io.StringIO())["status"],"failed")
+
+    def test_module_timings_are_complete_and_bounded(self):
+        baseline=self.receipts()
+        merged=merge(self.plan,baseline)
+        self.assertEqual(len(merged["moduleTimings"]),4)
+        self.assertEqual([r["module"] for r in merged["moduleTimings"]],
+                         ["test_a","test_b","test_c","test_d"])
+        for mutation in ("missing","duplicate","count","negative","overflow"):
+            rows=deepcopy(baseline)
+            timings=rows[0]["moduleTimings"]
+            if mutation=="missing": timings.pop()
+            elif mutation=="duplicate": timings.append(deepcopy(timings[0]))
+            elif mutation=="count": timings[0]["testsRun"]=True
+            elif mutation=="negative": timings[0]["elapsedSeconds"]=-.1
+            else: timings[0]["elapsedSeconds"]=2.
+            with self.subTest(mutation=mutation),self.assertRaises(CloudValidationError):
+                merge(self.plan,rows)
+
+    def test_real_module_mapping_keeps_nested_classes_together(self):
+        ids=["test_x.Outer.Inner.test_one","test_x.Other.test_two","test_y.C.test_three"]
+        mapping={ids[0]:"test_x",ids[1]:"test_x",ids[2]:"test_y"}
+        plan=make_plan(ids,[],2,IDENTITY,module_by_id=mapping)
+        self.assertEqual(plan["moduleCount"],2)
+        assigned=next(a for a in plan["assignment"] if "test_x" in a["modules"])
+        self.assertEqual(assigned["testIds"],sorted(ids[:2]))
+
+    def test_complete_module_fixture_executes_once(self):
+        import sys
+        import types
+        module=types.ModuleType("cloud_timing_fixture")
+        events=[]
+        module.setUpModule=lambda: events.append("module-up")
+        module.tearDownModule=lambda: events.append("module-down")
+        class First(unittest.TestCase):
+            @classmethod
+            def setUpClass(cls): events.append("class-up")
+            @classmethod
+            def tearDownClass(cls): events.append("class-down")
+            def test_one(self): events.append("one")
+            def test_two(self): events.append("two")
+        First.__module__=module.__name__
+        sys.modules[module.__name__]=module
+        self.addCleanup(sys.modules.pop,module.__name__,None)
+        tests=[First("test_one"),First("test_two")]
+        ids=[t.id() for t in tests]
+        plan=make_plan(ids,[],1,IDENTITY,module_by_id={i:module.__name__ for i in ids})
+        r=execute_shard(plan,tests,0,stream=io.StringIO())
+        self.assertEqual(events,["module-up","class-up","one","two","class-down","module-down"])
+        self.assertEqual(r["status"],"passed")
+        self.assertEqual(r["moduleTimings"][0]["testsRun"],2)
+        self.assertEqual(merge(plan,[r])["testsPassed"],2)

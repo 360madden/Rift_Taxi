@@ -81,6 +81,8 @@ class PortableBatchIntegration(unittest.TestCase):
         self.assertEqual(r["aggregate"]["testsDiscovered"], 4)
         self.assertEqual(r["aggregate"]["testsPassed"], 3)
         self.assertEqual(r["aggregate"]["testsSkipped"], 1)
+        self.assertEqual([m["module"] for m in r["aggregate"]["moduleTimings"]],
+                         ["test_alpha", "test_beta"])
         self.assertFalse(r["physicalQualification"])
         self.assertEqual([s["index"] for s in r["shards"]], [0, 1])
         for i in (0, 1):
@@ -152,7 +154,8 @@ class RunIdentityMergeTests(unittest.TestCase):
                    "planSHA256": plan["planSHA256"], "index": 0, "status": "passed",
                    "startedTestIds": ["test_a.C.test_one"], "skippedTestIds": [],
                    "testsRun": 1, "failures": 0, "errors": 0, "unexpectedSuccesses": 0,
-                   "expectedFailures": 0, "elapsedSeconds": .1, "physicalQualification": False}
+                   "expectedFailures": 0, "elapsedSeconds": .1, "physicalQualification": False,
+                   "moduleTimings": [{"module": "test_a", "testsRun": 1, "elapsedSeconds": .05}]}
         self.assertEqual(cloud_test_runner.merge(plan, [receipt])["testsPassed"], 1)
         for changed in ({**identity, "batchId": "2"*32},
                         {**identity, "hostedRun": {**identity["hostedRun"], "attempt": "2"}}):

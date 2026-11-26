@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — first parallel pilot and module profiling
+
+20294ee pilot 45890935749 succeeded (46 s, 688 discovered, 672 passed/16 skips, exact coverage); shards 172 tests each took 9.845/5.143/18.108/7.588 s. Comprehensive PR run 45890943852 passed in 78 s. Added complete per-module fixture-inclusive timing and independent timing-inventory checks, actual module identity, and focused regressions. Use the next pilot to obtain real weighting evidence. No change to active workflow, physical gates, or main. See [cloud development](CLOUD_DEVELOPMENT.md).
+
 ## November 27, 04:25 PHT — workflow scope resolved and CI activation
 
 User completed OAuth authorization; LEGION verified account 360madden and workflow scope. Fast-forwarded clean local branch 4183046 -> 5bd9be7, then exact-head CI gate passed for run 45889172411 attempt 1 (96 s; Windows longest 92 s). Activated optimized existing PR workflow and separate four-shard Linux pilot with narrower infrastructure-only push paths and attempt-specific artifact names. Main and required cross-platform gate unchanged. Hosted activation and speed/coverage remain to be verified. This supersedes the historical inactive-workflow permission blocker. See [cloud development](CLOUD_DEVELOPMENT.md#november-27-0425-pht--authorized-ci-activation).

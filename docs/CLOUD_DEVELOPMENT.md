@@ -219,3 +219,26 @@ input unchanged. The older local workflow branch remains a historical record.
 Activation is not proof of CI success. Record fresh hosted outcomes and aggregate
 coverage before accepting the pilot, then compare actual wall time and total job
 seconds. No paid infrastructure, game input or sibling-service changes.
+
+## First real parallel pilot and timing instrumentation
+
+Activated CI head 20294ee passed both workflows. Pilot run 45890935749 (attempt 1)
+completed in 46 seconds, with 688 discovered, 672 passed, 16 declared platform
+skips and exact coverage confirmed by the independent merge. Four equal-count
+shards ran 172 tests each: 9.844640, 5.142912, 18.108312 and 7.588015 seconds.
+Sum 40.683879 s, maximum 18.108312 s. Same-head comprehensive PR run
+45890943852 passed in 78 s from creation to update. Its Linux regression step
+was 43 s (provider step timing, includes command overhead). The pilot has
+comparable Linux coverage, but is not a substitute for Windows and Python 3.11.
+Individual runs vary; this is not a stable speedup or billing claim.
+
+The count-balanced plan is demonstrably skewed. Add complete-module wall
+timings to the existing shard receipt and aggregate, including class and module
+setup/teardown and all actual test executions. Use real discovered module
+identity (rather than guessing nested TestCase dotted IDs); retain whole modules
+and their discovery order. Validate exact module coverage and enclosing timing
+bounds independently during merge. Each module uses an ordinary unittest
+runner; successful coverage is still decided by the actual test IDs, skips and
+failures. This additive receipt field changes the plan hash; old receipts are
+replayed using their producing commit, not mixed with the new plan.
+The next pilot will measure module cost. Only then choose weighted assignments.

@@ -11,8 +11,9 @@ Run from the repository root:
   python -B -m scripts.cloud_test_runner run --shards 4 --index 0 --out cloud-results/shard-0.json
   python -B -m scripts.cloud_test_runner merge --shards 4 --dir cloud-results --out cloud-results/merged.json
 
-The plan balances test counts, not measured runtime; keep modules intact to
-preserve setUpClass/setUpModule and discovery order. Timing is observational.
+The first plan balances test counts. Record complete module wall durations,
+including class/module fixtures, for a later measured weighting experiment.
+Keep modules intact and execute in original discovery order. Timing is observational.
 """
 from __future__ import annotations
 
@@ -111,7 +112,7 @@ def declared_skip(test):
                 or getattr(method, "__unittest_skip__", False))
 
 
-def make_plan(test_ids, skips, shards, identity):
+def make_plan(test_ids, skips, shards, identity, *, module_by_id=None):
     """Greedy count balancing with stable tie breaks and whole-module ownership."""
     require(exact_int(shards, 1, MAX_SHARDS), "shard count outside 1..8")
     require(isinstance(test_ids, list) and bool(test_ids)
@@ -119,9 +120,17 @@ def make_plan(test_ids, skips, shards, identity):
             and len(set(test_ids)) == len(test_ids), "invalid or duplicate test IDs")
     require(isinstance(skips, list) and len(set(skips)) == len(skips)
             and set(skips) <= set(test_ids), "invalid declared skip inventory")
+    # Real discovery supplies the actual Python module, not a guess based
+    # on dotted IDs (nested TestCase names may contain extra dots). The
+    # default remains convenient for pure planner fixtures.
+    if module_by_id is None:
+        module_by_id = {name: name.rsplit(".", 2)[0] for name in test_ids}
+    require(isinstance(module_by_id, dict) and set(module_by_id) == set(test_ids)
+            and all(isinstance(m, str) and bool(m) for m in module_by_id.values()),
+            "invalid module inventory")
     modules = {}
     for name in test_ids:
-        modules.setdefault(name.rsplit(".", 2)[0], []).append(name)
+        modules.setdefault(module_by_id[name], []).append(name)
     require(len(modules) >= shards, "more shards than test modules")
     groups = [[] for _ in range(shards)]
     loads = [0] * shards
@@ -133,6 +142,7 @@ def make_plan(test_ids, skips, shards, identity):
     for i, names in enumerate(groups):
         ids = sorted(t for m in names for t in modules[m])
         assignment.append({"index": i, "modules": sorted(names), "testIds": ids,
+                           "moduleTestIds": {m: sorted(modules[m]) for m in sorted(names)},
                            "declaredSkipIds": sorted(set(ids) & set(skips))})
     body = {"schema": "taxi.cloud-test-plan/1", "identity": identity,
             "testCount": len(test_ids), "moduleCount": len(modules),
@@ -143,7 +153,8 @@ def make_plan(test_ids, skips, shards, identity):
 def current_plan(shards):
     tests = discover()
     return make_plan([t.id() for t in tests], [t.id() for t in tests if declared_skip(t)],
-                     shards, checkout_identity()), tests
+                     shards, checkout_identity(),
+                     module_by_id={t.id(): type(t).__module__ for t in tests}), tests
 
 
 class RecordingResult(unittest.TextTestResult):
@@ -158,29 +169,83 @@ class RecordingResult(unittest.TextTestResult):
 
 
 def execute_shard(plan, tests, index, *, stream=None):
-    """Execute a whole-module subset in its original discovery order."""
+    """Execute whole modules in discovery order and measure complete fixtures.
+
+    One ordinary unittest runner per module ensures module and class setup
+    and teardown are included in its measurement. The exact original test
+    inventory, skip and outcome checks remain the authority, not timing.
+    No per-test split, repeated class fixture, or parallel test within a module.
+    """
     require(exact_int(index, 0, plan["shardCount"] - 1), "invalid shard index")
     expected = plan["assignment"][index]
-    chosen = set(expected["testIds"])
-    suite = unittest.TestSuite(t for t in tests if t.id() in chosen)
+    owner = {t: module for module, ids in expected["moduleTestIds"].items() for t in ids}
+    groups = {}
+    for test in tests:
+        name = owner.get(test.id())
+        if name is not None:
+            groups.setdefault(name, []).append(test)
     start = time.monotonic()
-    result = unittest.TextTestRunner(stream=stream, verbosity=1, resultclass=RecordingResult).run(suite)
-    started = sorted(result.started_ids)
-    skips = sorted(t.id() for t, _ in result.skipped)
+    started, skips, timings = [], [], []
+    counts = dict(testsRun=0, failures=0, errors=0,
+                  unexpectedSuccesses=0, expectedFailures=0)
+    successful = True
+    for name, cases in groups.items():
+        module_start = time.monotonic()
+        result = unittest.TextTestRunner(
+            stream=stream, verbosity=1, resultclass=RecordingResult
+        ).run(unittest.TestSuite(cases))
+        elapsed = round(time.monotonic()-module_start, 6)
+        started.extend(result.started_ids)
+        skips.extend(t.id() for t, _ in result.skipped)
+        counts["testsRun"] += result.testsRun
+        counts["failures"] += len(result.failures)
+        counts["errors"] += len(result.errors)
+        counts["unexpectedSuccesses"] += len(result.unexpectedSuccesses)
+        counts["expectedFailures"] += len(result.expectedFailures)
+        successful = successful and result.wasSuccessful()
+        timings.append({"module": name, "testsRun": result.testsRun,
+                        "elapsedSeconds": elapsed})
+    started.sort()
+    skips.sort()
+    timings.sort(key=lambda r: r["module"])
     full_coverage = (started == expected["testIds"]
-                     and result.testsRun == len(expected["testIds"]))
+                     and counts["testsRun"] == len(expected["testIds"]))
     expected_skips = skips == expected["declaredSkipIds"]
-    ok = (result.wasSuccessful() and full_coverage and expected_skips
-          and not result.expectedFailures)
+    ok = successful and full_coverage and expected_skips and not counts["expectedFailures"]
     return {"schema": "taxi.cloud-test-shard/1", "identity": plan["identity"],
             "planSHA256": plan["planSHA256"], "index": index,
             "status": "passed" if ok else "failed",
             "startedTestIds": started, "skippedTestIds": skips,
-            "testsRun": result.testsRun, "failures": len(result.failures),
-            "errors": len(result.errors), "unexpectedSuccesses": len(result.unexpectedSuccesses),
-            "expectedFailures": len(result.expectedFailures),
+            **counts, "moduleTimings": timings,
             "elapsedSeconds": round(time.monotonic()-start, 6),
             "physicalQualification": False}
+
+
+def verify_module_timings(receipt, assignment):
+    """Check exact module coverage and bounded durations before profiling."""
+    rows = receipt.get("moduleTimings")
+    expected = assignment["moduleTestIds"]
+    require(isinstance(rows, list) and len(rows) == len(expected),
+            "module timing inventory incomplete")
+    names = []
+    for row in rows:
+        require(isinstance(row, dict) and set(row) == {"module", "testsRun", "elapsedSeconds"},
+                "invalid module timing row")
+        name = row["module"]
+        require(isinstance(name, str) and name in expected, "unexpected timed module")
+        require(exact_int(row["testsRun"], len(expected[name]), len(expected[name])),
+                "module timing coverage mismatch")
+        elapsed = row["elapsedSeconds"]
+        require(type(elapsed) in (int, float) and 0 <= elapsed <= 3600,
+                "invalid module elapsed duration")
+        names.append(name)
+    require(names == sorted(expected), "duplicate or unordered timed modules")
+    # Rounding each module to microseconds can exceed the rounded enclosing
+    # duration by a few microseconds. Allow only that numerical slack.
+    require(sum(r["elapsedSeconds"] for r in rows) <=
+            receipt["elapsedSeconds"] + (len(rows)+1)*0.000001,
+            "module timing exceeds enclosing shard")
+    return rows
 
 
 def merge(plan, receipts):
@@ -210,6 +275,7 @@ def merge(plan, receipts):
         elapsed = r.get("elapsedSeconds")
         require(type(elapsed) in (int,float) and 0 <= elapsed <= 3600,
                 "invalid elapsed duration")
+        verify_module_timings(r, e)
         by_index[i] = r
     ordered = [by_index[i] for i in range(plan["shardCount"])]
     tests = sum(r["testsRun"] for r in ordered)
@@ -222,6 +288,8 @@ def merge(plan, receipts):
             "allDiscoveredTestsAccountedFor": True,
             "sumShardSeconds": round(sum(r["elapsedSeconds"] for r in ordered), 6),
             "maxShardSeconds": max(r["elapsedSeconds"] for r in ordered),
+            "moduleTimings": sorted((dict(m, shardIndex=r["index"]) for r in ordered
+                                     for m in r["moduleTimings"]), key=lambda m: m["module"]),
             "shards": [{"index": r["index"], "testsRun": r["testsRun"],
                         "skips": len(r["skippedTestIds"]),
                         "elapsedSeconds": r["elapsedSeconds"]} for r in ordered],
