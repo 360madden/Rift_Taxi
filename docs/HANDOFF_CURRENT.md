@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — robust response estimation and noisy observations
+
+Added opt-in V2 robust estimator, deterministic sensor noise, and retrospective actual-corner witness checks; legacy adaptive benchmark remains byte-identical. Fixed study 96 conditions / 288 runs: nominal 49/64, V1 63/64, V2 62/64 settled; one V2 gain and two losses from noisy sharp-corner admission. All 96 prolonged-dropout policy runs expired. V2 mean reacquisition .984375 vs 2.9453125 s, conditional fit accuracy 95.62% vs 91.17%, coverage 92.85% vs 88.51%. V2 fails the no-settled-losses screen; no default promotion. All 616 regression tests passed. See [robust response evidence](LEGION_ROBUST_RESPONSE_2026-11-27.md). Next: separate uncertainty-aware sharp-corner admission experiment; preserve the adverse cases and prioritize fresh live M1 qualification when eligible. No game input or physical claims.
+
 ## November 26–27 — adaptive synthetic response estimator
 
 Added opt-in causal rolling delay/gain estimation and hidden plant response-change support, with no changes to legacy defaults. New benchmark: 336 matched conditions / 672 runs (144 prior plus 192 new). Prior usable 108/108 both, new usable nominal 123/144 vs adaptive 144/144; 21 gains, no losses. All 84 adaptive prolonged-dropout cases expired. New common-success mean time 18.9502 vs 15.2165 s; five adaptive slowdowns, mean forward duty slightly lower. New qualified-estimate conditional accuracy 89.78% (95.11% frame coverage); all 72 usable switched-gain cases reacquired in 2.5–3.125 s. The prior report and repeated adaptive reports match byte-for-byte; 144 prior nominal outcomes independently matched. Fourteen focused tests passed. See [adaptive response evidence](LEGION_ADAPTIVE_RESPONSE_2026-11-27.md). Next: measurement noise and faster change detection, then live M1 qualification when eligible. Production disarmed; no live input or physical claims.

@@ -20,6 +20,8 @@ from .steering import _angle_delta, _lookahead_point, _project, _segments, _xz_d
 from .synthetic_observation_replay import DT, MAX_POSE_AGE, PROFILES, TICKS, delivery_tick
 from .synthetic_journey_batch import paired_metrics
 from .synthetic_response_estimator import ResponseEstimator, NOMINAL
+from .synthetic_response_estimator_v2 import RobustResponseEstimator
+from .synthetic_sensor_noise import measurement, PROFILES as NOISE_PROFILES
 
 MODES = ("held-pose", "predict-application", "predict-age-cap")
 MAX_TICKS = 640  # 40 synthetic seconds, before terminal queue drain.
@@ -224,7 +226,7 @@ class SampledController:
 def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-pose",
         assumed_delay=None, actual_speed_gain=1., actual_yaw_gain=1.,
         assumed_speed_gain=1., assumed_yaw_gain=1., adaptive=False,
-        response_change=None):
+        response_change=None, adaptive_policy="legacy", sensor_noise="none"):
     """Run closed-loop approach, then real model FIFO drain and zero witness.
 
     Optional gain multipliers are constant ideal actuator response errors,
@@ -235,6 +237,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     learns only from admitted consecutive source poses and issued commands.
     response_change=(tick, speed_gain, yaw_gain) is an optional step change
     in the plant, with the same fixed command delay; no advance notice.
+    Optional sensor_noise changes only captured measurements. The robust
+    adaptive policy is experimental; original output is preserved by default.
     Only a synthetic flat route with bounded coordinates is admitted. All
     actual frame states are retained for independent internal consistency
     checks; reports do not claim collision clearance or physical stopping.
@@ -257,6 +261,9 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     cumulative, total = _segments(trace.points)
     if total <= tol or any(b-a <= 1e-9 for a,b in zip(cumulative, cumulative[1:])):
         raise TraceError("invalid sampled route segments")
+    if (adaptive_policy not in ("legacy","robust") or sensor_noise not in NOISE_PROFILES
+            or (adaptive_policy != "legacy" and adaptive is not True)):
+        raise TraceError("invalid sampled estimator or sensor profile")
     if type(adaptive) is not bool or (adaptive and mode != "predict-application"):
         raise TraceError("adaptive research requires predictive application mode")
     if assumed_delay is None:
@@ -281,8 +288,11 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
                 ("actualSpeedGain","actualYawGain","assumedSpeedGain","assumedYawGain")))
     controller = SampledController(trace, speed, rate, assumed_delay, mode,
                                    speed_gain=assumed_speed_gain, yaw_gain=assumed_yaw_gain)
-    estimator = ResponseEstimator() if adaptive else None
+    estimator = (RobustResponseEstimator() if adaptive_policy=="robust" else ResponseEstimator()) if adaptive else None
     position, yaw = seed.xyz, _angle_delta(seed.actor_yaw_deg, 0.)
+    # Truth at capture is kept outside the controller, for retrospective
+    # scoring of noisy corner observations only.
+    capture_truth = []
     pending = deque([ZERO]*delay)
     requests, frames = [], []
     deliveries = {}
@@ -290,8 +300,10 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     for tick in range(MAX_TICKS+1):
         # The transport is the only path from plant truth to controller.
         due = arrival_tick(tick, profile)
+        capture_truth.append(tuple(position))
         if due is not None:
-            deliveries.setdefault(due, []).append(Observation(tick, position, yaw))
+            measured_xyz, measured_yaw = measurement(tick, position, yaw, sensor_noise)
+            deliveries.setdefault(due, []).append(Observation(tick, measured_xyz, measured_yaw))
         controller.expire(tick)
         for obs in deliveries.pop(tick, []):
             delivered.append({"captureTick": obs.tick, "deliveryTick": tick})
@@ -336,7 +348,14 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
         drain.append({"applied": list(command), "xyz": list(position), "yaw": yaw})
     final_error = _xz_distance(position, trace.points[-1].xyz)
     observed_arrival = stop["reason"] == "observed-arrival"
-    settled = observed_arrival and final_error <= tol
+    # A noisy observed corner can be inside the admission radius while
+    # the modeled character is outside it. Check actual source positions
+    # retrospectively; never use plant truth to drive the controller.
+    truth_witness_error = max((_xz_distance(capture_truth[w["captureTick"]],
+        trace.points[w["vertexIndex"]].xyz) for w in controller.witnesses), default=0.)
+    truth_witnesses_valid = truth_witness_error <= min(.10*LOOKAHEAD,.5*tol)
+    settled = (observed_arrival and final_error <= tol and
+               (sensor_noise=="none" or truth_witnesses_valid))
     elapsed = (len(frames)+len(drain))*DT
     forward = DT*(sum(f["applied"][0] > 0. for f in frames) + sum(f["applied"][0] > 0. for f in drain))
     result = {"schema": "taxi.synthetic-sampled-steering/1", "classification": "SYNTHETIC_ONLY",
@@ -344,6 +363,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
               "speed": speed, "rate": rate, "actualDelaySteps": delay, "dtSeconds": DT,
               **({"actuatorModel": model} if extended else {}),
               **({"adaptiveResponse": True} if adaptive else {}),
+              **({"adaptivePolicy": adaptive_policy} if adaptive_policy!="legacy" else {}),
+              **({"sensorNoise": sensor_noise} if sensor_noise!="none" else {}),
               **({"actualResponseChange": list(change)} if change is not None else {}),
               "frames": frames, "delivered": delivered, "admissions": controller.admissions,
               "sharpWitnesses": controller.witnesses, "stop": stop, "drain": drain,
@@ -353,6 +374,9 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
                           "totalElapsedSeconds": elapsed, "totalForwardDutyRatio": forward/elapsed,
                           "finalModelErrorXZ": final_error, "approachSeconds": len(frames)*DT,
                           "drainSeconds": len(drain)*DT, "sharpCornersPassed": controller.cursor,
+                          **({"truthSharpWitnessesValid": truth_witnesses_valid,
+                              "maxSharpWitnessTruthErrorXZ": truth_witness_error}
+                             if sensor_noise!="none" else {}),
                           "maxObservedCrossTrackErrorXZ": max(
                               (a["crossTrackErrorXZ"] for a in controller.admissions), default=None)},
               "gameInputSent": False, "physicalQualification": False}
@@ -407,10 +431,16 @@ def verify(result, trace):
     adaptive = "adaptiveResponse" in result
     insist(not adaptive or (result["adaptiveResponse"] is True and mode == "predict-application"
                              and (estimate,ev,er) == NOMINAL), "adaptive initial model")
-    estimator = ResponseEstimator() if adaptive else None
+    policy = result.get("adaptivePolicy","legacy")
+    noise = result.get("sensorNoise","none")
+    insist(("adaptivePolicy" not in result or (adaptive and policy=="robust")) and
+           policy in ("legacy","robust"), "adaptive policy declaration")
+    insist(noise in NOISE_PROFILES and ("sensorNoise" not in result or noise!="none"), "sensor profile declaration")
+    estimator = (RobustResponseEstimator() if policy=="robust" else ResponseEstimator()) if adaptive else None
     insist(len(frames) == stop["tick"] <= MAX_TICKS and len(drain) == delay+1, "bounded duration")
     requests = [f["requested"] for f in frames]
     truth = [*frames, stop]
+    measured = [measurement(i,f["xyz"],f["yaw"],noise) for i,f in enumerate(truth)]
     position, yaw = trace.poses[0].xyz, _angle_delta(trace.poses[0].actor_yaw_deg,0.)
     # Rebuild expected delivery order directly from source indices, including
     # the terminal observation tick but never future captures.
@@ -432,7 +462,7 @@ def verify(result, trace):
                and (tick-i)*DT <= MAX_POSE_AGE and (previous is None or i>previous["captureTick"]),
                "observation admission")
         budget = 0. if previous is None else 2.*_xz_distance(
-            truth[i]["xyz"],truth[previous["captureTick"]]["xyz"])
+            measured[i][0],measured[previous["captureTick"]][0])
         prior = 0. if previous is None else previous["progress"]
         insist(same(a["budget"],budget) and prior-1e-8 <= a["progress"] <= prior+budget+1e-8,
                "observed progress budget")
@@ -442,13 +472,13 @@ def verify(result, trace):
         if cursor < len(sharp):
             high = min(high, sharp[cursor][1])
         low = min(high, max(low, passed_arc))
-        progress,error = _project(trace.points,cumulative,truth[i]["xyz"],low,high)
+        progress,error = _project(trace.points,cumulative,measured[i][0],low,high)
         insist(same(a["progress"],progress) and same(a["crossTrackErrorXZ"],error),
                "observed projection")
         if cursor < len(sharp):
             index,arc = sharp[cursor]
             radius = min(.10*LOOKAHEAD,.5*trace.arrival_tolerance_xz)
-            if arc-progress <= radius and _xz_distance(truth[i]["xyz"],trace.points[index].xyz) <= radius:
+            if arc-progress <= radius and _xz_distance(measured[i][0],trace.points[index].xyz) <= radius:
                 verified_witnesses.append({"vertexIndex":index,"captureTick":i,
                                            "deliveryTick":tick,"progress":progress})
                 cursor += 1
@@ -472,7 +502,7 @@ def verify(result, trace):
                 # Independently rebuild the causal estimator feed, limiting
                 # the command list to already-issued requests at delivery.
                 delivery = admitted[admission_cursor]["deliveryTick"]
-                estimator.observe(latest, truth[latest]["xyz"], truth[latest]["yaw"],
+                estimator.observe(latest, measured[latest][0], measured[latest][1],
                                   delivery, requests[:delivery])
             admission_cursor += 1
         if estimator is not None:
@@ -487,7 +517,7 @@ def verify(result, trace):
         else:
             insist(ref is not None and ref["sourceTick"] == latest and (i-latest)*DT <= MAX_POSE_AGE,
                    "reference source age")
-            px, pyaw = truth[latest]["xyz"], truth[latest]["yaw"]
+            px, pyaw = measured[latest]
             if mode != "held-pose":
                 for j in range(latest,i+estimate):
                     v,r = requests[j-estimate] if j>=estimate else ZERO
@@ -514,7 +544,7 @@ def verify(result, trace):
                (stop["tick"]-previous["captureTick"])*DT <= MAX_POSE_AGE and
                previous["progress"] >= total-tol and cursor == len(sharp) and
                previous["crossTrackErrorXZ"] <= MAX_ERROR and
-               _xz_distance(truth[previous["captureTick"]]["xyz"],trace.points[-1].xyz) <= tol,
+               _xz_distance(measured[previous["captureTick"]][0],trace.points[-1].xyz) <= tol,
                "observed arrival lacks source witness")
     elapsed = (len(frames)+len(drain))*DT
     moving = DT*sum(row["applied"][0] > 0. for row in [*frames,*drain])
@@ -524,8 +554,14 @@ def verify(result, trace):
            same(summary["drainSeconds"],len(drain)*DT), "time/duty accounting")
     insist(summary["sharpCornersPassed"] == cursor and summary["observedArrival"] is arrived,
            "arrival/witness accounting")
-    insist(summary["finalModelSettled"] == (arrived and error<=trace.arrival_tolerance_xz),
-           "false settled arrival")
+    truth_witness_error = max((_xz_distance(truth[w["captureTick"]]["xyz"],
+        trace.points[w["vertexIndex"]].xyz) for w in verified_witnesses), default=0.)
+    truth_witnesses_valid = truth_witness_error <= min(.10*LOOKAHEAD,.5*trace.arrival_tolerance_xz)
+    if noise!="none":
+        insist(same(summary["maxSharpWitnessTruthErrorXZ"],truth_witness_error) and
+               summary["truthSharpWitnessesValid"] is truth_witnesses_valid,"noisy truth witness scoring")
+    insist(summary["finalModelSettled"] == (arrived and error<=trace.arrival_tolerance_xz
+           and (noise=="none" or truth_witnesses_valid)), "false settled arrival")
     insist(result["gameInputSent"] is False and result["physicalQualification"] is False, "classification")
 
 
