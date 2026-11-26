@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 26, 2026
 
+## November 26 — combined observation and actuator uncertainty
+
+Extended the offline sampled model with independently declared actual/assumed command delay and velocity/yaw response gains, preserving the prior benchmark byte-for-byte. New fixed comparison: 144 matched conditions / 432 runs, usable telemetry settled 92/108 held pose, 108/108 nominal prediction, 108/108 exact-model reference; 16 recovered baseline failures, no losses. All 108 prolonged-dropout runs expired. On 92 common successes mean duration 11.5713, 10.4823, 9.4823 s; nominal slower than baseline in 43 cases. Six focused tests passed; repeated combined reports byte-identical. See [combined uncertainty evidence](LEGION_COMBINED_UNCERTAINTY_2026-11-26.md). Next consider bounded offline response estimation from admitted samples and command history; independently specified variable-response validation before promotion. Production disarmed, no physical qualification.
+
 ## November 26 — sampled closed-loop steering
 
 Added separate offline `rift_taxi.synthetic_sampled_steering` model: 56 conditions / 168 runs with held-pose, predictive application and predictive age-cap policies. All 72 unusable-telemetry runs stopped; usable cases settled 31/32, 32/32, 32/32 respectively. On 31 common successes, mean duration 11.0464, 10.1351 and 11.9556 s. Prediction merits further research; age-cap had no extra arrival benefit and was slower. Source-only progress, sharp passage, actual FIFO, forecasts and arrival internally audited. Seven focused tests passed; two report hashes match. See [sampled steering evidence](LEGION_SAMPLED_STEERING_2026-11-26.md). Next: combined sampled-observation and command-model mismatch; no runtime promotion, no live input.

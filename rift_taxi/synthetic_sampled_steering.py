@@ -57,6 +57,11 @@ def arrival_tick(capture, profile):
     return None if due is None else capture + due - local
 
 
+def _actuator_gain(value, label):
+    """Bound research-only dimensionless velocity/rate response multipliers."""
+    return _bounded_number(value, label, .5, 1.5)
+
+
 class SampledController:
     """Route progress uses delivered positions only, never forecast or plant truth.
 
@@ -66,9 +71,12 @@ class SampledController:
     linearly with sample age, with a 25% floor before the hard expiry gate.
     This fixed heuristic is a research candidate, not an optimized threshold.
     """
-    def __init__(self, trace, speed, rate, delay, mode):
+    def __init__(self, trace, speed, rate, delay, mode, *, speed_gain=1., yaw_gain=1.):
         self.trace = trace
+        # Here delay and gains belong to the controller estimate ONLY. No
+        # actual plant parameters are visible to the decision algorithm.
         self.speed, self.rate, self.delay, self.mode = speed, rate, delay, mode
+        self.speed_gain, self.yaw_gain = speed_gain, yaw_gain
         self.cumulative, self.total = _segments(trace.points)
         self.sharp = _sharp_vertices(trace.points, self.cumulative)
         self.cursor = 0
@@ -144,8 +152,9 @@ class SampledController:
             # At plant interval j the request j-delay is applied. From the
             # source epoch through the application of our next request, all
             # such indices refer to already-issued commands or initial zeros.
-            known = (requests[j-self.delay] if j >= self.delay else ZERO
-                     for j in range(sample.tick, tick+self.delay))
+            history = (requests[j-self.delay] if j >= self.delay else ZERO
+                       for j in range(sample.tick, tick+self.delay))
+            known = ((v*self.speed_gain, r*self.yaw_gain) for v,r in history)
             position, yaw = _predict_pending_pose(position, yaw, known, DT)
         distance = _xz_distance(position, goal)
         arc = min(self.total, self.progress+LOOKAHEAD)
@@ -191,9 +200,15 @@ class SampledController:
                                   "sourceTick": sample.tick, "targetXYZ": list(target)}
 
 
-def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-pose"):
+def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-pose",
+        assumed_delay=None, actual_speed_gain=1., actual_yaw_gain=1.,
+        assumed_speed_gain=1., assumed_yaw_gain=1.):
     """Run closed-loop approach, then real model FIFO drain and zero witness.
 
+    Optional gain multipliers are constant ideal actuator response errors,
+    not inertia, friction, collision or physical measurements. Assumed delay
+    defaults to the actual delay for legacy exact-model runs; assumed gains
+    default to unit response. Only the plant applies actual gains.
     Only a synthetic flat route with bounded coordinates is admitted. All
     actual frame states are retained for independent internal consistency
     checks; reports do not claim collision clearance or physical stopping.
@@ -216,7 +231,25 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     cumulative, total = _segments(trace.points)
     if total <= tol or any(b-a <= 1e-9 for a,b in zip(cumulative, cumulative[1:])):
         raise TraceError("invalid sampled route segments")
-    controller = SampledController(trace, speed, rate, delay, mode)
+    if assumed_delay is None:
+        assumed_delay = delay
+    if type(assumed_delay) is not int or not 0 <= assumed_delay <= 10:
+        raise TraceError("invalid assumed sampled delay")
+    actual_speed_gain = _actuator_gain(actual_speed_gain,"actual speed gain")
+    actual_yaw_gain = _actuator_gain(actual_yaw_gain,"actual yaw gain")
+    assumed_speed_gain = _actuator_gain(assumed_speed_gain,"assumed speed gain")
+    assumed_yaw_gain = _actuator_gain(assumed_yaw_gain,"assumed yaw gain")
+    # Explicit opt-in declaration only when parameters depart from the
+    # legacy default. Baseline estimates are meaningless and must not vary.
+    if mode == "held-pose" and (assumed_delay != delay or assumed_speed_gain != 1. or assumed_yaw_gain != 1.):
+        raise TraceError("held-pose mode does not use actuator estimates")
+    model = {"assumedDelaySteps": assumed_delay,
+             "actualSpeedGain": actual_speed_gain, "actualYawGain": actual_yaw_gain,
+             "assumedSpeedGain": assumed_speed_gain, "assumedYawGain": assumed_yaw_gain}
+    extended = (assumed_delay != delay or any(model[key] != 1. for key in
+                ("actualSpeedGain","actualYawGain","assumedSpeedGain","assumedYawGain")))
+    controller = SampledController(trace, speed, rate, assumed_delay, mode,
+                                   speed_gain=assumed_speed_gain, yaw_gain=assumed_yaw_gain)
     position, yaw = seed.xyz, _angle_delta(seed.actor_yaw_deg, 0.)
     pending = deque([ZERO]*delay)
     requests, frames = [], []
@@ -240,7 +273,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
             break
         requests.append(request)
         pending.append(request)
-        applied = pending.popleft()
+        queued_v, queued_r = pending.popleft()
+        applied = (queued_v*actual_speed_gain, queued_r*actual_yaw_gain)
         frames.append({"tick": tick, "xyz": list(position), "yaw": yaw,
                        "requested": list(request), "applied": list(applied),
                        "controlPose": reference})
@@ -250,7 +284,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     # applies every queued request in order, then a full stationary interval.
     # Fault termination is never counted as an arrived journey.
     drain = []
-    for command in [*pending, ZERO]:
+    for v,r in [*pending, ZERO]:
+        command = (v*actual_speed_gain, r*actual_yaw_gain)
         position, yaw = _predict_pending_pose(position, yaw, (command,), DT)
         drain.append({"applied": list(command), "xyz": list(position), "yaw": yaw})
     final_error = _xz_distance(position, trace.points[-1].xyz)
@@ -261,6 +296,7 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     result = {"schema": "taxi.synthetic-sampled-steering/1", "classification": "SYNTHETIC_ONLY",
               "scenarioSHA256": trace.trace_sha256, "profile": profile, "mode": mode,
               "speed": speed, "rate": rate, "actualDelaySteps": delay, "dtSeconds": DT,
+              **({"actuatorModel": model} if extended else {}),
               "frames": frames, "delivered": delivered, "admissions": controller.admissions,
               "sharpWitnesses": controller.witnesses, "stop": stop, "drain": drain,
               "summary": {"finalModelSettled": settled, "observedArrival": observed_arrival,
@@ -304,6 +340,20 @@ def verify(result, trace):
     frames, stop, drain = result["frames"], result["stop"], result["drain"]
     delay = result["actualDelaySteps"]
     mode = result["mode"]
+    insist(type(delay) is int and 0 <= delay <= 10 and mode in MODES, "actual delay/mode")
+    declared = result.get("actuatorModel")
+    if "actuatorModel" in result:
+        insist(isinstance(declared,dict) and set(declared) == {
+            "assumedDelaySteps","actualSpeedGain","actualYawGain","assumedSpeedGain","assumedYawGain"},
+            "actuator declaration shape")
+        estimate = declared["assumedDelaySteps"]
+        insist(type(estimate) is int and 0 <= estimate <= 10, "assumed delay")
+        av, ar, ev, er = (_actuator_gain(declared[k],k) for k in
+                         ("actualSpeedGain","actualYawGain","assumedSpeedGain","assumedYawGain"))
+        insist(estimate != delay or (av,ar,ev,er) != (1.,1.,1.,1.), "redundant actuator declaration")
+    else:
+        estimate, av, ar, ev, er = delay, 1., 1., 1., 1.
+    insist(mode != "held-pose" or (estimate == delay and (ev,er) == (1.,1.)), "baseline estimate")
     insist(len(frames) == stop["tick"] <= MAX_TICKS and len(drain) == delay+1, "bounded duration")
     requests = [f["requested"] for f in frames]
     truth = [*frames, stop]
@@ -358,8 +408,9 @@ def verify(result, trace):
         check_pose(position,yaw,f)
         v,r = requests[i]
         insist(0. <= v <= result["speed"] and abs(r) <= result["rate"], "request bound")
-        applied = requests[i-delay] if i>=delay else list(ZERO)
-        insist(f["applied"] == applied, "actual command FIFO")
+        v,r = requests[i-delay] if i>=delay else ZERO
+        applied = [v*av,r*ar]
+        insist(f["applied"] == applied, "actual command FIFO and actuator gains")
         while admission_cursor < len(admitted) and admitted[admission_cursor]["deliveryTick"] <= i:
             latest = admitted[admission_cursor]["captureTick"]
             admission_cursor += 1
@@ -371,16 +422,17 @@ def verify(result, trace):
                    "reference source age")
             px, pyaw = truth[latest]["xyz"], truth[latest]["yaw"]
             if mode != "held-pose":
-                for j in range(latest,i+delay):
-                    cmd = requests[j-delay] if j>=delay else ZERO
-                    px,pyaw = integrate(px,pyaw,cmd)
+                for j in range(latest,i+estimate):
+                    v,r = requests[j-estimate] if j>=estimate else ZERO
+                    px,pyaw = integrate(px,pyaw,(v*ev,r*er))
             check_pose(px,pyaw,ref)
         position,yaw = integrate(position,yaw,applied)
     check_pose(position,yaw,stop)
     for j,row in enumerate(drain):
         index = len(frames)+j-delay
-        cmd = requests[index] if 0 <= index < len(frames) else list(ZERO)
-        insist(row["applied"] == cmd, "terminal FIFO drain")
+        v,r = requests[index] if 0 <= index < len(frames) else ZERO
+        cmd = [v*av,r*ar]
+        insist(row["applied"] == cmd, "terminal FIFO drain and actuator gains")
         position,yaw = integrate(position,yaw,cmd)
         check_pose(position,yaw,row)
     insist(drain[-1]["applied"] == list(ZERO), "stationary witness")
