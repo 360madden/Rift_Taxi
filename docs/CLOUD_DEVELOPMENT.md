@@ -308,3 +308,28 @@ merge overhead against the same-head comprehensive rehearsal; do not equate
 pure regression wall time to full patch recovery qualification. A passing
 experiment is not authorization to substitute sharded execution inside the
 existing patch-check receipt contract. Preserve main and physical M1 gates.
+
+## Windows profiling result and platform-specific catalog
+
+Opt-in Windows parallel run 45901611083 at 3ca0c35, attempt 1, passed all
+699/699 tests, zero skips, 69 modules, exact coverage and independent merge.
+Plan SHA-256 b794c2faf6381a65349ea0f62f8a713e303cabb00ae392e7beebc6d892cdd405.
+Shard test wall durations: 10.822307, 16.367226, 12.214634, 9.290328 s;
+sum 48.694495 s; workflow 62 s; summed five job durations 145 s. The prior
+serial rehearsal at 33f8ab4 passed 699/699 in 67.824 s, complete workflow 98 s;
+phase durations discovery 1.519791, recovery 69.397399, verification 0.194522 s.
+The parallel pilot is a different contract and separate checkout; it does not
+replace serial patch recovery. Same-head comprehensive run 45901619301 passed
+as well. These individual timings are not a controlled speedup claim.
+
+Retain the observed Windows module costs in cloud/windows_test_module_costs.json.
+The existing planner selects one fixed catalog by platform and uses weights only
+for a matching Python minor, with count fallback if absent/inapplicable.
+The separate Windows pilot remains opt-in; do not automatically duplicate
+routine comprehensive CI merely to refresh a profile.
+
+Before publishing any planner/shard/merge receipt, recheck observed checkout
+identity. A disposable fixture leaving an untracked change during a shard must
+fail instead of yielding a passing aggregate. This boundary check does not
+detect transient changes reverted between observations or authenticate runners.
+No physical M1 promotion or runtime dependency is introduced.

@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — Windows pilot evidence and catalog
+
+33f8ab4 serial recovery passed 699/699 (67.824 s; discovery 1.520, recovery 69.397, verification .195 s), PR 45901392841 complete. 3ca0c35 independent Windows pilot 45901611083 passed 699/699/zero skips, 69 modules, 62 s workflow/145 summed job s; max shard 16.367 s. Same-head comprehensive 45901619301 passed. Retained Windows-specific cost profile, platform-selective planning and final observable checkout identity recheck with two new tests. Keep Windows profiling opt-in and serial recovery required; next return to Taxi product priorities after hosted validation. No live input or runtime dependency.
+
 ## November 27 — isolated Windows profiling experiment
 
 Added opt-in four-host Windows test-shard workflow, independent Windows merge and strict no-skip/floor check. Triggers only its own workflow changes or explicit dispatch, no routine duplicated runs. Keep original comprehensive serial recovery gate; collect measured Windows module costs and compare wall/job seconds before deciding whether a parallel contract is worthwhile. No game activity or additional paid runner infrastructure.

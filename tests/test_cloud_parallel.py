@@ -135,6 +135,27 @@ class PortableBatchIntegration(unittest.TestCase):
         self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
         self.assertFalse((self.base / "missing").exists())
 
+    def test_checkout_mutation_during_shard_prevents_pass_receipt(self):
+        # A passing assertion must not authorize a receipt if a test leaves
+        # observable source drift. This uses a disposable fixture repo.
+        (self.repo / "tests" / "test_beta.py").write_text(
+            "import unittest\nfrom pathlib import Path\nclass Beta(unittest.TestCase):\n"
+            "    def test_mutate(self): Path('untracked-drift.txt').write_text('changed')\n",
+            encoding="utf-8")
+        self.git("add", ".")
+        self.git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+                 "-c", "commit.gpgsign=false", "commit", "-qm", "checkout drift fixture")
+        run = self.batch("drift", extra=("--workers", "1"))
+        self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+        r = self.read("drift")
+        self.assertEqual(r["status"], "failed")
+        self.assertIsNone(r["aggregate"])
+        self.assertFalse((self.base / "drift" / "merged.json").exists())
+        self.assertTrue((self.repo / "untracked-drift.txt").exists())
+        logs = "\n".join((self.base / "drift" / f"shard-{i}.log").read_text(
+            encoding="utf-8") for i in (0,1))
+        self.assertIn("checkout identity changed during validation", logs)
+
     def test_invalid_worker_and_timeout_limits_refused(self):
         for name, extra in (("workers", ("--workers", "3")),
                             ("timeout", ("--timeout-seconds", "0"))):

@@ -32,7 +32,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 MAX_RECEIPT = 2 * 1024 * 1024
 MAX_SHARDS = 8
-COST_PROFILE = ROOT / "cloud" / "test_module_costs.json"
+# Fixed development-only catalogs. No discovery of arbitrary local profiles.
+PROFILE_PATHS = {"Linux": "cloud/test_module_costs.json",
+                 "Windows": "cloud/windows_test_module_costs.json"}
 
 
 class CloudValidationError(ValueError):
@@ -214,13 +216,32 @@ def make_plan(test_ids, skips, shards, identity, *, module_by_id=None, cost_prof
     return {**body, "planSHA256": digest(body)}
 
 
+def select_cost_profile(identity, root=ROOT):
+    """Use only the catalog belonging to this runner's platform.
+
+    A missing catalog retains count balancing. The planner validates the
+    profile, including its Python minor, before applying measured weights.
+    A misplaced or malformed catalog is an error, not a silent fallback.
+    """
+    relative = PROFILE_PATHS.get(identity.get("platform"))
+    if relative is None:
+        return None
+    path = Path(root) / relative
+    if not path.exists():
+        return None
+    profile = read(path)
+    require(isinstance(profile, dict) and profile.get("platform") == identity["platform"],
+            "module cost profile platform differs from its catalog")
+    return profile
+
+
 def current_plan(shards):
     tests = discover()
-    profile = read(COST_PROFILE) if COST_PROFILE.exists() else None
+    identity = checkout_identity()
     return make_plan([t.id() for t in tests], [t.id() for t in tests if declared_skip(t)],
-                     shards, checkout_identity(),
+                     shards, identity,
                      module_by_id={t.id(): type(t).__module__ for t in tests},
-                     cost_profile=profile), tests
+                     cost_profile=select_cost_profile(identity)), tests
 
 
 class RecordingResult(unittest.TextTestResult):
@@ -411,6 +432,12 @@ def main(argv=None):
             require({p.name for p in paths} ==
                     {f"shard-{i}.json" for i in range(args.shards)}, "shard receipt inventory mismatch")
             report = merge(plan, [read(p) for p in paths])
+        # Detect observable checkout drift between discovery and publication.
+        # Hosted runs require a clean tree at both boundaries. This is not
+        # atomic attestation; a change reverted between checks is undetected,
+        # and a manually run dirty checkout is still labeled dirty.
+        require(checkout_identity() == plan["identity"],
+                "checkout identity changed during validation")
         write(args.out, report)
         print(json.dumps({k: v for k, v in report.items()
                           if k not in ("assignment", "startedTestIds", "skippedTestIds")},

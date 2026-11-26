@@ -1,10 +1,13 @@
 """Deterministic development-only shard planner and receipt tests."""
 from copy import deepcopy
 import io
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from scripts.cloud_test_runner import (
-    CloudValidationError, make_plan, merge, execute_shard, profile_weights,
+    CloudValidationError, make_plan, merge, execute_shard, profile_weights, select_cost_profile,
 )
 
 IDENTITY={"commit":"a"*40,"cleanCheckout":True,"platform":"Linux","python":"3.14.10"}
@@ -184,3 +187,25 @@ class PlannerTests(unittest.TestCase):
             else: p["source"]["planSHA256"]="invalid"
             with self.subTest(mutation=mutation),self.assertRaises(CloudValidationError):
                 make_plan(self.ids,self.skips,3,{**IDENTITY,"platform":"Windows"},cost_profile=p)
+
+    def test_select_platform_catalog_and_reject_misplaced_profile(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            (root/"cloud").mkdir()
+            linux=self.cost_profile()
+            windows={**linux,"platform":"Windows"}
+            lp=root/"cloud"/"test_module_costs.json"
+            wp=root/"cloud"/"windows_test_module_costs.json"
+            lp.write_text(json.dumps(linux),encoding="utf-8")
+            wid={**IDENTITY,"platform":"Windows"}
+            self.assertIsNone(select_cost_profile(wid,root))
+            self.assertEqual(select_cost_profile(IDENTITY,root),linux)
+            wp.write_text(json.dumps(windows),encoding="utf-8")
+            self.assertEqual(select_cost_profile(wid,root),windows)
+            self.assertEqual(make_plan(self.ids,self.skips,3,wid,
+                cost_profile=select_cost_profile(wid,root))["balancingMode"],
+                "measured-module-cost")
+            self.assertIsNone(select_cost_profile({**IDENTITY,"platform":"Darwin"},root))
+            wp.write_text(json.dumps(linux),encoding="utf-8")
+            with self.assertRaises(CloudValidationError):
+                select_cost_profile(wid,root)
