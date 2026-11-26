@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27, 03:48 PHT — independent release lease clock hardening
+
+Six new state regressions reproduced unsafe lease clock admission on the old implementation. Corrected `ReleaseState` to use one validated monotonic clock sample per operation, refuse invalid/rollback time even when idle, latch STOP and attempt every reserved release, retaining failed-release uncertainty. 28/28 supervisor tests passed (all inert/dry-run, including actual child/parent-crash fixtures); full regression pending. See [release supervisor evidence](M1_RELEASE_SUPERVISOR.md#november-27--independent-lease-clock-admission-hardening). Workbridge validated-release directory listing refused PROTECTED_PATH; no alternative access attempted, no service deployment or restart. Keep existing desktop prerequisite and all physical M1 gates. No actual RIFT input or new physical evidence.
+
 ## November 27, 03:46 PHT — desktop deployment dependency diagnosed
 
 Verified 654/654 full regressions and the remote 9ec24bd checkpoint. Fresh LEGION OS metadata revalidated PID 24992/start ticks/HWND/build, no new native pose or scene evidence. The active Workbridge 0.16.4-dev Node process uses checkout dist; all six required desktop staging source files exist under scripts/ but all six deployed copies and desktop-runtime-manifest.json are absent. Existing runner resolves dist-relative scripts and refuses uncertain process trees. This is a confirmed missing deployment dependency consistent with prior desktop refusal, not proof of sole cause or repaired capture. See [desktop dependency diagnosis](M1_DESKTOP_DEPENDENCY_2026-11-27.md). Recovery belongs to separately authorized Workbridge WB-001 sealed deployment, not ad hoc live dist edits or bypasses. No service/addon/game/sibling modifications or new input; retain disarmed production and prioritize current independent heading/position/release evidence after legitimate desktop recovery.
