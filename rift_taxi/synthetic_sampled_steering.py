@@ -23,14 +23,16 @@ from .synthetic_response_estimator import ResponseEstimator, NOMINAL
 from .synthetic_response_estimator_v2 import RobustResponseEstimator
 from .synthetic_sensor_noise import measurement, PROFILES as NOISE_PROFILES
 from .synthetic_corner_certificate import AXIS_ERROR_BOUND, worst_case_distance_xz
+from .synthetic_corner_speed import BASE_GAIN, EXTRA_GAIN, KNEE_XZ, tapered_corner_cap
 
 MODES = ("held-pose", "predict-application", "predict-age-cap")
 MAX_TICKS = 640  # 40 synthetic seconds, before terminal queue drain.
 LOOKAHEAD = 1.5
 MAX_ERROR = 2.
 ZERO = (0., 0.)
-CORNER_POLICIES = ("legacy","bounded")
-CORNER_APPROACH_GAIN = 4.  # per-second cap toward a pending sharp vertex
+CORNER_POLICIES = ("legacy","bounded","bounded-taper")
+CORNER_APPROACH_GAIN = BASE_GAIN  # preserve the established bounded approach
+
 # Author the comparison geometry and profiles before inspecting outcomes.
 ROUTES = (
     ("sampled-long-s", ((0,0,0),(6,0,0),(10,0,4),(17,0,4),(22,0,7))),
@@ -155,7 +157,7 @@ class SampledController:
             index, arc = self.sharp[self.cursor]
             radius = min(.10*LOOKAHEAD, .5*self.trace.arrival_tolerance_xz)
             vertex = self.trace.points[index].xyz
-            upper = (worst_case_distance_xz(sample.xyz,vertex) if self.corner_policy=="bounded"
+            upper = (worst_case_distance_xz(sample.xyz,vertex) if self.corner_policy!="legacy"
                      else _xz_distance(sample.xyz,vertex))
             # Certify the captured position against the declared rectangle,
             # without exposing truth or the hidden noise profile.
@@ -163,7 +165,7 @@ class SampledController:
                 self.witnesses.append({"vertexIndex": index, "captureTick": sample.tick,
                                        "deliveryTick": tick, "progress": self.progress,
                                        **({"upperDistanceXZ":upper,"radiusXZ":radius}
-                                          if self.corner_policy=="bounded" else {})})
+                                          if self.corner_policy!="legacy" else {})})
                 self.cursor += 1
                 self.passed_arc = arc
                 self.rejoining = False
@@ -219,7 +221,7 @@ class SampledController:
         pending_corner = (self.cursor < len(self.sharp) and arc == self.sharp[self.cursor][1]
                           and not self.rejoining)
         if chord <= 1e-9:
-            if self.corner_policy=="bounded" and pending_corner:
+            if self.corner_policy!="legacy" and pending_corner:
                 # A zero forecast chord is not passage evidence.
                 return ZERO, {"xyz":list(position),"yaw":yaw,"sourceTick":sample.tick,
                               "targetXYZ":list(target)}
@@ -232,9 +234,11 @@ class SampledController:
             velocity = _turn_limited_speed(velocity, heading, chord, self.rate)
         if pending_corner or terminal_rejoin:
             velocity = min(velocity, chord/DT)
-            if pending_corner and self.corner_policy=="bounded":
+            if pending_corner and self.corner_policy!="legacy":
                 # Local braking does not relax spatial or arc admission.
-                velocity = min(velocity, CORNER_APPROACH_GAIN*chord)
+                cap = (tapered_corner_cap(chord) if self.corner_policy=="bounded-taper"
+                       else CORNER_APPROACH_GAIN*chord)
+                velocity = min(velocity, cap)
         elif self.total-self.progress <= LOOKAHEAD:
             velocity = min(velocity, max(.15, 2.*distance), distance/DT)
         if self.mode == "predict-age-cap":
@@ -264,6 +268,8 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
     adaptive policy is experimental; original output is preserved by default.
     corner_policy="bounded" uses a fixed research error envelope and local
     velocity cap, not hidden sensor metadata or plant truth.
+    "bounded-taper" preserves the same certificate and near-corner cap,
+    allowing a higher cap only beyond a fixed forecast-chord knee.
     Only a synthetic flat route with bounded coordinates is admitted. All
     actual frame states are retained for independent internal consistency
     checks; reports do not claim collision clearance or physical stopping.
@@ -393,9 +399,11 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
               **({"adaptiveResponse": True} if adaptive else {}),
               **({"adaptivePolicy": adaptive_policy} if adaptive_policy!="legacy" else {}),
               **({"sensorNoise": sensor_noise} if sensor_noise!="none" else {}),
-              **({"cornerPolicy":{"name":"bounded","axisErrorBound":AXIS_ERROR_BOUND,
-                                 "approachGainPerSecond":CORNER_APPROACH_GAIN}}
-                 if corner_policy=="bounded" else {}),
+              **({"cornerPolicy":{"name":corner_policy,"axisErrorBound":AXIS_ERROR_BOUND,
+                                 "approachGainPerSecond":CORNER_APPROACH_GAIN,
+                                 **({"extraGainPerSecond":EXTRA_GAIN,"kneeXZ":KNEE_XZ}
+                                    if corner_policy=="bounded-taper" else {})}}
+                 if corner_policy!="legacy" else {}),
               **({"actualResponseChange": list(change)} if change is not None else {}),
               "frames": frames, "delivered": delivered, "admissions": controller.admissions,
               "sharpWitnesses": controller.witnesses, "stop": stop, "drain": drain,
@@ -407,7 +415,7 @@ def run(trace, *, speed=3., rate=100., delay=0, profile="immediate", mode="held-
                           "drainSeconds": len(drain)*DT, "sharpCornersPassed": controller.cursor,
                           **({"truthSharpWitnessesValid": truth_witnesses_valid,
                               "maxSharpWitnessTruthErrorXZ": truth_witness_error}
-                              if sensor_noise!="none" or corner_policy=="bounded" else {}),
+                              if sensor_noise!="none" or corner_policy!="legacy" else {}),
                           "maxObservedCrossTrackErrorXZ": max(
                               (a["crossTrackErrorXZ"] for a in controller.admissions), default=None)},
               "gameInputSent": False, "physicalQualification": False}
@@ -465,10 +473,16 @@ def verify(result, trace):
     policy = result.get("adaptivePolicy","legacy")
     noise = result.get("sensorNoise","none")
     bounded_corners = "cornerPolicy" in result
+    taper = False
     if bounded_corners:
-        insist(result["cornerPolicy"]=={"name":"bounded","axisErrorBound":AXIS_ERROR_BOUND,
-                                        "approachGainPerSecond":CORNER_APPROACH_GAIN},
-               "corner policy declaration")
+        declaration = result["cornerPolicy"]
+        insist(isinstance(declaration,dict) and declaration.get("name") in
+               ("bounded","bounded-taper"), "corner policy name")
+        taper = declaration["name"]=="bounded-taper"
+        insist(declaration=={"name":declaration["name"],"axisErrorBound":AXIS_ERROR_BOUND,
+                            "approachGainPerSecond":CORNER_APPROACH_GAIN,
+                            **({"extraGainPerSecond":EXTRA_GAIN,"kneeXZ":KNEE_XZ}
+                               if taper else {})}, "corner policy declaration")
     insist(("adaptivePolicy" not in result or (adaptive and policy=="robust")) and
            policy in ("legacy","robust"), "adaptive policy declaration")
     insist(noise in NOISE_PROFILES and ("sensorNoise" not in result or noise!="none"), "sensor profile declaration")
@@ -536,6 +550,10 @@ def verify(result, trace):
     insist(verified_witnesses == result["sharpWitnesses"], "sharp passage witnesses")
     admission_cursor = 0
     latest = None
+    # Reconstruct only the tapered candidate's corner approach decisions.
+    # Older receipt schemas and steering modes keep their existing verifier.
+    taper_cursor = 0
+    taper_rejoining = False
     for i, f in enumerate(frames):
         insist(f["tick"] == i, "frame tick")
         check_pose(position,yaw,f)
@@ -572,6 +590,43 @@ def verify(result, trace):
                     v,r = requests[j-estimate] if j>=estimate else ZERO
                     px,pyaw = integrate(px,pyaw,(v*ev,r*er))
             check_pose(px,pyaw,ref)
+            if taper:
+                # Each delivered witness advances the same ordered corner
+                # cursor and clears rejoin state. Neither a future witness
+                # nor the actual plant position can change the speed cap.
+                while (taper_cursor < len(verified_witnesses) and
+                       verified_witnesses[taper_cursor]["deliveryTick"] <= i):
+                    taper_cursor += 1
+                    taper_rejoining = False
+                admission = admitted[admission_cursor-1]
+                progress = admission["progress"]
+                error = admission["crossTrackErrorXZ"]
+                arc = min(total,progress+LOOKAHEAD)
+                if taper_cursor < len(sharp):
+                    arc = min(arc,sharp[taper_cursor][1])
+                target = _lookahead_point(trace.points,cumulative,arc)
+                chord = _xz_distance(px,target)
+                if taper_rejoining and error<=.15*LOOKAHEAD:
+                    taper_rejoining = False
+                if not taper_rejoining and chord<=.20*LOOKAHEAD and error>.35*LOOKAHEAD:
+                    taper_rejoining = True
+                if taper_rejoining:
+                    target = _lookahead_point(trace.points,cumulative,progress)
+                tol = trace.arrival_tolerance_xz
+                goal = trace.points[-1].xyz
+                if (mode!="held-pose" and arc==total and taper_cursor==len(sharp)
+                        and progress<total-tol and _xz_distance(measured[latest][0],goal)<=tol
+                        and _xz_distance(px,goal)<=.1*tol):
+                    target = _lookahead_point(trace.points,cumulative,progress)
+                insist(all(same(a,b) for a,b in zip(target,ref["targetXYZ"],strict=True)),
+                       "tapered corner target")
+                if (taper_cursor<len(sharp) and arc==sharp[taper_cursor][1]
+                        and not taper_rejoining):
+                    chord = _xz_distance(px,target)
+                    cap = (BASE_GAIN*chord if chord<=KNEE_XZ else
+                           (BASE_GAIN+EXTRA_GAIN)*chord-EXTRA_GAIN*KNEE_XZ)
+                    insist(requests[i][0]<=min(chord/DT,cap)+1e-8,
+                           "tapered corner approach speed cap")
         position,yaw = integrate(position,yaw,applied)
     check_pose(position,yaw,stop)
     for j,row in enumerate(drain):
