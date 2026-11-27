@@ -67,6 +67,45 @@ class ContractTests(unittest.TestCase):
             doc["events"].insert(0, {"t": 0, "key": "D", "edge": "up"})
         self.load_modified(change)
 
+    def test_duplicate_trace_keys_are_refused_at_all_levels(self):
+        raw = STOP.read_text(encoding="utf-8")
+        for invalid in (raw.replace('"sourceType": "synthetic"',
+                                    '"sourceType": "historical", "sourceType": "synthetic"', 1),
+                        raw.replace('"upAxis": "y"', '"upAxis": "z", "upAxis": "y"', 1)):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "duplicate.json"
+                path.write_text(invalid, encoding="utf-8")
+                with self.assertRaisesRegex(TraceError, "duplicate JSON key"):
+                    load_trace(path)
+
+    def test_overflow_number_and_excessive_nesting_are_refused(self):
+        raw = STOP.read_text(encoding="utf-8")
+        for invalid in (raw.replace('"arrivalToleranceXZ": 0.3',
+                                    '"arrivalToleranceXZ": 1e400', 1),
+                        "["*2000 + "0" + "]"*2000):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "invalid.json"
+                path.write_text(invalid, encoding="utf-8")
+                with self.assertRaises(TraceError):
+                    load_trace(path)
+
+    def test_unhashable_source_type_is_a_contract_error(self):
+        for value in ([], {}, None, True):
+            with self.subTest(value=value):
+                self.load_modified(lambda d: d.update(sourceType=value))
+
+    def test_bounded_read_enforces_actual_read_length(self):
+        from unittest.mock import patch, mock_open
+        from rift_taxi.contracts import _read_bounded
+        from types import SimpleNamespace
+        # A file may grow between its initial stat and open. A limit+1
+        # read detects that case without allocating the entire larger file.
+        with patch.object(Path, "stat", return_value=SimpleNamespace(st_size=1, st_mode=0o100644)), \
+                patch.object(Path, "open", mock_open(read_data=b"12345")) as opened:
+            with self.assertRaisesRegex(TraceError, "bounded size"):
+                _read_bounded(Path("fixture"), 4, "fixture")
+            opened.return_value.read.assert_called_once_with(5)
+
     def test_missing_yaw_is_unavailable_not_zero(self):
         doc = json.loads(STOP.read_text(encoding="utf-8"))
         for sample in doc["poses"]:

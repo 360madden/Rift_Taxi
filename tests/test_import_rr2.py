@@ -144,6 +144,63 @@ class ImportTests(unittest.TestCase):
             with self.assertRaisesRegex(TraceError, "normalization differs"):
                 load_trace(trace_file)
 
+    def test_reject_ambiguous_original_even_if_duplicate_last_value_valid(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            inp = self.create_input(root)
+            raw = inp.read_text(encoding="utf-8").replace(
+                '"kind": "native-continuous-move"',
+                '"kind": "unrelated", "kind": "native-continuous-move"', 1)
+            inp.write_text(raw, encoding="utf-8")
+            with self.assertRaisesRegex(TraceError, "duplicate JSON key"):
+                import_rr2(inp, root / "missing", source_commit="a"*40)
+            self.assertFalse((root / "missing").exists())
+
+    def test_reject_numeric_alias_and_unhashable_phase(self):
+        for value in (True, "1", []):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as d:
+                root = Path(d)
+                record = source_record()
+                record["path"][1]["x"] = value
+                inp = self.create_input(root, record=record)
+                with self.assertRaises(TraceError):
+                    import_rr2(inp, root / "missing", source_commit="a"*40)
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            record = source_record()
+            record["keySendEvents"][0]["phase"] = []
+            inp = self.create_input(root, record=record)
+            with self.assertRaises(TraceError):
+                import_rr2(inp, root / "missing", source_commit="a"*40)
+
+    def test_normalization_uses_exact_pinned_snapshot_not_reopened_file(self):
+        from unittest.mock import patch
+        from rift_taxi import contracts
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            inp = self.create_input(root)
+            output = root / "imported"
+            import_rr2(inp, output, source_commit="a"*40)
+            source = output / "sources" / "original.jsonl"
+            before = hashlib.sha256(source.read_bytes()).hexdigest()
+            verify = contracts._verify_source_file
+
+            def replace_after_pin(source_metadata, trace_path):
+                verified = verify(source_metadata, trace_path)
+                changed = source_record()
+                changed["path"][2]["x"] = 999
+                source.write_text(json.dumps(changed)+"\n", encoding="utf-8")
+                return verified
+
+            # The original, pinned snapshot is still valid for this
+            # operation. A later independent load must reject the new bytes.
+            with patch.object(contracts, "_verify_source_file", side_effect=replace_after_pin):
+                trace = load_trace(output / "trace.json")
+            self.assertEqual(trace.verified_source_sha256, before)
+            self.assertEqual(trace.poses[2].xyz[0], .5)
+            with self.assertRaisesRegex(TraceError, "SHA256 mismatch"):
+                load_trace(output / "trace.json")
+
     def test_tampered_bundled_source_fails_replay(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

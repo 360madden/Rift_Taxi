@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27, 10:28 PHT — offline replay provenance hardening
+
+Cloud checkpoint e1acbca passed both hosted workflows (Windows 701/701, comprehensive 102 s; Linux pilot 36 s). Return to core Taxi reliability: strict duplicate-key/nonfinite/deep JSON rejection, bounded reads of actual bytes, canonical numeric RR2 coordinates and typed source/phase failures. Historical normalization consumes exactly the hash-verified original snapshot rather than reopening the path. Seven focused regressions cover ambiguity, bounds, malformed types and source replacement after pin. This does not authenticate historical data, prevent all filesystem races, or qualify current physical pose. Hosted verification pending; no live game activity or sibling changes.
+
 ## November 27 — Windows pilot evidence and catalog
 
 33f8ab4 serial recovery passed 699/699 (67.824 s; discovery 1.520, recovery 69.397, verification .195 s), PR 45901392841 complete. 3ca0c35 independent Windows pilot 45901611083 passed 699/699/zero skips, 69 modules, 62 s workflow/145 summed job s; max shard 16.367 s. Same-head comprehensive 45901619301 passed. Retained Windows-specific cost profile, platform-selective planning and final observable checkout identity recheck with two new tests. Keep Windows profiling opt-in and serial recovery required; next return to Taxi product priorities after hosted validation. No live input or runtime dependency.
