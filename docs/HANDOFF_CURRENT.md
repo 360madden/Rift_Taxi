@@ -1,5 +1,17 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — named source-world destination selection
+
+Based on world graph checkpoint `e609abf` (hosted run 45947714186 passed). Added local `destinations` discovery and `plan --destination ID` to the offline review graph. Catalog IDs retain exact requested goal coordinates. At least one scoped original package must end exactly at the requested goal to bind a name. Nonzero snapped alternatives stay visible and cannot be silently substituted, even if another unrelated package reaches the requested coordinate. Existing exact XYZ planning remains available. A blocked route cannot be traversed but its original goal binding is retained; another valid directed review chain can reach the same exact goal. Four new regression methods exercise selection, blocked alternatives, snap-only refusal, grouping and CLI. All physical/transform/junction authority flags remain false. Hosted exact-head validation pending; no actual source exports uploaded.
+
+```sh
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD destinations
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD plan --start-xyz 0 0 0 --destination bank
+```
+
+Unknown or unbound destination returns exit 1, with explicit status and no segments. Named destination IDs are user/catalog labels, not authenticated in-game names. Next reconcile with the synthetic position-entry lane after both exact-head checks; then develop a route viewer and privately test retained original packages.
+
+
 ## November 27 — source-pinned world review graph
 
 Independent continuation from accepted product checkpoint `dc22fe5` (hosted run 45945997639). New `rift_taxi.world_review_graph` reopens exact catalog/package pins, requires source-world/frame/patch/planner-build scope and consistent complete world metadata, and treats each original complete candidate as a directed edge between its exact snapped source XYZ endpoints. Dijkstra ranks complete chains by full 3D polyline length; an excluded edge can select a detour. Original package/source identity, requested versus snapped coordinates, evidence, endpoint offsets and all waypoint flags remain in each segment. Only exact shared endpoints produce a review junction; no proximity linking, interior split, reverse edge, coordinate conversion or verified connector. The graph cannot execute a journey and is not a live navigation mesh. Six new synthetic fixture test methods cover route selection/detour, exact scope and endpoints, corruption, tie-breaking and CLI. Hosted exact-head validation pending. No real export uploaded; local original-package compatibility and physical qualification remain outstanding. Coordinate entry is independently developed in PR #11; reconcile after both checks pass.
