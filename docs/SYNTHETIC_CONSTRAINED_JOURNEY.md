@@ -75,3 +75,39 @@ No live game input, continuous unobserved stationarity, physical corridor
 clearance or M1/M2/M3 exit is established. The next offline acceptance
 step is verification of a saved full constrained receipt against its
 original trace and policy, followed by installed-package smoke tests.
+
+## Saved-report verification
+
+The separate auditor reconstructs per-leg seed/point identity and validates
+the retained approach, drain and correction without rerunning the approach
+controller. It recomputes model dwell, ordered sampled witnesses, actual pose
+carryover, failure/resume boundaries and total elapsed time, distance and
+forward duty. It rejects a truncated successful prefix, a resumed failed leg,
+modified witness/dwell, different model parameters and inconsistent summaries.
+It shares deterministic witness extraction and the existing terminal
+algorithms; this is model consistency, not independent physics or collision proof.
+
+```powershell
+$pin = (Get-FileHash artifacts\new-constrained-journey.json -Algorithm SHA256).Hash
+python -B -m rift_taxi.synthetic_constrained_audit samples\synthetic_constrained_straight.json samples\synthetic_constrained_straight.policy.json artifacts\new-constrained-journey.json --expected-sha256 $pin --out artifacts\new-constrained-audit.json
+```
+
+Both retained straight-course reports passed exact-report-pin verification.
+They were programmatically produced and omitted the exact policy byte pin;
+the semantic policy identity matched. CLI reports carry the exact byte pin.
+Audit receipts in the same private artifact directory:
+
+- zero-delay-audit.json: 4894baba46f3204d2c362ecec7232ea8dfa5c074545af955315d5bd10c1a7b28
+- two-step-delay-audit.json: ad21f674fc049b68d0869b32b3debde2a0437b44d3e41b32ed8212269ed925ab
+
+The frozen delayed multi-bend development case used dt .12, speed 3.6,
+yaw rate 125 and delay 3. Both legs and four obligations completed in
+18.48 modeled seconds, including first-leg correction of 1.56 s. The
+identical .01 s correction budget refused resume. Both outcomes passed
+the saved-model audit. The nine added audit tests and eight runner tests
+passed locally before the LEGION connection terminated.
+
+The installed-wheel constrained producer/audit workflow addition was
+prepared locally, but not published in this recovery commit. Reconcile it
+with the cloud checkpoint after restoring the authorized connection. Do
+not discard or overwrite local uncommitted edits.
