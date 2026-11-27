@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — complete saved synthetic journey audit
+
+f2132ec passed 722/722 Windows and 706+16 skips on each Linux lane; exact-head CI gate passed run 45929896160 in 89 s. Added standalone `python -B -m rift_taxi.synthetic_journey_audit TRACE REPORT --terminal-budget 5 --expected-sha256 HASH` with optional new audit output. Independently checks existing approach trajectory, reproduces deterministic terminal phases using existing implementations, recomputes disjoint phase totals, preserves failed journeys, rejects malformed/ambiguous/hash-mismatched reports. V1 reports omit terminal budget, so explicit caller policy is required; a successful reproduction cannot recover an unknown historical budget. Six focused tests, no game access or physical claims. Hosted regression pending.
+
 ## November 27 — offline control gate STOP metadata hardening
 
 Independent projection/ordered-witness audit and diagnostic repair aad6f9b passed comprehensive run 45929599645 (110 s; Windows 717/717; both Linux lanes 701 passes + 16 expected skips). Harden the driver-neutral gate so an invalid diagnostic STOP reason never prevents release attempts; preserve ValueError after STOP, retain the first reason and uncertain-release retries. Reject custom collection subclasses and requests over the three-entry W/A/D bound; validate one immutable request snapshot. Five new inert backend tests. Fresh LEGION Workbridge 0.16.4-dev service PID 32544, started 02:23 UTC; read-only desktop query refused DESKTOP_TREE_UNSETTLED. 02:40 UTC process inventory returned no rift_x64 process and all six desktop runtime staged files plus manifest remained absent. No alternate desktop access, service modification or input. No physical qualification. New hosted regression pending.
