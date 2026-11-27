@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — installed saved-journey audit acceptance
+
+753b236 passed 728/728 Windows tests and 712 passes +16 platform skips on each Linux lane (PR 45930463887, 68 s); local audit tests 6/6. Existing frozen staggered-finish case verified on LEGION: delay 3, dt .12, speed 3.6, yaw rate 125, initial yaw -50, passive error .3608799296 -> .1500000000 after 1.56 s correction, .2108799296 modeled travel; .01 s budget leaves the journey terminal-unsettled. Added exact budget mismatch/active correction regression and isolated installed-wheel audit checks for all existing journey modes. Documented CLI invocation and v1 budget limitation. No physical input, source promotion or runtime dependencies. New hosted validation pending.
+
 ## November 27 — complete saved synthetic journey audit
 
 f2132ec passed 722/722 Windows and 706+16 skips on each Linux lane; exact-head CI gate passed run 45929896160 in 89 s. Added standalone `python -B -m rift_taxi.synthetic_journey_audit TRACE REPORT --terminal-budget 5 --expected-sha256 HASH` with optional new audit output. Independently checks existing approach trajectory, reproduces deterministic terminal phases using existing implementations, recomputes disjoint phase totals, preserves failed journeys, rejects malformed/ambiguous/hash-mismatched reports. V1 reports omit terminal budget, so explicit caller policy is required; a successful reproduction cannot recover an unknown historical budget. Six focused tests, no game access or physical claims. Hosted regression pending.

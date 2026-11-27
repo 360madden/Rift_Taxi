@@ -103,8 +103,11 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           python -I -m rift_taxi.synthetic_journey_demo --help
+          python -I -m rift_taxi.synthetic_journey_audit --help
           python -I -m rift_taxi.synthetic_journey_demo "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" --delay-steps 2 --out installed-journey.json
           python -I -c "import json; from pathlib import Path; r=json.loads(Path('installed-journey.json').read_text(encoding='utf-8')); assert r['schema']=='taxi.synthetic-journey-demo/1' and r['routeId']=='three-bend-synthetic-course' and r['classification']=='SYNTHETIC_ONLY' and not r['gameInputSent'] and not r['physicalQualification']; print('INSTALLED_JOURNEY', r['summary'])"
+          # Verify the saved report from the installed wheel in isolated mode.
+          python -I -m rift_taxi.synthetic_journey_audit "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" installed-journey.json --terminal-budget 5 --out installed-journey-audit.json
       # Exercise every new opt-in approach from the installed package, not
       # just imports or the source checkout. Report status may be failed.
       - name: Run installed experimental journey modes
@@ -114,6 +117,7 @@ jobs:
             delay=2
             if [ "$mode" = zero-delay-rejoin ]; then delay=0; fi
             python -I -m rift_taxi.synthetic_journey_demo "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" --delay-steps "$delay" --approach-mode "$mode" --out "installed-journey-$mode.json"
+            python -I -m rift_taxi.synthetic_journey_audit "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" "installed-journey-$mode.json" --terminal-budget 5 --out "installed-journey-$mode-audit.json"
           done
           python -I -c "import json; from pathlib import Path; modes=('predict-near-goal','predict-near-stall','zero-delay-rejoin'); reports=[json.loads(Path('installed-journey-'+m+'.json').read_text(encoding='utf-8')) for m in modes]; assert all(r['experimentalApproachMode']==m and r['classification']=='SYNTHETIC_ONLY' and not r['gameInputSent'] and not r['physicalQualification'] for m,r in zip(modes,reports)); assert all('syntheticCommandPrediction' in r['approach'] for r in reports[:2]); assert 'syntheticTerminalProgressRecovery' in reports[2]['approach']; print('INSTALLED_EXPERIMENTAL_JOURNEYS', [r['summary']['status'] for r in reports])"
       - name: Upload installed synthetic journey

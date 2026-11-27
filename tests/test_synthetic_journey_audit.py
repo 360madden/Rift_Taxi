@@ -50,6 +50,30 @@ class JourneyAuditTests(unittest.TestCase):
             with self.assertRaises(TraceError):
                 verify_journey(report,self.trace,terminal_budget=5.)
 
+    def test_actual_correction_and_insufficient_budget_are_distinct(self):
+        # Frozen observed synthetic batch case: passive drain ends outside
+        # tolerance and a real modeled correction is required.
+        from rift_taxi.simulation_holdout import _case_trace
+        from rift_taxi.synthetic_journey_batch import GENERATOR
+        trace=_case_trace({"routeId":"staggered-finish",
+                           "routeXYZ":[[0,0,0],[3,0,0],[4,0,2],[7,0,2],[7.4,0,2.4]],
+                           "initialXYZ":[0.,0.,.35],"initialYawDegrees":-50.},
+                          generator=GENERATOR)
+        opts=dict(dt=.12,speed=3.6,yaw_rate=125.,delay_steps=3)
+        good=journey(trace,terminal_budget=5.,**opts)
+        bad=journey(trace,terminal_budget=.01,**opts)
+        self.assertEqual(good["terminalCorrection"]["status"],"model-corrected")
+        self.assertGreater(good["terminalCorrection"]["extraTravelXZ"],0.)
+        self.assertFalse(good["summary"]["passiveSettled"])
+        self.assertTrue(verify_journey(good,trace,terminal_budget=5.)["finalModelSettled"])
+        self.assertEqual(bad["terminalCorrection"]["status"],"terminal-budget-insufficient")
+        self.assertEqual(bad["summary"]["status"],"terminal-unsettled")
+        self.assertFalse(verify_journey(bad,trace,terminal_budget=.01)["finalModelSettled"])
+        with self.assertRaisesRegex(TraceError,"terminal correction"):
+            verify_journey(good,trace,terminal_budget=.01)
+        with self.assertRaisesRegex(TraceError,"terminal correction"):
+            verify_journey(bad,trace,terminal_budget=5.)
+
     def test_failed_approach_cannot_acquire_terminal_success(self):
         report=deepcopy(self.failed)
         report["terminalCorrection"]=deepcopy(self.normal["terminalCorrection"])

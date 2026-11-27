@@ -172,9 +172,15 @@ python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json 
 # Concise automation output while preserving the full report (new path)
 python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json --summary --require-settled --out artifacts\new-journey.json
 
+# Audit the complete saved synthetic journey (original v1 budget is required)
+$pin = (Get-FileHash artifacts\new-journey.json -Algorithm SHA256).Hash
+python -B -m rift_taxi.synthetic_journey_audit samples\synthetic_continuous.json artifacts\new-journey.json --terminal-budget 5 --expected-sha256 $pin --out artifacts\new-journey-audit.json
+
 # Re-run the regression suite
 python -B -m unittest discover -s tests -v
 ```
+
+The saved-journey audit independently checks approach trajectory consistency, reproduces the existing deterministic drain/correction phases, and recomputes summary totals. It does not rerun the approach controller, authenticate physical data, or establish live arrival. V1 journey reports omit the terminal budget; pass the original explicit value (default 5 seconds when producing a report). The optional SHA-256 checks the supplied report bytes; it does not authenticate the producer.
 
 The **opt-in, read-only** `inspect-native-candidate`, `inspect-native-burst` and `observe-native-series` commands require exact PID, process creation ticks, executable path/hash, window handle and host. `observe-native-series` acquires 3–128 owner-checked candidates from one pinned read-only process handle, recording observed sample timing and enforcing foreground/identity on every sample. Its opt-in `--observe-manual-keys` switch also polls Windows W/A/D high-bit states before/after native reads **without inserting any keys**; these snapshots are not proof of RIFT input consumption. See the [physical sampler evidence](docs/M1_LIVE_NATIVE_SERIES_LEGION_2026-11-23.md) and [key-observation experiment](docs/M1_READONLY_MANUAL_KEY_OBSERVATION_LEGION_2026-11-23.md). Both commands support `--include-matrix-candidate` and `--include-refresh-guard-candidate`: the burst compares 2–8 XYZ/yaw observations, optional matrices and source-pinned cached-XYZ refresh guards. Guard eligibility never establishes writer execution or passive freshness. The one-shot command also supports `--include-actor-translation-candidate` to reconstruct the source-pinned model-world translation; it is **not** an independent position provider. `compare-native-candidates` compares two exact-source, same-session saved one-shot reports **offline**. `compare-facing-phases` analyzes five complete, separately labeled matrix bursts **offline**. The native commands also offer `--start-delay-seconds` (0–15) to switch focus back to RIFT before reading, and refuse occupied output paths before capture. **These read-only commands alone do not establish physical movement, passive freshness or qualified body heading.** None of the commands auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
 
