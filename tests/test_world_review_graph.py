@@ -11,7 +11,7 @@ from rift_taxi.contracts import TraceError
 from rift_taxi.world_candidate_review import content_id, IDENTITY_FIELDS
 from rift_taxi.world_review_package import create_package
 from rift_taxi.world_route_catalog import SCHEMA
-from rift_taxi.world_review_graph import load_graph, list_endpoints, plan_review_chain, main
+from rift_taxi.world_review_graph import load_graph, list_endpoints, list_destinations, plan_review_chain, plan_named_destination, main
 from test_world_candidate_review import fixture
 
 
@@ -149,3 +149,72 @@ class ReviewGraphTests(unittest.TestCase):
             self.assertEqual(main(args + ["plan", "--start-xyz","0","0","0",
                                           "--goal-xyz","4","0","0"]), 0)
         self.assertEqual(json.loads(output.getvalue())["segments"][0]["routeId"], "alpha")
+
+    def test_named_destination_resolves_exact_requested_goal_across_chain(self):
+        self.add("first", [(0,0,0), (4,0,0)])
+        self.add("bank", [(4,0,0), (8,0,0)])
+        self.add("alternate", [(0,0,0), (4,0,4), (8,0,0)])
+        graph = self.graph()
+        self.assertEqual([d["destinationId"] for d in list_destinations(graph)],
+                         ["alternate", "bank", "first"])
+        result = plan_named_destination(graph, start_xyz=[0,0,0], destination_id="bank")
+        self.assertEqual(result["status"], "review-chain-found")
+        self.assertEqual(result["goalXYZ"], [8,0,0])
+        self.assertEqual(result["destinationBinding"]["exactGoalRoutes"], ["bank"])
+        self.assertEqual([e["routeId"] for e in result["segments"]], ["first", "bank"])
+        # Blocking a route changes the search, not the coordinate identity.
+        alt = plan_named_destination(graph, start_xyz=[0,0,0], destination_id="bank",
+                                     blocked_routes=["bank"])
+        self.assertEqual([e["routeId"] for e in alt["segments"]], ["alternate"])
+        self.assertFalse(alt["physicalQualification"])
+
+    def test_named_destination_refuses_snap_only_even_if_requested_xyz_is_other_endpoint(self):
+        self.add("bank", [(0,0,0), (4,0,0)], requested_goal=[4,1,0])
+        self.add("other", [(0,0,0), (4,1,0)])
+        graph = self.graph()
+        bank = list_destinations(graph)[0]
+        self.assertFalse(bank["exactGoalBound"])
+        self.assertEqual(bank["snappedAlternatives"][0]["endpointOffset"]["verticalY"], 1.)
+        result = plan_named_destination(graph, start_xyz=[0,0,0], destination_id="bank")
+        self.assertEqual(result["status"], "unbound-destination")
+        self.assertEqual(result["segments"], [])
+        self.assertEqual(result["goalXYZ"], [4,1,0])
+        self.assertFalse(result["endpointConnectorsVerified"])
+        self.assertEqual(plan_named_destination(graph, start_xyz=[0,0,0],
+                         destination_id="missing")["status"], "unknown-destination")
+        with self.assertRaises(TraceError):
+            plan_named_destination(graph, start_xyz=[0,0,0], destination_id="missing",
+                                   blocked_routes=["unknown-route"])
+
+    def test_grouped_destination_keeps_exact_binding_and_snap_alternatives(self):
+        self.add("exact", [(0,0,0), (8,0,0)])
+        self.add("nearby", [(0,0,0), (8,1,0)], requested_goal=[8,0,0])
+        for row in self.rows:
+            row["destinationId"] = "bank"
+        graph = self.graph()
+        entries = list_destinations(graph)
+        self.assertEqual(len(entries), 1)
+        self.assertTrue(entries[0]["exactGoalBound"])
+        self.assertEqual(entries[0]["exactGoalRoutes"], ["exact"])
+        self.assertEqual(entries[0]["snappedAlternatives"][0]["routeId"], "nearby")
+        result = plan_named_destination(graph, start_xyz=[0,0,0], destination_id="bank",
+                                        blocked_routes=["exact"])
+        self.assertEqual(result["status"], "no-review-chain")
+        self.assertEqual(result["segments"], [])
+
+    def test_named_destination_cli(self):
+        self.add("bank", [(0,0,0), (8,0,0)])
+        args = [str(self.catalog), "--catalog-sha256", self.pin()]
+        for key, value in self.scope.items():
+            args += ["--" + key.replace("_", "-"), value]
+        with redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(main(args + ["destinations"]), 0)
+        self.assertEqual(json.loads(output.getvalue())["destinations"][0]["destinationId"], "bank")
+        with redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(main(args + ["plan", "--start-xyz","0","0","0",
+                                          "--destination","bank"]), 0)
+        self.assertEqual(json.loads(output.getvalue())["goalXYZ"], [8,0,0])
+        with redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(main(args + ["plan", "--start-xyz","0","0","0",
+                                          "--destination","missing"]), 1)
+        self.assertEqual(json.loads(output.getvalue())["status"], "unknown-destination")
