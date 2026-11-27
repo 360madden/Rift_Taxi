@@ -51,7 +51,7 @@ An installed wheel also exposes `rift-taxi-app`. Choose the synthetic demo
 or browse to a local world-review catalog, supply its expected SHA-256,
 inspect its inventory and explicitly select an anchor route. Opening a world
 viewer revalidates the selected package scope and original package pins.
-The launcher does not require RIFT, an AI service or a network connection.
+The launcher does not require RIFT, an AI service or a network connection. The synthetic viewer includes **Replay model journey**: run the existing local synthetic controller and inspect its recorded approach, settling, correction and dwell samples with play, pause and scrubbing controls. Replay is not live movement.
 Imported geometry is review-only; neither viewer sends game input.
 
 For direct command-line launching use `rift-taxi-app demo` or

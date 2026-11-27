@@ -1,7 +1,8 @@
 """Standalone local desktop route preview for authored synthetic Taxi maps.
 
 Tk is optional at launch; the pure scene builder is headless-testable. The
-viewer uses the existing A* planner, never executes a journey or accesses RIFT.
+viewer uses the existing A* planner and optional synthetic journey replay.
+It never accesses RIFT or sends game input.
 All coordinates are graph-local XZ (Y is fixed by the synthetic graph schema).
 No network, external assets, sibling tools, or third-party Python packages.
 """
@@ -103,7 +104,7 @@ def load_local_map(path, expected_sha256=None):
 
 
 def launch(graph):
-    """Create the optional desktop UI. All operations are local route previews."""
+    """Create the local synthetic route preview and model playback UI."""
     require(graph.classification == "SYNTHETIC_MODEL_ONLY", "desktop preview requires a synthetic graph")
     import tkinter as tk
     from tkinter import ttk
@@ -205,7 +206,21 @@ def launch(graph):
             status.set(str(exc))
         draw()
 
-    ttk.Button(panel, text="Preview route", command=refresh).grid(sticky="ew", pady=10)
+    def model_journey():
+        # Refresh from all current inputs, not a previously displayed plan.
+        refresh()
+        if current is None:
+            return
+        g, plan = current
+        from .local_journey_viewer import journey_samples, launch_playback
+        try:
+            receipt, samples = journey_samples(g, plan)
+            launch_playback(root,g,plan,receipt=receipt,samples=samples)
+        except (TraceError,ValueError,OverflowError) as exc:
+            status.set("Model journey refused: "+str(exc))
+
+    ttk.Button(panel, text="Preview route", command=refresh).grid(sticky="ew", pady=(10,4))
+    ttk.Button(panel, text="Replay model journey", command=model_journey).grid(sticky="ew", pady=(0,8))
     ttk.Label(panel, textvariable=status, wraplength=225, justify="left").grid(sticky="w")
     canvas.bind("<Configure>", lambda _: draw())
     mode.trace_add("write", refresh)

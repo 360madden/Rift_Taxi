@@ -83,6 +83,58 @@ def exercise(launch, graph, *, world_route=None):
                 raise RuntimeError("preview canvas not mapped or route not drawn")
             if not any("route-found" in label for label in labels):
                 raise RuntimeError("preview did not report route-found")
+            model_replay_checked = False
+            if world_route is None:
+                # Run the actual local synthetic model through the production
+                # button, then exercise replay, pause, scrub and close without
+                # issuing OS input or replacing the renderer.
+                import time
+                buttons = [w for w in children if isinstance(w,ttk.Button)
+                           and w.cget("text")=="Replay model journey"]
+                if len(buttons)!=1:
+                    raise RuntimeError("missing model journey control")
+                buttons[0].invoke()
+                root.update()
+                dialogs = [w for w in root.winfo_children() if isinstance(w,tk.Toplevel)]
+                if len(dialogs)!=1:
+                    raise RuntimeError("missing model replay dialog")
+                dialog=dialogs[0]
+                widgets=list(descendants(dialog))
+                sliders=[w for w in widgets if isinstance(w,tk.Scale)]
+                replay_canvases=[w for w in widgets if isinstance(w,tk.Canvas)]
+                actions={w.cget("text"):w for w in widgets if isinstance(w,ttk.Button)}
+                if len(sliders)!=1 or len(replay_canvases)!=1:
+                    raise RuntimeError("unexpected model replay controls")
+                slider, replay_canvas=sliders[0],replay_canvases[0]
+                if int(slider.cget("to"))<2 or not replay_canvas.find_withtag("model-pose"):
+                    raise RuntimeError("model replay did not render")
+                initial=replay_canvas.coords(replay_canvas.find_withtag("model-pose")[0])
+                actions["Play"].invoke()
+                deadline=time.monotonic()+1.0
+                while slider.get()==0 and time.monotonic()<deadline:
+                    root.update()
+                    time.sleep(.01)
+                if slider.get()==0 or actions["Play"].cget("text")!="Pause":
+                    raise RuntimeError("model replay timer did not advance")
+                actions["Play"].invoke()
+                stopped=slider.get()
+                deadline=time.monotonic()+.2
+                while time.monotonic()<deadline:
+                    root.update()
+                    time.sleep(.01)
+                if slider.get()!=stopped or actions["Play"].cget("text")!="Play":
+                    raise RuntimeError("paused replay advanced")
+                slider.set(int(slider.cget("to")))
+                root.update()
+                marker=replay_canvas.coords(replay_canvas.find_withtag("model-pose")[0])
+                if marker==initial or not any("model-arrived" in str(w.cget("text"))
+                           for w in widgets if isinstance(w,ttk.Label)):
+                    raise RuntimeError("model replay terminal state missing")
+                actions["Close"].invoke()
+                root.update()
+                if dialog.winfo_exists() or errors:
+                    raise RuntimeError("model replay failed to close cleanly")
+                model_replay_checked=True
             search_checked = False
             map_pick_checked = False
             position_review_checked = False
@@ -215,7 +267,8 @@ def exercise(launch, graph, *, world_route=None):
                 if errors:
                     raise RuntimeError("Tk callbacks failed: " + "; ".join(errors))
                 position_review_checked = True
-            receipt.update(searchAndAutomaticReplanChecked=search_checked,
+            receipt.update(modelJourneyReplayChecked=model_replay_checked,
+                           searchAndAutomaticReplanChecked=search_checked,
                            mapSourceSelectionChecked=map_pick_checked,
                            positionReviewChecked=position_review_checked,
                            title=root.title(), tkVersion=str(root.tk.call("info", "patchlevel")),

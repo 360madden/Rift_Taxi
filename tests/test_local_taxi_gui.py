@@ -8,6 +8,7 @@ import unittest
 from rift_taxi.contracts import TraceError
 from rift_taxi.local_taxi import SCHEMA, decode_graph, demo_graph
 from rift_taxi.local_taxi_gui import build_scene, load_local_map, preview
+from rift_taxi.local_journey_viewer import journey_samples
 
 
 class LocalViewerTests(unittest.TestCase):
@@ -101,3 +102,58 @@ class LocalViewerTests(unittest.TestCase):
                 load_local_map(path, "0"*64)
             with self.assertRaises(TraceError):
                 load_local_map(None, "0"*64)
+
+    def test_playback_uses_actual_model_samples_and_stop_dwell(self):
+        from rift_taxi.synthetic_constrained_journey import _observations
+        graph,plan=preview(demo_graph(),start="entrance",destination="bank")
+        receipt,samples=journey_samples(graph,plan)
+        self.assertEqual(receipt["status"],"model-arrived")
+        self.assertTrue(all(a["t"]<b["t"] for a,b in zip(samples,samples[1:])))
+        model=receipt["journey"]
+        expected=[]
+        for leg in model["legs"]:
+            poses,_,_,_=_observations(leg["journey"],model["model"]["dt"],
+                                      model["model"]["stopDwellSeconds"])
+            for pose in poses:
+                t=leg["startSeconds"]+pose.t
+                if not expected or abs(t-expected[-1][0])>1e-9:
+                    expected.append((t,list(pose.xyz)))
+        self.assertEqual([(s["t"],s["xyz"]) for s in samples],expected)
+        self.assertEqual(samples[-1]["xyz"],model["legs"][-1]["finalXYZ"])
+        self.assertAlmostEqual(samples[-1]["t"],model["totalElapsedSeconds"])
+        self.assertIn("dwell",{s["phase"] for s in samples})
+        self.assertFalse(receipt["gameInputSent"])
+
+    def test_playback_distinguishes_no_route_and_already_there(self):
+        for start,blocked,status,count in (
+            ("entrance",["entrance-to-main-west","entrance-to-north-west"],"no-route",0),
+            ("bank",[],"already-at-destination",1)):
+            graph,plan=preview(demo_graph(),start=start,destination="bank",blocked_edges=blocked)
+            receipt,samples=journey_samples(graph,plan)
+            self.assertEqual(receipt["status"],status)
+            self.assertEqual(len(samples),count)
+            self.assertIsNone(receipt["journey"])
+
+    def test_playback_interior_start_and_rejects_wrong_plan(self):
+        graph,plan=preview(demo_graph(),edge_id="main-west-to-main-east",fraction=.5,destination="bank")
+        receipt,samples=journey_samples(graph,plan)
+        self.assertEqual(samples[0]["xyz"],plan["points"][0]["xyz"])
+        self.assertEqual(receipt["plan"]["graphSHA256"],graph.sha256)
+        with self.assertRaisesRegex(TraceError,"identity"):
+            journey_samples(demo_graph(),plan)
+        with self.assertRaisesRegex(TraceError,"differs"):
+            journey_samples(graph,{**plan,"edges":[]})
+        with self.assertRaisesRegex(TraceError,"synthetic"):
+            journey_samples(graph,{**plan,"classification":"OFFLINE_REVIEW_ONLY"})
+
+    def test_playback_preserves_actual_model_failure(self):
+        graph=decode_graph(json.dumps({"schema":SCHEMA,"classification":"SYNTHETIC_MODEL_ONLY",
+            "mapId":"long","nodes":[{"id":"a","xyz":[0,0,0],"kind":"guide"},
+            {"id":"b","xyz":[200,0,0],"kind":"guide"}],
+            "edges":[{"id":"ab","from":"a","to":"b"}],
+            "destinations":[{"id":"b","label":"B","node":"b"}]}).encode())
+        graph,plan=preview(graph,start="a",destination="b")
+        receipt,samples=journey_samples(graph,plan)
+        self.assertEqual(receipt["status"],"model-blocked")
+        self.assertFalse(receipt["journey"]["allObligationsObserved"])
+        self.assertNotEqual(samples[-1]["xyz"],plan["points"][-1]["xyz"])
