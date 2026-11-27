@@ -141,8 +141,11 @@ class LocalViewerTests(unittest.TestCase):
         self.assertEqual(receipt["plan"]["graphSHA256"],graph.sha256)
         with self.assertRaisesRegex(TraceError,"identity"):
             journey_samples(demo_graph(),plan)
-        with self.assertRaisesRegex(TraceError,"differs"):
-            journey_samples(graph,{**plan,"edges":[]})
+        from unittest.mock import patch
+        with patch("rift_taxi.local_journey_viewer.run_local_journey") as runner:
+            with self.assertRaisesRegex(TraceError,"differs"):
+                journey_samples(graph,{**plan,"edges":[]})
+            runner.assert_not_called()
         with self.assertRaisesRegex(TraceError,"synthetic"):
             journey_samples(graph,{**plan,"classification":"OFFLINE_REVIEW_ONLY"})
 

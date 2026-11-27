@@ -154,6 +154,7 @@ def launch(graph):
     canvas = tk.Canvas(root, background="#121b27", highlightthickness=0)
     canvas.grid(row=0, column=1, sticky="nsew")
     current = None
+    replay_dialog = None
 
     def draw():
         canvas.delete("all")
@@ -207,6 +208,10 @@ def launch(graph):
         draw()
 
     def model_journey():
+        nonlocal replay_dialog
+        # One replay window per main viewer. A deliberate new request replaces
+        # the old replay only after the new model has been computed successfully.
+        # This prevents accumulating active Tk timers, windows and receipts.
         # Refresh from all current inputs, not a previously displayed plan.
         refresh()
         if current is None:
@@ -215,7 +220,9 @@ def launch(graph):
         from .local_journey_viewer import journey_samples, launch_playback
         try:
             receipt, samples = journey_samples(g, plan)
-            launch_playback(root,g,plan,receipt=receipt,samples=samples)
+            if replay_dialog is not None and replay_dialog.winfo_exists():
+                replay_dialog.destroy()
+            replay_dialog=launch_playback(root,g,plan,receipt=receipt,samples=samples)
         except (TraceError,ValueError,OverflowError) as exc:
             status.set("Model journey refused: "+str(exc))
 

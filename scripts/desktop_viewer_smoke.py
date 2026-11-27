@@ -109,6 +109,9 @@ def exercise(launch, graph, *, world_route=None):
                 if int(slider.cget("to"))<2 or not replay_canvas.find_withtag("model-pose"):
                     raise RuntimeError("model replay did not render")
                 initial=replay_canvas.coords(replay_canvas.find_withtag("model-pose")[0])
+                static_items=replay_canvas.find_withtag("network")
+                if not static_items:
+                    raise RuntimeError("missing cached network")
                 actions["Play"].invoke()
                 deadline=time.monotonic()+1.0
                 while slider.get()==0 and time.monotonic()<deadline:
@@ -130,10 +133,66 @@ def exercise(launch, graph, *, world_route=None):
                 if marker==initial or not any("model-arrived" in str(w.cget("text"))
                            for w in widgets if isinstance(w,ttk.Label)):
                     raise RuntimeError("model replay terminal state missing")
-                actions["Close"].invoke()
+                if replay_canvas.find_withtag("network")!=static_items:
+                    raise RuntimeError("timeline scrub rebuilt the static network")
+                # Restart at the terminal state, then replace the running
+                # dialog with a fresh receipt and ensure old timers are gone.
+                actions["Play"].invoke()
+                if slider.get()!=0 or actions["Play"].cget("text")!="Pause":
+                    raise RuntimeError("terminal replay did not restart")
+                buttons[0].invoke()
                 root.update()
+                if dialog.winfo_exists():
+                    raise RuntimeError("repeated request retained old replay")
+                dialogs=[w for w in root.winfo_children() if isinstance(w,tk.Toplevel)]
+                if len(dialogs)!=1:
+                    raise RuntimeError("repeated request created duplicate dialogs")
+                dialog=dialogs[0]
+                widgets=list(descendants(dialog))
+                actions={w.cget("text"):w for w in widgets if isinstance(w,ttk.Button)}
+                actions["Play"].invoke()
+                actions["Close"].invoke()
+                # Pump the loop beyond the scheduled interval to detect
+                # callbacks targeting destroyed widgets.
+                deadline=time.monotonic()+.25
+                while time.monotonic()<deadline:
+                    root.update()
+                    time.sleep(.01)
                 if dialog.winfo_exists() or errors:
-                    raise RuntimeError("model replay failed to close cleanly")
+                    raise RuntimeError("active model replay failed to close cleanly")
+                # No-route and already-at-destination must not start a timer
+                # or display an invented arrival trajectory.
+                exclusions=next(w for w in children if isinstance(w,tk.Listbox))
+                exclusions.selection_set(0,"end")
+                buttons[0].invoke()
+                root.update()
+                dialog=next(w for w in root.winfo_children() if isinstance(w,tk.Toplevel))
+                widgets=list(descendants(dialog))
+                actions={w.cget("text"):w for w in widgets if isinstance(w,ttk.Button)}
+                if not actions["Play"].instate(["disabled"]) or not any(
+                        "no-route" in str(w.cget("text")) for w in widgets if isinstance(w,ttk.Label)):
+                    raise RuntimeError("no-route replay incorrectly enabled")
+                actions["Close"].invoke()
+                exclusions.selection_clear(0,"end")
+                combos[1].set("bank")
+                buttons[0].invoke()
+                root.update()
+                dialog=next(w for w in root.winfo_children() if isinstance(w,tk.Toplevel))
+                widgets=list(descendants(dialog))
+                actions={w.cget("text"):w for w in widgets if isinstance(w,ttk.Button)}
+                if not actions["Play"].instate(["disabled"]) or not any(
+                        "already-at-destination" in str(w.cget("text")) for w in widgets if isinstance(w,ttk.Label)):
+                    raise RuntimeError("already-at-destination replay incorrectly enabled")
+                actions["Close"].invoke()
+                combos[1].set("entrance")
+                # Immediately destroy a new dialog, even before its first
+                # idle draw. This exercises the separate idle cancellation.
+                buttons[0].invoke()
+                dialog=next(w for w in root.winfo_children() if isinstance(w,tk.Toplevel))
+                dialog.destroy()
+                root.update()
+                if errors:
+                    raise RuntimeError("replay lifecycle callbacks failed: "+"; ".join(errors))
                 model_replay_checked=True
             search_checked = False
             map_pick_checked = False

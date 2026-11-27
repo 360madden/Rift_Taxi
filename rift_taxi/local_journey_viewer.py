@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 
-from .local_taxi import coordinates, require, run_local_journey
+from .local_taxi import coordinates, plan_route, require, run_local_journey
 
 CLASSIFICATION = "SYNTHETIC_MODEL_ONLY"
 
@@ -23,10 +23,16 @@ def journey_samples(graph, plan):
     require(graph.classification == plan.get("classification") == CLASSIFICATION,
             "journey playback requires synthetic graph and plan")
     require(plan.get("graphSHA256") == graph.sha256, "plan graph identity mismatch")
+    # Reject a stale or altered preview before spending model execution time.
+    # The synthetic runner also independently plans; compare its output as a
+    # second boundary, since it owns the actual model input.
+    fresh = plan_route(graph,plan["startNode"],plan["destinationId"],
+                       blocked_edges=plan["blockedEdges"])
+    require(all(plan.get(key)==value for key,value in fresh.items()),
+            "recomputed journey plan differs from preview")
     receipt = run_local_journey(graph, plan["startNode"], plan["destinationId"],
                                 blocked_edges=plan["blockedEdges"])
-    require(all(plan.get(key) == value for key,value in receipt["plan"].items()),
-            "recomputed journey plan differs from preview")
+    require(receipt["plan"]==fresh,"model route differs from validated preview")
     samples = []
 
     def append(t, xyz, phase, leg):
@@ -108,41 +114,59 @@ def launch_playback(parent, graph, plan, *, receipt, samples):
     index=tk.IntVar(master=dialog,value=0)
     status=tk.StringVar(master=dialog)
     pending=None
+    initial_draw=None
     playing=False
+    closed=False
     last=max(0,len(samples)-1)
+    cached_size=None
+    projected=[]
+    trail_id=pose_id=None
 
     def draw(*_):
-        canvas.delete("all")
+        nonlocal cached_size,projected,trail_id,pose_id
+        if closed:
+            return
         w,h=canvas.winfo_width(),canvas.winfo_height()
         if w<80 or h<80:
             return
-        scene=build_scene(graph,plan,width=w,height=h)
-        for edge in scene["edges"]:
-            color={"route":"#5bd6a2","network":"#627387","blocked":"#ef7777"}[edge["role"]]
-            canvas.create_line(*edge["from"],*edge["to"],fill=color,
-                               width=3 if edge["role"]=="route" else 1)
-        for node in scene["nodes"]:
-            x,y=node["position"]
-            canvas.create_oval(x-3,y-3,x+3,y+3,fill="#dce5f0",outline="")
+        # Build the immutable network and transform only when the viewport
+        # changes. Each replay frame otherwise updates two existing items.
+        # Preproject recorded positions once per resize, with no snapping.
+        if cached_size!=(w,h):
+            scene=build_scene(graph,plan,width=w,height=h)
+            canvas.delete("all")
+            for edge in scene["edges"]:
+                color={"route":"#5bd6a2","network":"#627387","blocked":"#ef7777"}[edge["role"]]
+                canvas.create_line(*edge["from"],*edge["to"],fill=color,
+                                   width=3 if edge["role"]=="route" else 1,tags=("network",))
+            for node in scene["nodes"]:
+                x,y=node["position"]
+                canvas.create_oval(x-3,y-3,x+3,y+3,fill="#dce5f0",outline="",tags=("network",))
+            anchor=scene["nodes"][0]
+            xyz=graph.nodes[anchor["id"]].xyz
+            ax,ay=anchor["position"]
+            scale=scene["scale"]
+            projected=[(ax+(row["xyz"][0]-xyz[0])*scale,
+                        ay-(row["xyz"][2]-xyz[2])*scale) for row in samples]
+            trail_id=canvas.create_line(0,0,0,0,fill="#70b4ff",width=2,
+                                        state="hidden",tags=("model-trail",))
+            pose_id=canvas.create_oval(0,0,0,0,fill="#70b4ff",outline="#ffffff",
+                                       state="hidden",tags=("model-pose",))
+            cached_size=(w,h)
         if not samples:
             status.set(receipt["status"]+" | No model samples")
             return
         i=min(last,max(0,index.get()))
         row=samples[i]
-        # Use the existing map projection's scale and a known node anchor.
-        # Model samples may lie off the nominal path; never snap the marker.
-        anchor=scene["nodes"][0]
-        xyz=graph.nodes[anchor["id"]].xyz
-        ax,ay=anchor["position"]
-        scale=scene["scale"]
-        def project(pos):
-            return ax+(pos[0]-xyz[0])*scale,ay-(pos[2]-xyz[2])*scale
-        trail=[v for sample in samples[:i+1] for v in project(sample["xyz"])]
-        if len(trail)>=4:
-            canvas.create_line(*trail,fill="#70b4ff",width=2)
-        x,y=project(row["xyz"])
-        canvas.create_oval(x-6,y-6,x+6,y+6,fill="#70b4ff",outline="#ffffff",tags=("model-pose",))
-        outcome=receipt["status"] if i==last else "replaying model"
+        if i:
+            canvas.coords(trail_id,*[v for point in projected[:i+1] for v in point])
+            canvas.itemconfigure(trail_id,state="normal")
+        else:
+            canvas.itemconfigure(trail_id,state="hidden")
+        x,y=projected[i]
+        canvas.coords(pose_id,x-6,y-6,x+6,y+6)
+        canvas.itemconfigure(pose_id,state="normal")
+        outcome=receipt["status"] if i==last else ("replaying model" if playing else "model paused")
         status.set(f"{outcome} | {row['t']:.2f}/{samples[-1]['t']:.2f} s | "
                    f"Leg {row['leg']} | {row['phase']} | Sample {i+1}/{len(samples)}")
 
@@ -152,12 +176,14 @@ def launch_playback(parent, graph, plan, *, receipt, samples):
         if pending is not None:
             dialog.after_cancel(pending)
             pending=None
-        play.configure(text="Play")
+        if not closed:
+            play.configure(text="Play")
+            draw()
 
     def tick():
         nonlocal pending
         pending=None
-        if not playing:
+        if closed or not playing:
             return
         i=index.get()
         if i>=last:
@@ -182,14 +208,16 @@ def launch_playback(parent, graph, plan, *, receipt, samples):
             return
         if len(samples)<2:
             return
+        playing=True
         if index.get()>=last:
             index.set(0)
-        playing=True
         play.configure(text="Pause")
+        draw()
         schedule()
 
     def close():
-        pause()
+        # Destroy handling owns cancellation of both scheduled callbacks.
+        # Avoid a final expensive redraw of a window about to disappear.
         dialog.destroy()
 
     play=ttk.Button(controls,text="Play",command=toggle,
@@ -204,22 +232,34 @@ def launch_playback(parent, graph, plan, *, receipt, samples):
     # enter this event path. Cancel scheduled work when the dialog is closed.
     scale_widget.bind("<ButtonPress-1>",lambda _:pause())
     scale_widget.bind("<KeyPress>",lambda _:pause())
-    index.trace_add("write",draw)
+    trace_id=index.trace_add("write",draw)
     canvas.bind("<Configure>",draw)
     dialog.protocol("WM_DELETE_WINDOW",close)
     def destroyed(event):
         # Parent destruction can remove child controls before this callback.
-        # Cancel only the timer here; do not configure a destroyed button.
-        nonlocal pending,playing
+        # Cancel both timers and remove the variable trace; never render or
+        # configure widgets from a callback once teardown has begun.
+        nonlocal pending,playing,closed,initial_draw
         if event.widget is dialog:
+            closed=True
             playing=False
-            if pending is not None:
-                try:
-                    dialog.after_cancel(pending)
-                except tk.TclError:
-                    pass
-                pending=None
+            for handle in (pending,initial_draw):
+                if handle is not None:
+                    try:
+                        dialog.after_cancel(handle)
+                    except tk.TclError:
+                        pass
+            pending=initial_draw=None
+            try:
+                index.trace_remove("write",trace_id)
+            except tk.TclError:
+                pass
+
+    def first_draw():
+        nonlocal initial_draw
+        initial_draw=None
+        draw()
 
     dialog.bind("<Destroy>",destroyed)
-    dialog.after_idle(draw)
+    initial_draw=dialog.after_idle(first_draw)
     return dialog
