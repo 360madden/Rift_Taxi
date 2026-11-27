@@ -1,0 +1,222 @@
+"""Offline graphical preview of a pinned imported-world route network.
+
+Use existing local vertex A* for all selections. XZ is a projection only;
+Y is retained in an elevation profile and endpoint receipts. Nothing in this
+module transforms coordinates, joins paths, certifies clearance, or sends input.
+Headless SVG export uses only the Python standard library; optional Tk desktop
+preview reuses that same scene data. No network or game process access.
+"""
+from __future__ import annotations
+
+import argparse
+import math
+from pathlib import Path
+import xml.etree.ElementTree as ET
+
+from .contracts import TraceError, _number
+from .world_candidate_review import require
+from .world_route_graph import CLASSIFICATION, load_world_graph, plan_world_route
+
+COLORS = {"network": "#65788d", "blocked": "#ed7777", "route": "#54d6a1",
+          "start": "#70b4ff", "goal": "#ffd477", "start-goal": "#ffd477"}
+
+
+def review_scene(world, *, start, destination, blocked_edges=(), width=900, height=600):
+    """Plan locally and build aspect-correct XZ and cumulative-distance/Y scenes.
+
+    Projection does not merge coincident vertices. A vertical-only edge has
+    zero projected XZ length but still exists in the plan/elevation profile.
+    Full source XYZ remains in scene nodes; source units are not meters.
+    """
+    graph = world.graph
+    require(graph.classification == CLASSIFICATION, "review graph required")
+    w, h = _number(width, "width"), _number(height, "height")
+    require(320 <= w <= 4000 and 280 <= h <= 4000, "invalid review canvas size")
+    plan = plan_world_route(world, start=start, destination=destination,
+                            blocked_edges=blocked_edges)
+    require(plan["classification"] == CLASSIFICATION, "review plan required")
+    positions = [n.xyz for n in graph.nodes.values()]
+    require(bool(positions), "empty review graph")
+    xs, zs = [p[0] for p in positions], [p[2] for p in positions]
+    x0, x1, z0, z1 = min(xs), max(xs), min(zs), max(zs)
+    top, bottom = 76., h*.64
+    span_x, span_z = x1-x0, z1-z0
+    scale = min((w-80)/span_x if span_x else math.inf,
+                (bottom-top-24)/span_z if span_z else math.inf)
+    if not math.isfinite(scale):
+        scale = 1.  # Entire graph may be vertical in source coordinates.
+
+    def project(pos):
+        return [w/2 + (pos[0]-(x0+x1)/2)*scale,
+                (top+bottom)/2 - (pos[2]-(z0+z1)/2)*scale]
+
+    selected, blocked = set(plan["edges"]), set(plan["blockedEdges"])
+    edges = [{"id": edge.id, "from": project(graph.nodes[edge.source].xyz),
+              "to": project(graph.nodes[edge.target].xyz),
+              "role": "route" if edge.id in selected else "blocked" if edge.id in blocked else "network"}
+             for edge in sorted(graph.edges.values(), key=lambda item: item.id)]
+    edges.sort(key=lambda item: {"network":0,"blocked":1,"route":2}[item["role"]])
+    nodes = []
+    for node in sorted(graph.nodes.values(), key=lambda item: item.id):
+        role = ("start-goal" if node.id == plan["startNode"] == plan["destinationNode"]
+                else "start" if node.id == plan["startNode"]
+                else "goal" if node.id == plan["destinationNode"] else "network")
+        nodes.append({"id":node.id, "xyz":list(node.xyz), "screen":project(node.xyz), "role":role})
+    profile = []
+    travelled = 0.
+    for point in plan["points"]:
+        if profile:
+            travelled += math.dist(profile[-1]["xyz"], point["xyz"])
+        profile.append({"distance":travelled, "xyz":point["xyz"]})
+    if profile:
+        ymin, ymax = min(p["xyz"][1] for p in profile), max(p["xyz"][1] for p in profile)
+        for p in profile:
+            p["screen"] = [40+(w-80)*p["distance"]/travelled if travelled else w/2,
+                           h-35-(h-bottom-65)*(p["xyz"][1]-ymin)/(ymax-ymin)
+                           if ymax != ymin else (bottom+h)/2]
+    return {"width":w,"height":h,"mapBottom":bottom,"plan":plan,"edges":edges,
+            "nodes":nodes,"profile":profile,"classification":CLASSIFICATION}
+
+
+def scene_svg(scene):
+    """Render a self-contained SVG. XML serialization escapes all source text.
+
+    No script, hyperlink, embedded asset or external resource is emitted.
+    Each drawn route is a review projection, not a navigable map certificate.
+    """
+    w,h = scene["width"],scene["height"]
+    svg = ET.Element("svg", {"xmlns":"http://www.w3.org/2000/svg","viewBox":f"0 0 {w} {h}"})
+    def add(tag, **attrs):
+        return ET.SubElement(svg,tag,{key.replace("_","-"):str(value) for key,value in attrs.items()})
+    def label(x,y,value,size=13,color="#dce5f0"):
+        add("text",x=x,y=y,fill=color,font_size=size,font_family="sans-serif").text=str(value)
+    def line(a,b,color,width=1,dash=None):
+        attrs=dict(x1=a[0],y1=a[1],x2=b[0],y2=b[1],stroke=color,stroke_width=width)
+        if dash:
+            attrs["stroke_dasharray"]=dash
+        add("line",**attrs)
+    add("rect",width=w,height=h,fill="#121b27")
+    label(18,25,"RIFT Taxi | Imported world review",19)
+    label(18,47,"OFFLINE REVIEW ONLY - no clearance or movement authority",12,"#ffd477")
+    plan=scene["plan"]
+    label(18,65,f"{plan['status']} | {plan['destinationLabel']} | distance: {plan['distance']}",12)
+    for e in scene["edges"]:
+        line(e["from"],e["to"],COLORS[e["role"]],3 if e["role"]=="route" else 1,
+             "5 4" if e["role"]=="blocked" else None)
+    for n in scene["nodes"]:
+        x,y=n["screen"]
+        add("circle",cx=x,cy=y,r=5 if n["role"]!="network" else 2,fill=COLORS[n["role"]])
+        if n["role"]!="network":
+            label(x+8,y-8,n["role"]+" "+n["id"],11)
+    bottom=scene["mapBottom"]
+    line([18,bottom],[w-18,bottom],"#344357")
+    label(18,bottom+19,"Elevation profile | source Y vs. cumulative 3D distance",12)
+    for a,b in zip(scene["profile"],scene["profile"][1:]):
+        line(a["screen"],b["screen"],COLORS["route"],2)
+    for p in scene["profile"]:
+        add("circle",cx=p["screen"][0],cy=p["screen"][1],r=2,fill=COLORS["route"])
+    label(18,h-12,"XZ projection (+Z up); source units; junctions and endpoint connectors unverified",11)
+    return ET.tostring(svg,encoding="unicode")
+
+
+def launch(world):
+    """Optional local desktop preview; never opens a game process."""
+    import tkinter as tk
+    from tkinter import ttk
+    root=tk.Tk()
+    root.title("RIFT Taxi | Imported world review only")
+    root.geometry("1080x720")
+    root.minsize(720,440)
+    root.columnconfigure(1,weight=1)
+    root.rowconfigure(0,weight=1)
+    panel=ttk.Frame(root,padding=12)
+    panel.grid(row=0,column=0,sticky="ns")
+    aliases=sorted(world.aliases)
+    destinations=sorted(world.routes)
+    edge_ids=sorted(world.graph.edges)
+    start=tk.StringVar(value=aliases[0])
+    destination=tk.StringVar(value=destinations[0])
+    status=tk.StringVar(value="Choose a route.")
+    for title,var,values in (("Source point",start,aliases),("Route destination ID",destination,destinations)):
+        ttk.Label(panel,text=title).pack(anchor="w")
+        ttk.Combobox(panel,textvariable=var,values=values,state="readonly",width=28).pack(fill="x",pady=(0,8))
+    ttk.Label(panel,text="Exclude source edges").pack(anchor="w")
+    excluded=tk.Listbox(panel,selectmode="multiple",exportselection=False,height=10,width=30)
+    excluded.pack(fill="x")
+    for edge_id in edge_ids:
+        excluded.insert("end",edge_id)
+    canvas=tk.Canvas(root,background="#121b27",highlightthickness=0)
+    canvas.grid(row=0,column=1,sticky="nsew")
+
+    def draw(*_):
+        canvas.delete("all")
+        w,h=canvas.winfo_width(),canvas.winfo_height()
+        if w<320 or h<280:
+            return
+        try:
+            scene=review_scene(world,start=start.get(),destination=destination.get(),
+                               blocked_edges=[edge_ids[i] for i in excluded.curselection()],
+                               width=w,height=h)
+            plan=scene["plan"]
+            offset=plan["destinationSource"]["endpointOffsets"]["goal"]
+            status.set(f"{plan['status']}\nDistance: {plan['distance']} source units\nGoal snap XZ: {offset['horizontalXZ']:.4g}\nGoal snap Y: {offset['verticalY']:.4g}\nReview only")
+            canvas.create_text(16,14,text="OFFLINE REVIEW ONLY",fill="#ffd477",anchor="nw",font=("Segoe UI",14,"bold"))
+            canvas.create_text(16,46,text="XZ projection (+Z up)",fill="#dce5f0",anchor="nw")
+            for e in scene["edges"]:
+                canvas.create_line(*e["from"],*e["to"],fill=COLORS[e["role"]],
+                                   width=3 if e["role"]=="route" else 1)
+            for n in scene["nodes"]:
+                x,y=n["screen"]
+                r=5 if n["role"]!="network" else 2
+                canvas.create_oval(x-r,y-r,x+r,y+r,fill=COLORS[n["role"]],outline="")
+                if n["role"]!="network":
+                    canvas.create_text(x+8,y-8,text=n["role"]+" "+n["id"],fill="#dce5f0",anchor="sw")
+            bottom=scene["mapBottom"]
+            canvas.create_line(16,bottom,w-16,bottom,fill="#344357")
+            canvas.create_text(16,bottom+6,text="Elevation profile: source Y",fill="#dce5f0",anchor="nw")
+            for a,b in zip(scene["profile"],scene["profile"][1:]):
+                canvas.create_line(*a["screen"],*b["screen"],fill=COLORS["route"],width=2)
+        except (TraceError,ValueError,OverflowError) as exc:
+            status.set(str(exc))
+    ttk.Button(panel,text="Preview route",command=draw).pack(fill="x",pady=10)
+    ttk.Label(panel,textvariable=status,wraplength=230,justify="left").pack(anchor="w")
+    canvas.bind("<Configure>",draw)
+    root.after_idle(draw)
+    root.mainloop()
+
+
+def main(argv=None):
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument("catalog",type=Path)
+    p.add_argument("--catalog-sha256",required=True)
+    p.add_argument("--anchor-route",required=True)
+    sub=p.add_subparsers(dest="operation",required=True)
+    sub.add_parser("desktop")
+    export=sub.add_parser("svg")
+    export.add_argument("--start",required=True)
+    export.add_argument("--destination",required=True)
+    export.add_argument("--blocked-edge",action="append",default=[])
+    export.add_argument("--out",type=Path,required=True)
+    args=p.parse_args(argv)
+    try:
+        world=load_world_graph(args.catalog,catalog_sha256=args.catalog_sha256,anchor_route=args.anchor_route)
+        if args.operation=="desktop":
+            try:
+                import tkinter as tk
+            except ImportError:
+                p.exit(2,"Imported world viewer requires Tk for desktop mode.\n")
+            try:
+                launch(world)
+            except tk.TclError as exc:
+                p.exit(2,f"Desktop unavailable: {exc}\n")
+            return 0
+        scene=review_scene(world,start=args.start,destination=args.destination,blocked_edges=args.blocked_edge)
+        with args.out.open("x",encoding="utf-8",newline="\n") as stream:
+            stream.write(scene_svg(scene)+"\n")
+        return 1 if scene["plan"]["status"]=="no-route" else 0
+    except (TraceError,OSError,ValueError,OverflowError,RecursionError) as exc:
+        p.exit(2,f"Imported world viewer refused: {exc}\n")
+
+
+if __name__=="__main__":
+    raise SystemExit(main())
