@@ -69,6 +69,7 @@ class Graph:
     nodes: dict[str, Node]
     edges: dict[str, Edge]
     destinations: dict[str, tuple[str, str]]  # destination ID -> (label, node ID)
+    classification: str = "SYNTHETIC_MODEL_ONLY"
 
 
 def decode_graph(raw: bytes) -> Graph:
@@ -188,7 +189,7 @@ def plan_route(graph: Graph, start: str, destination: str, *, blocked_edges=()):
             "unknown or invalid blocked edge")
     blocked = set(blocked_edges)
     label, goal = graph.destinations[destination]
-    base = {"schema": "taxi.local-route-plan/1", "classification": "SYNTHETIC_MODEL_ONLY",
+    base = {"schema": "taxi.local-route-plan/1", "classification": graph.classification,
             "mapId": graph.map_id, "graphSHA256": graph.sha256, "startNode": start,
             "destinationId": destination, "destinationLabel": label, "destinationNode": goal,
             "blockedEdges": sorted(blocked), "physicalQualification": False,
@@ -240,6 +241,8 @@ def run_local_journey(graph: Graph, start: str, destination: str, *, blocked_edg
     start is an exact named graph node (no unverified position connector).
     A failed controller leg is retained, never relabeled as arrival.
     """
+    # Source-world candidate routes must not enter the ideal synthetic plant.
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "only synthetic graphs can execute the model")
     plan = plan_route(graph, start, destination, blocked_edges=blocked_edges)
     result = {"schema": "taxi.local-journey/1", "classification": "SYNTHETIC_MODEL_ONLY",
               "plan": plan, "status": plan["status"], "journey": None,
