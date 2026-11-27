@@ -72,9 +72,20 @@ def _project(
 def _lookahead_point(
     points: tuple[Point, ...], cumulative: list[float], along: float,
 ) -> tuple[float, float, float]:
+    """Interpolate the earliest qualifying segment at the requested arc.
+
+    Short routes use the original linear walk. For longer nondecreasing
+    cumulative arrays, bisect finds the first segment whose end is at or
+    after the requested arc, including exact vertex ties. Keep the original
+    degenerate-segment filter and interpolation arithmetic, especially
+    for repeated horizontal coordinates with different Y values.
+    """
     if along >= cumulative[-1]:
         return points[-1].xyz
-    for i in range(len(points) - 1):
+    # Small synthetic courses dominate many tests; avoid the indexing
+    # overhead there. Larger courses benefit from logarithmic lookup.
+    first = bisect_left(cumulative, along, lo=1) - 1 if len(points) > 8 else 0
+    for i in range(first, len(points) - 1):
         if along > cumulative[i + 1]:
             continue
         distance = cumulative[i + 1] - cumulative[i]

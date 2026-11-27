@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — indexed offline lookahead lookup
+
+Added a binary-search starting index to the existing lookahead geometry for routes longer than eight vertices; short routes retain a linear walk. Exact vertex and repeated-horizontal-arc ties, degenerate-segment handling and interpolation arithmetic are preserved. Added two regressions with seeded full-scan oracle and a vertical duplicate boundary. An isolated Linux microbenchmark of the original versus indexed primitive (not whole application) checked 67,468 exact results; median 20k queries on 500 vertices 0.154647 vs 0.021102 s, on 50 vertices 0.028281 vs 0.018453 s, on five vertices indexing was slower. These timings are not full-suite or live-navigation speed claims; the committed hybrid retains the original short-route path. No physical qualification or input. Verify comprehensive hosted CI before acceptance.
+
 ## November 27 — offline replay metric efficiency and finite range
 
 Replay snapshot hardening e8e51ed passed PR 45928654361 in 73 s (Windows 708/708; both Linux lanes 692 passed + 16 skips). Refactored release proximity proxies to interpolate each relevant W-up once and retire matched hard-stop points, preserving original per-event/per-point semantics and duplicate points. Added 100 seeded pairwise comparisons, interpolation-call bound, overflow rejection and extreme finite interpolation tests. No physical release or traversal-order proof; no game access. Full hosted validation pending.
