@@ -69,6 +69,7 @@ class Graph:
     nodes: dict[str, Node]
     edges: dict[str, Edge]
     destinations: dict[str, tuple[str, str]]  # destination ID -> (label, node ID)
+    classification: str = "SYNTHETIC_MODEL_ONLY"
 
 
 def decode_graph(raw: bytes) -> Graph:
@@ -183,6 +184,9 @@ def locate_start(graph: Graph, position, *, limit=5):
     make wrong-floor candidates visible. The stable ID breaks distance ties.
     No game sensor, coordinate transform or physical authority is implied.
     """
+    # Imported review graphs can contain coincident source vertices. This
+    # synthetic locator assumes unique authored nodes and cannot admit them.
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "locator requires a synthetic graph")
     query = coordinates(position)
     require(type(limit) is int and 1 <= limit <= 20, "candidate limit must be 1..20")
     candidates = []
@@ -216,6 +220,8 @@ def bind_edge_start(graph: Graph, edge_id: str, fraction, *, blocked_edges=()):
     graph identity binds the original byte pin and exact selection. This is
     model geometry, not source-to-live position or traversal evidence.
     """
+    # Never turn a review-only source graph into a synthetic execution graph.
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "edge start requires a synthetic graph")
     require(isinstance(edge_id, str) and edge_id in graph.edges, "unknown start edge")
     require(isinstance(blocked_edges, (list, tuple)) and len(blocked_edges) <= MAX_EDGES
             and all(isinstance(e, str) and e in graph.edges for e in blocked_edges),
@@ -253,7 +259,8 @@ def bind_edge_start(graph: Graph, edge_id: str, fraction, *, blocked_edges=()):
     edges = dict(graph.edges)
     nodes[node_id] = Node(node_id, pos, "guide", None)
     edges[suffix_id] = Edge(suffix_id, node_id, edge.target, suffix)
-    derived = Graph(graph.map_id, digest, nodes, edges, dict(graph.destinations))
+    derived = Graph(graph.map_id, digest, nodes, edges, dict(graph.destinations),
+                    graph.classification)
     return derived, node_id, {**selection, "derivedGraphSHA256": digest,
                               "startNode": node_id, "suffixEdgeId": suffix_id}
 
@@ -272,7 +279,7 @@ def plan_route(graph: Graph, start: str, destination: str, *, blocked_edges=()):
             "unknown or invalid blocked edge")
     blocked = set(blocked_edges)
     label, goal = graph.destinations[destination]
-    base = {"schema": "taxi.local-route-plan/1", "classification": "SYNTHETIC_MODEL_ONLY",
+    base = {"schema": "taxi.local-route-plan/1", "classification": graph.classification,
             "mapId": graph.map_id, "graphSHA256": graph.sha256, "startNode": start,
             "destinationId": destination, "destinationLabel": label, "destinationNode": goal,
             "blockedEdges": sorted(blocked), "physicalQualification": False,
@@ -324,6 +331,8 @@ def run_local_journey(graph: Graph, start: str, destination: str, *, blocked_edg
     start is an exact named graph node (no unverified position connector).
     A failed controller leg is retained, never relabeled as arrival.
     """
+    # Source-world candidate routes must not enter the ideal synthetic plant.
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "only synthetic graphs can execute the model")
     plan = plan_route(graph, start, destination, blocked_edges=blocked_edges)
     result = {"schema": "taxi.local-journey/1", "classification": "SYNTHETIC_MODEL_ONLY",
               "plan": plan, "status": plan["status"], "journey": None,

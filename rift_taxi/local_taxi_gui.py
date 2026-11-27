@@ -25,6 +25,7 @@ def preview(graph, *, destination, start=None, edge_id=None, fraction=None,
     Edge-start mode preserves the temporary suffix and original source binding.
     A fresh query always starts from the original graph, never a prior result.
     """
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "preview requires a synthetic graph")
     require((start is None) != (edge_id is None), "choose exactly one start mode")
     require((edge_id is None) == (fraction is None), "edge fraction requires an edge")
     binding = None
@@ -44,6 +45,9 @@ def build_scene(graph, plan, *, width, height):
     frame. Positive Z is displayed upward; north is intentionally not asserted.
     Scene roles distinguish directed network edges, exclusions and the route.
     """
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY"
+            and plan.get("classification") == graph.classification,
+            "scene requires a synthetic graph and plan")
     w, h = _number(width, "canvas width"), _number(height, "canvas height")
     require(80 <= w <= 20000 and 80 <= h <= 20000, "invalid canvas dimensions")
     require(plan["graphSHA256"] == graph.sha256, "plan graph identity mismatch")
@@ -100,6 +104,7 @@ def load_local_map(path, expected_sha256=None):
 
 def launch(graph):
     """Create the optional desktop UI. All operations are local route previews."""
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "desktop preview requires a synthetic graph")
     import tkinter as tk
     from tkinter import ttk
 
