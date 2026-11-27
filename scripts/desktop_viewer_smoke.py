@@ -18,6 +18,7 @@ from rift_taxi.local_taxi import demo_graph
 from rift_taxi.local_taxi_gui import launch as launch_synthetic
 from rift_taxi.world_route_graph import load_world_graph
 from rift_taxi.world_route_viewer import launch as launch_world
+from rift_taxi.world_route_viewer import review_scene, map_pick
 
 
 def descendants(widget):
@@ -82,6 +83,7 @@ def exercise(launch, graph, *, world_route=None):
             if not any("route-found" in label for label in labels):
                 raise RuntimeError("preview did not report route-found")
             search_checked = False
+            map_pick_checked = False
             if world_route is not None:
                 entries = [w for w in children if isinstance(w, ttk.Entry)
                            and not isinstance(w, ttk.Combobox)]
@@ -121,7 +123,33 @@ def exercise(launch, graph, *, world_route=None):
                 if errors:
                     raise RuntimeError("Tk callbacks failed: " + "; ".join(errors))
                 search_checked = True
+                # Exercise an actual canvas click in this application's Tk
+                # event loop. Select a uniquely projected interior vertex on
+                # the current route, then verify the existing source control.
+                scene = review_scene(graph,start=world_route+":0",destination=world_route,
+                                     width=canvas.winfo_width(),height=canvas.winfo_height())
+                interior = set(scene["plan"]["nodes"][1:-1])
+                target = next((n for n in scene["nodes"] if n["id"] in interior
+                               and map_pick(scene,*[round(v) for v in n["screen"]])["nodeId"]==n["id"]),None)
+                if target is None:
+                    raise RuntimeError("no unique interior vertex for map smoke")
+                x,y = [round(v) for v in target["screen"]]
+                canvas.event_generate("<Button-1>",x=x,y=y)
+                root.update()
+                if combos[0].get()!=target["id"] or errors:
+                    raise RuntimeError("map source selection failed")
+                if not any("route-found" in str(w.cget("text")) for w in children
+                           if isinstance(w,ttk.Label)):
+                    raise RuntimeError("map selection did not replan")
+                # Restore the original selection before recording the receipt.
+                combos[0].set(world_route+":0")
+                combos[0].event_generate("<<ComboboxSelected>>")
+                root.update()
+                if errors:
+                    raise RuntimeError("Tk callbacks failed: " + "; ".join(errors))
+                map_pick_checked = True
             receipt.update(searchAndAutomaticReplanChecked=search_checked,
+                           mapSourceSelectionChecked=map_pick_checked,
                            title=root.title(), tkVersion=str(root.tk.call("info", "patchlevel")),
                            mapped=True, canvasSize=[canvas.winfo_width(), canvas.winfo_height()],
                            canvasItems=len(canvas.find_all()), highlightedLines=len(selected),
