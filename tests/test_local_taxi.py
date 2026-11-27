@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from rift_taxi.contracts import TraceError
-from rift_taxi.local_taxi import demo_graph, decode_graph, plan_route, run_local_journey, locate_start, main, SCHEMA
+from rift_taxi.local_taxi import demo_graph, decode_graph, plan_route, run_local_journey, locate_start, bind_edge_start, main, SCHEMA
 
 
 class LocalTaxiTests(unittest.TestCase):
@@ -154,3 +154,75 @@ class LocalTaxiTests(unittest.TestCase):
             main(["plan", "--start", "entrance", "--start-xyz", "4", "0", "0",
                   "--destination", "bank"])
         self.assertEqual(error.exception.code, 2)
+
+    def test_directed_interior_start_preserves_graph_and_route_identity(self):
+        graph = demo_graph()
+        derived, start, selection = bind_edge_start(graph, "main-west-to-main-east", .5)
+        self.assertEqual(selection["startXYZ"], [6., 0., 0.])
+        self.assertEqual(selection["remainingDistance"], 2.)
+        self.assertEqual(selection["sourceGraphSHA256"], graph.sha256)
+        self.assertEqual(selection["derivedGraphSHA256"], derived.sha256)
+        self.assertNotEqual(derived.sha256, graph.sha256)
+        self.assertNotIn(start, graph.nodes)
+        self.assertEqual(len(derived.edges), len(graph.edges)+1)
+        plan = plan_route(derived, start, "bank")
+        self.assertEqual(plan["distance"], 10.)
+        self.assertEqual(plan["nodes"], [start, "main-east", "junction", "bank"])
+        self.assertEqual(plan["edges"][0], selection["suffixEdgeId"])
+        self.assertEqual(plan["points"][-2]["kind"], "hard_stop")
+        again, _, _ = bind_edge_start(graph, "main-west-to-main-east", .5)
+        self.assertEqual(again.sha256, derived.sha256)
+        reverse, reverse_start, rev_selection = bind_edge_start(graph, "main-east-to-main-west", .5)
+        self.assertNotEqual(reverse.sha256, derived.sha256)
+        self.assertEqual(rev_selection["startXYZ"], selection["startXYZ"])
+        self.assertEqual(plan_route(reverse, reverse_start, "entrance")["nodes"][1], "main-west")
+        self.assertFalse(selection["physicalQualification"])
+
+    def test_edge_binding_rejects_invalid_fraction_and_blocked_source(self):
+        graph = demo_graph()
+        for t in (0., 1., -.1, 1.1, True, float("nan"), float("inf"), 1e-15):
+            with self.subTest(fraction=t), self.assertRaises(TraceError):
+                bind_edge_start(graph, "main-west-to-main-east", t)
+        for blocked in (["main-west-to-main-east"], ["missing"]):
+            with self.subTest(blocked=blocked), self.assertRaises(TraceError):
+                bind_edge_start(graph, "main-west-to-main-east", .5, blocked_edges=blocked)
+        with self.assertRaises(TraceError):
+            bind_edge_start(graph, "missing", .5)
+
+    def test_edge_start_cannot_join_crossing_or_alias_authored_node(self):
+        # Two crossing edges do not create a junction. A start on one edge
+        # exposes only its directed suffix; proximity cannot switch routes.
+        doc = {"schema": SCHEMA, "classification": "SYNTHETIC_MODEL_ONLY", "mapId": "crossing",
+               "nodes": [{"id": n, "xyz": p, "kind": "guide"}
+                         for n, p in (("a",[0,0,2]),("b",[4,0,2]),
+                                      ("c",[2,0,0]),("d",[2,0,4]))],
+               "edges": [{"id":"ab","from":"a","to":"b"},{"id":"cd","from":"c","to":"d"}],
+               "destinations": [{"id":"b","label":"B","node":"b"},
+                                {"id":"d","label":"D","node":"d"}]}
+        graph = decode_graph(json.dumps(doc).encode())
+        derived, start, _ = bind_edge_start(graph, "ab", .5)
+        self.assertEqual(plan_route(derived, start, "d")["status"], "no-route")
+        self.assertEqual(plan_route(derived, start, "b")["distance"], 2.)
+        doc["nodes"].append({"id":"crossing","xyz":[2,0,2],"kind":"guide"})
+        with self.assertRaisesRegex(TraceError, "coincides"):
+            bind_edge_start(decode_graph(json.dumps(doc).encode()), "ab", .5)
+
+    def test_edge_cli_receipt_and_model_execution(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "edge-plan.json"
+            args = ["--start-edge","main-west-to-main-east","--edge-fraction",".5",
+                    "--destination","bank"]
+            with redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main(["plan", *args, "--out",str(path)]),0)
+            self.assertEqual(json.loads(output.getvalue())["startSelection"]["startXYZ"], [6,0,0])
+            receipt = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(receipt["graphSHA256"],receipt["startSelection"]["derivedGraphSHA256"])
+            self.assertEqual(receipt["distance"],10.)
+            with redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(main(["journey", *args]),0)
+            self.assertEqual(json.loads(output.getvalue())["status"],"model-arrived")
+            for invalid in (["--start-edge","main-west-to-main-east"],
+                            ["--start","entrance","--edge-fraction",".5"]):
+                with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                    main(["plan", *invalid, "--destination","bank"])
+                self.assertEqual(error.exception.code,2)

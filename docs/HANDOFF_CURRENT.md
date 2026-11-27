@@ -1,5 +1,17 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — directed interior start for authored synthetic maps
+
+Based on coordinate-entry checkpoint `626bc67` (successful hosted run 45947523131). The local Taxi CLI now accepts `--start-edge EDGE --edge-fraction T` for both plan and journey, with strict finite interior fraction (0 < T < 1) and explicit directed edge. A query-local virtual node has exactly one outgoing suffix; the original graph stays unchanged. No guessed reverse edge or intersection link. The selected original edge must not be blocked, and numerical degeneracy or collision with an authored node is refused. A derived graph identity binds the original byte SHA and selection; optional full receipts and compact CLI output retain the start binding. Existing exact XYZ and named starts remain available. Four new regression methods cover identity, directional behavior, blocked and invalid starts, crossing isolation and model execution. Hosted validation pending. This is authored synthetic geometry only, not live position admission or obstacle clearance. Separate world review graph PR #12 remains an independent lane.
+
+```sh
+python -m rift_taxi.local_taxi plan --start-edge main-west-to-main-east --edge-fraction .5 --destination bank
+python -m rift_taxi.local_taxi journey --start-edge main-west-to-main-east --edge-fraction .5 --destination bank
+```
+
+Expected planned distance is 10 synthetic units from XYZ (6,0,0). No original-route history or previously passed obligations are asserted. Next: reconcile tested branches, test original world packages privately and develop route viewer/destination selection.
+
+
 ## November 27, 13:42 PHT — local position entry (isolated continuation)
 
 Base product checkpoint `dc22fe5` passed hosted Offline regression run 45945997639. This branch adds local coordinate entry to the existing synthetic A* prototype, with no dependency on a live client or cloud runtime. `locate --xyz X Y Z` ranks authored nodes by 3D distance (stable ID tie-break), reports separate XZ/Y offsets, and distinguishes exact binding from review suggestions. `plan` and `journey` accept either `--start NODE` or `--start-xyz X Y Z`; only exact authored XYZ is admitted. Optional full receipts retain the original query. Off-node positions, including points on a declared edge, do not create connectors or silently snap. Four new regression methods cover exact and wrong-floor binding, deterministic suggestions, invalid input, CLI refusal and modeled execution. Hosted acceptance pending; do not promote to main or physical authority. No sibling changes, no live input. Next prioritize a provenance-preserving real-map review adapter and explicit directed-edge interior admission with separate geometry evidence.
