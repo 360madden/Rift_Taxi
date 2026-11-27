@@ -164,17 +164,21 @@ dependent change. Independent design/review can proceed while CI runs, but do
 not claim validation of untested changes or merge a stale green head.
 
 `scripts/ci_checkpoint.py` verifies a successful existing Offline regression PR
-run and all three exact attempt-specific job receipts, including required tests,
-patch rehearsal, packaging and artifact steps. It rejects stale head, wrong
-branch/run/attempt, missing or duplicated jobs, skipped required steps and
-invalid timestamps. It reports the longest job and summed job elapsed time
-(not billing), and never treats metadata alone as a verified test count,
+run and all four exact attempt-specific job receipts: Windows and Linux Python
+3.14, minimum-version Python 3.11 packaging, and the installed Windows desktop
+smoke. Required stages include full regression, recovery rehearsal, packaging,
+actual installed Tk exercise and their retained artifacts. The verifier rejects
+stale head, wrong branch/run/attempt, missing or duplicated jobs, skipped required
+steps and invalid timestamps. It reports the longest job and summed job elapsed
+time (not billing), and never treats metadata alone as a verified test count,
 authenticated attestation, or physical qualification. Selective reruns lacking
-the entire attempt inventory are refused rather than mixing attempts.
+the entire attempt inventory are refused rather than mixing attempts. A regression
+compares checked-in workflow job names against this explicit acceptance contract.
 
-Example from a cloud checkout with a separately authenticated gh CLI:
+Example of a verified four-job run, using a separately authenticated gh CLI
+(replace the complete head/branch/run/attempt tuple for a newer checkpoint):
 ```sh
-python -B -m scripts.ci_checkpoint --head 005a8bcd8b2c1169b02420f3793a5a3f94e1e5af --branch research/journey-automation-reporting --run-id 45888651814 --attempt 1
+python -B -m scripts.ci_checkpoint --head 6f21fcca85b92004fa7c69ad5a9e6231c135f415 --branch research/product-consolidated-20261128 --run-id 46070059874 --attempt 1
 ```
 Or supply both `--run-json` and `--jobs-json` (exact attempt response), with
 optional exclusive `--out`. The coordinator must independently check that the

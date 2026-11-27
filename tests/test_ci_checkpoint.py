@@ -1,5 +1,12 @@
-"""CI gate regressions use synthetic GitHub metadata, never live game or network."""
+"""CI admission regressions use synthetic metadata and the checked-in workflow.
+
+The workflow inventory check protects against drift that fixtures built from
+REQUIRED cannot discover. Tests read source only, use the stdlib, and neither
+contact GitHub nor access a game process; no metadata is physical evidence.
+"""
 from copy import deepcopy
+from pathlib import Path
+import re
 import unittest
 
 from scripts.ci_checkpoint import CIGateError, REPO, REQUIRED, WORKFLOW, decode, verify
@@ -37,10 +44,74 @@ class CICheckpointTests(unittest.TestCase):
         self.assertEqual(r["status"], "passed")
         self.assertEqual(r["elapsedFromRunCreationSeconds"], 59)
         self.assertEqual(r["longestJobSeconds"], 38)
-        self.assertEqual(r["sumJobElapsedSeconds"], 99)
+        self.assertEqual(r["sumJobElapsedSeconds"], 122)
         self.assertEqual(r["longestJob"], "Python 3.14 / windows-latest")
         self.assertFalse(r["physicalQualification"])
         self.assertFalse(r["testCountsIndependentlyVerified"])
+
+    def test_checked_in_workflow_jobs_match_admission_contract(self):
+        """An added workflow job must not escape a REQUIRED-derived fixture.
+
+        This deliberately reads the workflow's current simple name/matrix
+        declarations, not arbitrary YAML. A more complex matrix needs an
+        explicit review of the verifier contract instead of silent inference.
+        """
+        source = (Path(__file__).resolve().parents[1] / WORKFLOW).read_text(
+            encoding="utf-8")
+        job_section = source.split("\njobs:\n", 1)[1]
+        job_ids = re.findall(r"^  ([A-Za-z0-9_-]+):$", job_section, re.MULTILINE)
+        names = re.findall(r"^    name: (.+)$", source, re.MULTILINE)
+        self.assertEqual(len(job_ids), len(names), "each job needs an explicit name")
+        os_rows = re.findall(r"^        os: \[([^\]]+)\]$", source, re.MULTILINE)
+        self.assertEqual(len(os_rows), 1, "review changed workflow matrix")
+        operating_systems = [item.strip() for item in os_rows[0].split(",")]
+        expanded = []
+        for name in names:
+            if "${{ matrix.os }}" in name:
+                expanded.extend(name.replace("${{ matrix.os }}", os_name)
+                                for os_name in operating_systems)
+            else:
+                expanded.append(name)
+        # Both uniqueness and exact equality matter: silently accepting a fifth
+        # job or forgetting a new required job would revive the four-job bug.
+        self.assertEqual(len(expanded), len(set(expanded)))
+        self.assertEqual(set(expanded), set(REQUIRED))
+        self.assertIn("Windows / installed desktop smoke", expanded)
+
+    def test_desktop_job_and_each_stage_are_mandatory(self):
+        """A green workflow/job summary cannot replace executed desktop stages."""
+        run, jobs = fixture()
+        desktop_name = "Windows / installed desktop smoke"
+        # Spell out these independently of REQUIRED so deleting a stage from
+        # the verifier does not also delete it from every regression fixture.
+        desktop_steps = (
+            "Build wheel and install into a fresh environment",
+            "Exercise installed launcher and both desktop viewers",
+            "Retain synthetic desktop receipts",
+        )
+        self.assertEqual(REQUIRED[desktop_name], desktop_steps)
+        missing_job = deepcopy(jobs)
+        missing_job["jobs"] = [row for row in missing_job["jobs"]
+                               if row["name"] != desktop_name]
+        missing_job["total_count"] = len(missing_job["jobs"])
+        with self.assertRaises(CIGateError):
+            verify(run, missing_job, **PIN)
+        for label in desktop_steps:
+            for mutation in ("missing", "skipped", "failure", "duplicate"):
+                bad = deepcopy(jobs)
+                row = next(row for row in bad["jobs"]
+                           if row["name"] == desktop_name)
+                step = next(step for step in row["steps"]
+                            if step["name"] == label)
+                if mutation == "missing":
+                    row["steps"].remove(step)
+                elif mutation == "duplicate":
+                    row["steps"].append({**step, "number": 90})
+                else:
+                    step["conclusion"] = mutation
+                with self.subTest(stage=label, mutation=mutation):
+                    with self.assertRaises(CIGateError):
+                        verify(run, bad, **PIN)
 
     def test_stale_wrong_branch_or_attempt_refused(self):
         run, jobs = fixture()

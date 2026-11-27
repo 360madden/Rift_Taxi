@@ -1,4 +1,34 @@
-# Current RIFT Taxi handoff — November 27, 2026
+# Current RIFT Taxi handoff — November 28, 2026
+
+## November 28, 06:04 PHT — restored scene observation and four-job CI contract
+
+Fixed a reproduced CI admission defect: the verifier still required exactly three
+jobs after the installed-desktop workflow added a fourth. It now requires all four
+jobs and each desktop build/exercise/retention stage. Workflow-inventory and
+missing/skipped/failed/duplicate-stage regressions passed: 11 focused tests.
+LEGION Python 3.14.10 full suite passed 852 tests in 117.687 s. Replaying actual
+prior-head 6f21fcc run 46070059874 now passes the verifier; new-head hosted CI
+remains required after publication. Current contract documentation and its example
+were corrected; historical three-job measurements remain historical.
+
+Read-only diagnosis traced desktop IO_ERROR/TREE_UNSETTLED to the running
+Workbridge dist/server.js installation missing desktop-ui.mjs, desktop-capture.mjs
+and desktop-turn-admission.mjs. No service/source/settings changes. With both
+known turn/admission guards absent, reused the already documented foreground-only
+Windows CopyFromScreen fallback, rechecking exact LEGION PID/start/SHA/HWND before
+and after capture, without input or focus changes. Independently viewed the actual
+Sanctum Watch pavilion scene, with the avatar beside a steep drop and telemetry
+addon panels visible. This is unsuitable for an unqualified forward pulse.
+Original ignored artifacts/m1-foreground-20261127-220017.png: 8055773 bytes,
+SHA256 49e3c3262eb419ec81375d4457cbff4da05eb2e6917f94d0af01b1b43e1c7d6b;
+capture UTC 2026-11-27T22:00:17.3989293Z, 2560x1511 client pixels.
+
+Source review found A/D calibration reserves its release lease before a full
+identity check but, unlike W, never renews before DOWN. A delayed check can leave
+the child expired before a later DOWN. Next fix and reproduce that refusal offline
+before another live turn. Existing actor-translation series support already exists
+and is downstream of the same XYZ cache; do not add an unsupported uncached-pose
+claim. No game input or M1 promotion occurred; use the existing consolidated PR #26.
 
 ## November 28, 05:23 PHT — fresh foreground M1 stationary observation
 
