@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from rift_taxi.app import choose
 from rift_taxi.local_taxi import demo_graph
 from rift_taxi.local_taxi_gui import launch as launch_synthetic
 from rift_taxi.world_route_graph import load_world_graph
@@ -235,6 +236,94 @@ def exercise(launch, graph, *, world_route=None):
     return receipt
 
 
+def exercise_launcher(*, catalog=None, pin=None, anchor=None):
+    """Exercise real launcher widgets without replacing either viewer.
+
+    The bounded mainloop interception invokes the application's own buttons,
+    not global mouse/keyboard events. Validate explicit anchor selection and
+    stale inventory invalidation before letting the production chooser load
+    the actual world graph. A separate viewer smoke renders that graph.
+    """
+    import tkinter as tk
+    from tkinter import ttk
+    errors=[]
+    def callback_error(self,exc_type,value,traceback):
+        errors.append(f"{exc_type.__name__}: {value}")
+
+    def smoke_loop(root,*args,**kwargs):
+        try:
+            root.update_idletasks()
+            root.update()
+            children=list(descendants(root))
+            buttons={w.cget("text"):w for w in children if isinstance(w,ttk.Button)}
+            entries=[w for w in children if isinstance(w,ttk.Entry)
+                     and not isinstance(w,ttk.Combobox)]
+            combos=[w for w in children if isinstance(w,ttk.Combobox)]
+            if len(entries)!=2 or len(combos)!=1 or not root.winfo_ismapped():
+                raise RuntimeError("unexpected launcher widgets")
+            if catalog is None:
+                buttons["Open synthetic demo"].invoke()
+                return
+            anchor_box=combos[0]
+            open_button=buttons["Open world viewer"]
+            def set_entry(entry,value):
+                entry.delete(0,"end")
+                entry.insert(0,str(value))
+            set_entry(entries[0],catalog)
+            set_entry(entries[1],"0"*64)
+            buttons["Inspect catalog"].invoke()
+            root.update()
+            if not open_button.instate(["disabled"]) or anchor_box.cget("values"):
+                raise RuntimeError("incorrect catalog pin was accepted")
+            set_entry(entries[1],pin)
+            buttons["Inspect catalog"].invoke()
+            root.update()
+            if anchor not in anchor_box.cget("values") or anchor_box.get():
+                raise RuntimeError("catalog inventory missing or silently selected anchor")
+            if not open_button.instate(["disabled"]):
+                raise RuntimeError("world open enabled before explicit selection")
+            anchor_box.set(anchor)
+            anchor_box.event_generate("<<ComboboxSelected>>")
+            root.update()
+            if open_button.instate(["disabled"]):
+                raise RuntimeError("explicit anchor did not enable opening")
+            set_entry(entries[1],"0"*64)
+            root.update()
+            if anchor_box.get() or anchor_box.cget("values") or not open_button.instate(["disabled"]):
+                raise RuntimeError("input edit retained stale launcher inventory")
+            set_entry(entries[1],pin)
+            buttons["Inspect catalog"].invoke()
+            anchor_box.set(anchor)
+            anchor_box.event_generate("<<ComboboxSelected>>")
+            root.update()
+            open_button.invoke()
+        finally:
+            # Production callbacks destroy the root on successful selection.
+            try:
+                if root.winfo_exists():
+                    root.destroy()
+            except tk.TclError:
+                pass
+
+    with patch.object(tk.Tk,"mainloop",smoke_loop),patch.object(
+            tk.Tk,"report_callback_exception",callback_error):
+        selection=choose()
+    if errors or selection is None:
+        raise RuntimeError("launcher failed: "+"; ".join(errors))
+    mode,graph=selection
+    expected="demo" if catalog is None else "world"
+    if mode!=expected:
+        raise RuntimeError("launcher selected wrong mode")
+    if mode=="demo":
+        if graph.classification!="SYNTHETIC_MODEL_ONLY":
+            raise RuntimeError("launcher demo classification mismatch")
+    elif graph.graph.classification!="OFFLINE_REVIEW_ONLY" or anchor not in graph.routes:
+        raise RuntimeError("launcher world classification or anchor mismatch")
+    return {"mode":mode,"mapped":True,"explicitAnchorChecked":mode=="world",
+            "staleInputRefusalChecked":mode=="world","wrongPinRefusalChecked":mode=="world",
+            "callbackErrors":[]}
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--catalog", type=Path)
@@ -246,12 +335,14 @@ def main(argv=None):
             a.catalog is not None and not (a.catalog_sha256 and a.anchor_route)):
         p.error("supply catalog, catalog SHA and anchor route together")
     results = {"schema":"taxi.desktop-widget-smoke/1",
+               "launcherDemo":exercise_launcher(), "launcherWorld":None,
                "synthetic":exercise(launch_synthetic, demo_graph()),
                "importedWorld":None, "humanVisualInspection":False,
                "physicalQualification":False,"gameInputSent":False}
     if a.catalog is not None:
         world = load_world_graph(a.catalog,catalog_sha256=a.catalog_sha256,
                                  anchor_route=a.anchor_route)
+        results["launcherWorld"]=exercise_launcher(catalog=a.catalog,pin=a.catalog_sha256,anchor=a.anchor_route)
         results["importedWorld"] = exercise(launch_world, world, world_route=a.anchor_route)
     raw = json.dumps(results,indent=2,allow_nan=False)+"\n"
     if a.out is not None:

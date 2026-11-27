@@ -39,6 +39,26 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 
 **Development workflow:** [AI-first autonomous execution](docs/AUTONOMY_POLICY.md) is the default. The AI should carry out coding, investigation, Windows/game inspection, evidence collection, testing and GitHub synchronization with minimal user intervention while preserving accurate live-game qualification.
 
+## Open the standalone desktop application
+
+With Python 3.11+ and Tk available, open the local launcher:
+
+```powershell
+python -m rift_taxi.app
+```
+
+An installed wheel also exposes `rift-taxi-app`. Choose the synthetic demo
+or browse to a local world-review catalog, supply its expected SHA-256,
+inspect its inventory and explicitly select an anchor route. Opening a world
+viewer revalidates the selected package scope and original package pins.
+The launcher does not require RIFT, an AI service or a network connection.
+Imported geometry is review-only; neither viewer sends game input.
+
+For direct command-line launching use `rift-taxi-app demo` or
+`rift-taxi-app world CATALOG --catalog-sha256 SHA --anchor-route ROUTE`.
+To construct a catalog from externally pinned review packages, see
+[the local catalog builder](docs/WORLD_CATALOG_BUILD.md).
+
 ## Try the standalone local Taxi prototype
 
 From `C:\work\Rift_Taxi` on Windows, with Python 3.11 or later:
