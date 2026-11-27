@@ -81,7 +81,48 @@ def exercise(launch, graph, *, world_route=None):
                 raise RuntimeError("preview canvas not mapped or route not drawn")
             if not any("route-found" in label for label in labels):
                 raise RuntimeError("preview did not report route-found")
-            receipt.update(title=root.title(), tkVersion=str(root.tk.call("info", "patchlevel")),
+            search_checked = False
+            if world_route is not None:
+                entries = [w for w in children if isinstance(w, ttk.Entry)
+                           and not isinstance(w, ttk.Combobox)]
+                if len(entries) != 1:
+                    raise RuntimeError("expected one destination search field")
+                entry = entries[0]
+                entry.insert(0, "__no_matching_route__")
+                root.update()
+                if combos[1].get() or canvas.find_all():
+                    raise RuntimeError("unmatched search retained a stale route")
+                entry.delete(0, "end")
+                entry.insert(0, world_route.upper())
+                root.update()
+                if world_route not in combos[1].cget("values") or combos[1].get():
+                    raise RuntimeError("search failed or silently selected a destination")
+                combos[1].set(world_route)
+                combos[1].event_generate("<<ComboboxSelected>>")
+                root.update()
+                if not any("route-found" in str(w.cget("text")) for w in children
+                           if isinstance(w, ttk.Label)):
+                    raise RuntimeError("explicit selection did not replan")
+                exclusions = [w for w in children if isinstance(w, tk.Listbox)]
+                if len(exclusions) != 1:
+                    raise RuntimeError("expected one edge exclusion list")
+                exclusions[0].selection_set(0, "end")
+                exclusions[0].event_generate("<<ListboxSelect>>")
+                root.update()
+                if not any("no-route" in str(w.cget("text")) for w in children
+                           if isinstance(w, ttk.Label)):
+                    raise RuntimeError("edge exclusion did not replan")
+                exclusions[0].selection_clear(0, "end")
+                exclusions[0].event_generate("<<ListboxSelect>>")
+                root.update()
+                if not any("route-found" in str(w.cget("text")) for w in children
+                           if isinstance(w, ttk.Label)):
+                    raise RuntimeError("clearing exclusions did not restore route")
+                if errors:
+                    raise RuntimeError("Tk callbacks failed: " + "; ".join(errors))
+                search_checked = True
+            receipt.update(searchAndAutomaticReplanChecked=search_checked,
+                           title=root.title(), tkVersion=str(root.tk.call("info", "patchlevel")),
                            mapped=True, canvasSize=[canvas.winfo_width(), canvas.winfo_height()],
                            canvasItems=len(canvas.find_all()), highlightedLines=len(selected),
                            statusLabels=[label for label in labels if "route-found" in label],
