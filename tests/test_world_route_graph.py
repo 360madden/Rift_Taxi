@@ -14,7 +14,8 @@ from rift_taxi.local_taxi import run_local_journey, bind_edge_start, locate_star
 from rift_taxi.local_taxi_gui import preview, build_scene
 from rift_taxi.world_candidate_review import IDENTITY_FIELDS, content_id
 from rift_taxi.world_review_package import create_package
-from rift_taxi.world_route_catalog import SCHEMA
+from rift_taxi.world_route_catalog import SCHEMA, select_route
+from rift_taxi.world_review_graph import load_graph
 from rift_taxi.world_route_graph import load_world_graph, plan_world_route
 from test_world_candidate_review import fixture
 
@@ -146,4 +147,57 @@ class WorldGraphTests(unittest.TestCase):
             lambda: build_scene(graph, plan, width=600, height=400),
         ):
             with self.subTest(operation=operation), self.assertRaisesRegex(TraceError, "synthetic"):
+                operation()
+
+
+    def shared_queries(self):
+        """Invoke all public intake paths against the same pinned catalog."""
+        raw = json.dumps({"schema": SCHEMA, "entries": self.rows}).encode()
+        self.catalog.write_bytes(raw)
+        pin = hashlib.sha256(raw).hexdigest()
+        scope = {"source_world": self.rows[0]["sourceWorld"],
+                 "frame_sha256": self.rows[0]["frameSHA256"],
+                 "patch_id": self.rows[0]["patchId"]}
+        return (
+            lambda: load_world_graph(self.catalog, catalog_sha256=pin, anchor_route="first"),
+            lambda: load_graph(self.catalog, catalog_sha256=pin, build_id="b"*64, **scope),
+            lambda: select_route(self.catalog, catalog_sha256=pin,
+                                 destination_id="first-goal", start_xyz=[0,0,0],
+                                 max_start_xz=0, max_start_y=0,
+                                 max_snap_xz=0, max_snap_y=0, **scope),
+        )
+
+    def test_all_intake_paths_refuse_same_forged_destination_binding(self):
+        self.add("first", [[0,0,0],[4,1,0]])
+        for operation in self.shared_queries():
+            self.assertIsNotNone(operation())
+        # Re-pinning a changed catalog does not change the original package.
+        self.rows[0]["destinationXYZ"] = [4,2,0]
+        for operation in self.shared_queries():
+            with self.subTest(operation=operation), self.assertRaisesRegex(
+                    TraceError, "package requested destination mismatch"):
+                operation()
+
+    def test_both_graphs_verify_excluded_build_before_filtering(self):
+        self.add("first", [[0,0,0],[4,1,0]])
+        self.add("different", [[4,1,0],[8,2,0]], build="d")
+        vertex, package, _ = self.shared_queries()
+        self.assertEqual(set(vertex().routes), {"first"})
+        self.assertEqual(package()["excluded"],
+                         [{"routeId":"different", "reason":"different-planner-build"}])
+        (self.root / "different.json").write_text("{}", encoding="utf-8")
+        for operation in (vertex, package):
+            with self.assertRaises(TraceError):
+                operation()
+
+    def test_both_graphs_ignore_unrelated_scope_but_refuse_world_conflict(self):
+        self.add("first", [[0,0,0],[4,1,0]])
+        self.add("unrelated", [[4,1,0],[8,2,0]], patch="d")
+        (self.root / "unrelated.json").unlink()
+        vertex, package, _ = self.shared_queries()
+        self.assertEqual(set(vertex().routes), {"first"})
+        self.assertEqual([e["routeId"] for e in package()["edges"]], ["first"])
+        self.add("conflict", [[4,1,0],[8,2,0]], authority="different-source")
+        for operation in self.shared_queries()[:2]:
+            with self.assertRaisesRegex(TraceError, "conflicting source world metadata"):
                 operation()
