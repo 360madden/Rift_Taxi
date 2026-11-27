@@ -1,5 +1,81 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27, 14:01 PHT — unified local product checkpoint
+
+Isolated LEGION worktree artifacts/product-unified-20261127-1400, based on 7d9b69d (desktop source/test copies) and independently validated integration 6e36bd7 / desktop 8d4ed7c. Cherry-picked recovered local world adapter 7c428c5 without conflicts and imported the metadata fix from ff90ba6. Found and fixed a cross-lane classification defect: synthetic edge binding could otherwise recreate a review-only graph with the default synthetic class. Synthetic locator, edge binding, preview, scene and desktop entry now reject review-only graphs; derived graph retains its original classification. The existing model runner also refuses imported graphs. All 37 focused tests passed locally (20 synthetic planner/viewer, 17 world graph tests), including a new cross-lane regression. Imported vertex-level A* and complete-package chain review remain separate contracts for now; neither implies physical traversal. Full local/hosted validation pending. Original dirty checkout and private geometry packages not changed. No game input or main merge. Next consolidate shared review graph intake, test full integrated wheel and add a dedicated imported-world review viewer rather than relabeling the synthetic viewer.
+
+## November 27, 13:58 PHT — recovered local source-world A* adapter
+
+LEGION returned online and RIFT PID 24896 was responding; game-world/actor qualification remains unverified. The original checkout at dc22fe5 had four pending source/test/package files. All four were copied with SHA-256 equality checks into an isolated worktree under ignored artifacts/recovery-local-world-20261127-1357, leaving the original checkout untouched. Recovery commit 7c428c5 was pushed to research/recovered-local-world-20261127. The existing local world_route_graph adapter uses A* over route-local interior vertices and exact shared endpoints, preserving source elevation and ordinary Detour flags. The reviewed graph and synthetic execution stay separately classified. Added complete source-world metadata identity comparison; conflicting metadata now refuses graph construction. Six focused regression tests passed on LEGION. Reopened the privately retained review-catalog-02.json with its known SHA-256 7902202b3ccf80a2c1961279873e8b7896a55f0023c7f43e942e8308fd323efa: accepted route 35 edges, 26.105297766896133 source units; leg-2 15 edges, 15.293361390774125 source units. Both succeeded before and after the metadata fix, physicalQualification=false. No original geometry uploaded or edited. Hosted exact-head CI pending. The independently developed product-integration branch (6e36bd7) and desktop preview (8d4ed7c) have successful hosted CI; preserve both while reconciling their overlapping planning contracts with this recovered adapter. Production navigation remains unqualified; do not treat review geometry as physical clearance.
+
+## November 27 — standalone desktop route preview
+
+Based on directed interior start checkpoint `f9c0f11` (hosted run 45947889610 passed). Added `rift_taxi.local_taxi_gui`, an optional Python Tk desktop preview, with named starts, explicit directed interior start/fraction, destination selection, blocked-edge multi-selection and local A* preview. Pure scene projection fits XZ bounds with a constant scale across reroutes, positive Z upward, route/exclusion/start/goal roles, and the derived graph identity checked against the plan. No game execution, external service, sibling import or dependency beyond optional Tk. Six headless regression methods exercise planner reuse, detours, projection, no-route/same-node, invalid parameters, single-axis geometry and map pins. Hosted exact-head CI pending; actual Windows GUI launch and visual inspection are not yet verified.
+
+```powershell
+python -m rift_taxi.local_taxi_gui
+python -m rift_taxi.local_taxi_gui --map LOCAL_GRAPH.json --map-sha256 SHA256
+```
+
+The map argument accepts only authored synthetic graph schema, not a RiftWorld review package. Choose a start and destination, select optional blocked edges, and click Preview route. This is a route preview, not Go/STOP or physical arrival. Missing Tk or display produces a clear error. Next reconcile with the independently developed world named-destination lane once CI passes; then build a review-only viewer for imported world geometry and perform actual desktop smoke testing.
+
+
+## November 27 — consolidated product integration checkpoint
+
+This integration branch starts from accepted directed-interior checkpoint `f9c0f11` (CI 45947889610). The two world review graph files are copied byte-for-byte from accepted named-destination checkpoint `3a27946` (CI 45948041613); GitHub blob identities were independently matched after publication. Common base `dc22fe5`. The independent lanes changed distinct code/test files; this handoff retains both histories. Existing synthetic execution and imported-world review remain separate classifications. The desktop preview branch is not included until its own exact-head CI passes. No changes to main or sibling repositories, no source exports or game input. Combined-head CI still required; prior separate passes do not imply integration acceptance. 
+
+
+## November 27 — directed interior start for authored synthetic maps
+
+Based on coordinate-entry checkpoint `626bc67` (successful hosted run 45947523131). The local Taxi CLI now accepts `--start-edge EDGE --edge-fraction T` for both plan and journey, with strict finite interior fraction (0 < T < 1) and explicit directed edge. A query-local virtual node has exactly one outgoing suffix; the original graph stays unchanged. No guessed reverse edge or intersection link. The selected original edge must not be blocked, and numerical degeneracy or collision with an authored node is refused. A derived graph identity binds the original byte SHA and selection; optional full receipts and compact CLI output retain the start binding. Existing exact XYZ and named starts remain available. Four new regression methods cover identity, directional behavior, blocked and invalid starts, crossing isolation and model execution. Hosted validation pending. This is authored synthetic geometry only, not live position admission or obstacle clearance. Separate world review graph PR #12 remains an independent lane.
+
+```sh
+python -m rift_taxi.local_taxi plan --start-edge main-west-to-main-east --edge-fraction .5 --destination bank
+python -m rift_taxi.local_taxi journey --start-edge main-west-to-main-east --edge-fraction .5 --destination bank
+```
+
+Expected planned distance is 10 synthetic units from XYZ (6,0,0). No original-route history or previously passed obligations are asserted. Next: reconcile tested branches, test original world packages privately and develop route viewer/destination selection.
+
+
+## November 27, 13:42 PHT — local position entry (isolated continuation)
+
+Base product checkpoint `dc22fe5` passed hosted Offline regression run 45945997639. This branch adds local coordinate entry to the existing synthetic A* prototype, with no dependency on a live client or cloud runtime. `locate --xyz X Y Z` ranks authored nodes by 3D distance (stable ID tie-break), reports separate XZ/Y offsets, and distinguishes exact binding from review suggestions. `plan` and `journey` accept either `--start NODE` or `--start-xyz X Y Z`; only exact authored XYZ is admitted. Optional full receipts retain the original query. Off-node positions, including points on a declared edge, do not create connectors or silently snap. Four new regression methods cover exact and wrong-floor binding, deterministic suggestions, invalid input, CLI refusal and modeled execution. Hosted acceptance pending; do not promote to main or physical authority. No sibling changes, no live input. Next prioritize a provenance-preserving real-map review adapter and explicit directed-edge interior admission with separate geometry evidence.
+
+Examples (from repository root or installed wheel):
+```sh
+python -m rift_taxi.local_taxi locate --xyz 4 0 0
+python -m rift_taxi.local_taxi locate --xyz 4.1 0 0
+python -m rift_taxi.local_taxi plan --start-xyz 4 0 0 --destination bank
+python -m rift_taxi.local_taxi journey --start-xyz 0 0 0 --destination bank --delay-steps 2
+```
+Locator returns 0 for exact node, 1 for review-only candidates, 2 for invalid input. A plan/journey off-node request is invalid (exit 2). This exact-only first step is intentionally not arbitrary-world position navigation.
+
+
+## November 27 — named source-world destination selection
+
+Based on world graph checkpoint `e609abf` (hosted run 45947714186 passed). Added local `destinations` discovery and `plan --destination ID` to the offline review graph. Catalog IDs retain exact requested goal coordinates. At least one scoped original package must end exactly at the requested goal to bind a name. Nonzero snapped alternatives stay visible and cannot be silently substituted, even if another unrelated package reaches the requested coordinate. Existing exact XYZ planning remains available. A blocked route cannot be traversed but its original goal binding is retained; another valid directed review chain can reach the same exact goal. Four new regression methods exercise selection, blocked alternatives, snap-only refusal, grouping and CLI. All physical/transform/junction authority flags remain false. Hosted exact-head validation pending; no actual source exports uploaded.
+
+```sh
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD destinations
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD plan --start-xyz 0 0 0 --destination bank
+```
+
+Unknown or unbound destination returns exit 1, with explicit status and no segments. Named destination IDs are user/catalog labels, not authenticated in-game names. Next reconcile with the synthetic position-entry lane after both exact-head checks; then develop a route viewer and privately test retained original packages.
+
+
+## November 27 — source-pinned world review graph
+
+Independent continuation from accepted product checkpoint `dc22fe5` (hosted run 45945997639). New `rift_taxi.world_review_graph` reopens exact catalog/package pins, requires source-world/frame/patch/planner-build scope and consistent complete world metadata, and treats each original complete candidate as a directed edge between its exact snapped source XYZ endpoints. Dijkstra ranks complete chains by full 3D polyline length; an excluded edge can select a detour. Original package/source identity, requested versus snapped coordinates, evidence, endpoint offsets and all waypoint flags remain in each segment. Only exact shared endpoints produce a review junction; no proximity linking, interior split, reverse edge, coordinate conversion or verified connector. The graph cannot execute a journey and is not a live navigation mesh. Six new synthetic fixture test methods cover route selection/detour, exact scope and endpoints, corruption, tie-breaking and CLI. Hosted exact-head validation pending. No real export uploaded; local original-package compatibility and physical qualification remain outstanding. Coordinate entry is independently developed in PR #11; reconcile after both checks pass.
+
+Example (substitute actual locally retained source pins):
+```sh
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD endpoints
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD plan --start-xyz 0 0 0 --goal-xyz 8 0 0 --out new-review.json
+```
+
+CLI exit 0: endpoints or review chain found (including same endpoint); 1: no endpoints/chain or unknown exact endpoint; 2: invalid/corrupt input. A mathematical junction is not a traversable connection. Next: test against privately retained real packages, integrate explicit review endpoint/destination selection, and qualify route geometry separately before any live controller admission.
+
+
 ## November 27, 13:24 PHT — product-first local Taxi prototype
 
 User explicitly prioritized a usable standalone prototype with locally computed routes and pathfinding over further audit/statistics work. Recovered LEGION `35d15f1` to remote `4f0516a` by verifying all three pending files were byte-identical to the remote commit, preserving copies under ignored `artifacts/reconcile-remote-20261127-1320`, and fast-forwarding. Exact-head comprehensive CI run 45937080464 passed all three jobs including installed constrained acceptance (106 s); no duplicate commits needed. New `rift_taxi.local_taxi` implements bounded local directed-graph A*, destination listing, blocked-edge alternate routes and a single call into the existing constrained synthetic journey controller. Named start node, no implicit connectors/reversals, hard stops and explicit passage regions preserved. Built-in demo main route and blocked-edge detour both reached the modeled destination with two delayed steps. Six focused tests initially passed; installed-wheel CI now exercises route choice, detour and no-route. This is actual local pathfinding and model execution, NOT physical RIFT navigation. Next prioritize a local real-map review graph adapter, usable destination/position entry, and independent movement admission when physical prerequisites return. Do not create more research-only instrumentation without a direct product blocker. Local full regression completed: 788/788 on Python 3.14.10 (job taxi_20261127_local_pathfinder_full_01, exit 0); after the final CI/readme/test edits, local pathfinder and CI checkpoint focused suites passed 6/6 and 9/9. Hosted exact-head product acceptance is pending publication.
