@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — offline control gate STOP metadata hardening
+
+Independent projection/ordered-witness audit and diagnostic repair aad6f9b passed comprehensive run 45929599645 (110 s; Windows 717/717; both Linux lanes 701 passes + 16 expected skips). Harden the driver-neutral gate so an invalid diagnostic STOP reason never prevents release attempts; preserve ValueError after STOP, retain the first reason and uncertain-release retries. Reject custom collection subclasses and requests over the three-entry W/A/D bound; validate one immutable request snapshot. Five new inert backend tests. Fresh LEGION Workbridge 0.16.4-dev service PID 32544, started 02:23 UTC; read-only desktop query refused DESKTOP_TREE_UNSETTLED. 02:40 UTC process inventory returned no rift_x64 process and all six desktop runtime staged files plus manifest remained absent. No alternate desktop access, service modification or input. No physical qualification. New hosted regression pending.
+
 ## November 27 — ordered audit diagnostic compatibility repair
 
 The first projection-audit checkpoint a6ab933 failed Linux 3.14 CI run 45929450044 on an existing corner-witness diagnostic regex: the forged XYZ was correctly refused but the newer message lacked the established `invalid ordered corner passage` prefix. Preserve that prefix while retaining the precise underlying failure and the stricter independent projection check. Existing and new corruption tests must still reject. No reduction in checks or simulator changes. New comprehensive CI required.

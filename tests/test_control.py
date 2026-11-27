@@ -97,6 +97,66 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(ControlRefused, "STOP latched"):
             self.controller.apply(("W",), pose(self.clock, sequence=2))
 
+    def test_malformed_stop_reason_cannot_prevent_release(self) -> None:
+        class UnexpectedText(str):
+            def strip(self):
+                raise AssertionError("caller text hook must not run")
+
+        # All callbacks record inert edges. No actual input is sent.
+        for reason in (None, True, "", " ", " padded ", UnexpectedText("stop")):
+            with self.subTest(reason=reason):
+                clock, backend = Clock(), RecordingBackend()
+                with HeldInputController(session(), backend, clock=clock) as gate:
+                    gate.apply(("W", "D"), pose(clock))
+                    with self.assertRaisesRegex(ValueError, "reason"):
+                        gate.stop(reason)
+                    self.assertEqual(gate.status.stop_reason, "invalid-stop-reason")
+                    self.assertTrue(gate.status.stop_latched)
+                    self.assertEqual(gate.status.potentially_held_keys, ())
+                    self.assertEqual(backend.events,
+                        [("W", True), ("D", True), ("D", False), ("W", False)])
+
+    def test_invalid_stop_label_retries_uncertain_release(self) -> None:
+        self.controller.apply(("W", "A"), pose(self.clock))
+        self.backend.reject.add(("A", False))
+        first = self.controller.stop("manual-stop")
+        self.assertEqual(first.potentially_held_keys, ("A",))
+        self.backend.reject.clear()
+        with self.assertRaises(ValueError):
+            self.controller.stop(None)
+        self.assertEqual(self.controller.status.potentially_held_keys, ())
+        self.assertEqual(self.controller.status.stop_reason, "manual-stop")
+        self.assertTrue(self.controller.status.backend_release_fault_observed)
+
+    def test_request_subclass_refused_without_iteration(self) -> None:
+        invoked = []
+        class CustomList(list):
+            def __iter__(self):
+                invoked.append(True)
+                return super().__iter__()
+
+        self.controller.apply(("W",), pose(self.clock))
+        with self.assertRaisesRegex(ControlRefused, "finite collection"):
+            self.controller.apply(CustomList(["W", "D"]), pose(self.clock))
+        self.assertEqual(invoked, [])
+        self.assertEqual(self.backend.events, [("W", True), ("W", False)])
+        self.assertTrue(self.controller.status.stop_latched)
+
+    def test_oversized_key_collection_refused_and_released(self) -> None:
+        self.controller.apply(("W",), pose(self.clock))
+        with self.assertRaisesRegex(ControlRefused, "exceeds bound"):
+            self.controller.apply(["W"] * 4, pose(self.clock))
+        self.assertEqual(self.backend.events, [("W", True), ("W", False)])
+        self.assertTrue(self.controller.status.stop_latched)
+
+    def test_builtin_request_snapshot_preserves_set_semantics(self) -> None:
+        first = pose(self.clock)
+        self.controller.apply(["W", "W"], first)
+        self.controller.apply({"W", "D"}, first)
+        self.controller.apply(frozenset(("W",)), first)
+        self.assertEqual(self.backend.events,
+                         [("W", True), ("D", True), ("D", False)])
+
     def test_lease_expiry_releases_without_steering_loop(self) -> None:
         self.controller.apply(("W",), pose(self.clock))
         self.clock.advance(.41)

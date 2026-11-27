@@ -259,10 +259,20 @@ class HeldInputController:
             self._stop_locked(str(error), self._last_clock if self._last_clock is not None else 0.0)
 
     def stop(self, reason: str = "explicit-stop") -> ControlStatus:
-        """STOP stays latched. Repeated STOP retries any unaccepted key-ups."""
-        _nonempty(reason, "reason")
+        """Latch STOP and retry uncertain releases, even with bad metadata.
+
+        The reason is diagnostic text, not authorization for release.
+        Preserve the ValueError contract for invalid labels, but only
+        raise after making the unconditional release attempt. Never run
+        a caller-defined str subclass method during emergency handling.
+        """
         with self._lock:
-            self._stop_locked(reason, self._stop_time_locked())
+            invalid = (type(reason) is not str or not reason.strip()
+                       or reason != reason.strip())
+            self._stop_locked("invalid-stop-reason" if invalid else reason,
+                              self._stop_time_locked())
+            if invalid:
+                raise ValueError("reason must be nonempty trimmed text")
             return self.status
 
     def _expire_locked(self, now: float) -> None:
@@ -341,11 +351,19 @@ class HeldInputController:
                 # Reject strings, unbounded generators and custom iterables, even
                 # if they happen to contain valid characters. Never let malformed
                 # steering requests leave previously held keys active.
-                if not isinstance(requested_keys, (list, tuple, set, frozenset)):
+                if type(requested_keys) not in (list, tuple, set, frozenset):
                     raise ControlRefused("requested movement keys must be a finite collection")
-                if any(type(key) is not str or key not in _ORDER for key in requested_keys):
+                # W/A/D has at most three entries. Bound work before taking
+                # a single immutable snapshot, then validate that snapshot
+                # rather than iterating caller-owned mutable state twice.
+                if len(requested_keys) > len(_ORDER):
+                    raise ControlRefused("requested movement key collection exceeds bound")
+                snapshot = tuple(requested_keys)
+                if len(snapshot) > len(_ORDER):
+                    raise ControlRefused("requested movement key collection exceeds bound")
+                if any(type(key) is not str or key not in _ORDER for key in snapshot):
                     raise ControlRefused("unsupported movement key")
-                desired = set(requested_keys)
+                desired = set(snapshot)
                 if "A" in desired and "D" in desired:
                     raise ControlRefused("invalid or contradictory movement keys")
                 self._validate_pose(pose, now)
