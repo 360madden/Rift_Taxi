@@ -19,8 +19,7 @@ from pathlib import Path
 from .contracts import TraceError
 from .local_taxi import Graph, Node, Edge, MAX_EDGES, coordinates, plan_route
 from .world_candidate_review import content_id, require, xyz
-from .world_review_package import open_package
-from .world_route_catalog import _catalog, _ordinary
+from .world_route_catalog import _catalog, open_catalog_package, scoped_packages
 
 CLASSIFICATION = "OFFLINE_REVIEW_ONLY"
 
@@ -40,19 +39,6 @@ class WorldGraph:
     edge_sources: dict
 
 
-def _open_review(root, row):
-    """Reuse the existing package contract and bind it to its catalog row."""
-    file = root / row["packageFile"]
-    _ordinary(file)
-    review = open_package(file, expected_package_id=row["packageId"])
-    require(review["world"]["sourceWorld"] == row["sourceWorld"]
-            and content_id(review["coordinates"]) == row["frameSHA256"]
-            and review["patchId"] == row["patchId"], "package scope mismatch")
-    require(tuple(review["query"]["requestedGoalXYZ"]) == xyz(row["destinationXYZ"]),
-            "package requested destination mismatch")
-    return review
-
-
 def load_world_graph(catalog, *, catalog_sha256, anchor_route):
     """Build the connected review graph for one explicit catalog route scope.
 
@@ -65,7 +51,7 @@ def load_world_graph(catalog, *, catalog_sha256, anchor_route):
     root, rows = _catalog(catalog, catalog_sha256)
     anchor = next((row for row in rows if row["routeId"] == anchor_route), None)
     require(anchor is not None, "unknown anchor route")
-    first = _open_review(root, anchor)
+    first = open_catalog_package(root, anchor)
     scope = {k: anchor[k] for k in ("sourceWorld", "frameSHA256", "patchId")}
     scope["buildId"] = first["buildId"]
     # Same source-world name is insufficient: retain and compare the full
@@ -78,14 +64,11 @@ def load_world_graph(catalog, *, catalog_sha256, anchor_route):
     # Interior vertices stay route-local, even at coincident coordinates:
     # intersecting lines are not independently established transitions.
     endpoints = {}
-    for row in sorted(rows, key=lambda value: value["routeId"]):
-        if any(row[k] != scope[k] for k in ("sourceWorld", "frameSHA256", "patchId")):
-            continue
-        review = first if row["routeId"] == anchor_route else _open_review(root, row)
-        if review["buildId"] != scope["buildId"]:
-            continue
-        require(content_id(review["world"]) == scope["worldMetadataSHA256"],
-                "conflicting source world metadata")
+    admitted, _, identity = scoped_packages(
+        root, rows, source_world=scope["sourceWorld"], frame_sha256=scope["frameSHA256"],
+        patch_id=scope["patchId"], build_id=scope["buildId"])
+    require(identity == scope["worldMetadataSHA256"], "anchor world metadata mismatch")
+    for row, review in admitted:
         points = review["points"]
         route = row["routeId"]
         require(len(edges) + len(points) - 1 <= MAX_EDGES, "review graph edge bound exceeded")

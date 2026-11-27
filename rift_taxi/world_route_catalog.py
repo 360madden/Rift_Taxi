@@ -101,6 +101,51 @@ def _catalog(path,expected_sha256):
     return path.parent,rows
 
 
+def open_catalog_package(root, row):
+    """Reopen a validated catalog row and bind every source identity.
+
+    Callers obtain rows from _catalog, which validates names and exact catalog
+    bytes. The package is still independently reopened and verified here.
+    All three review planners use this boundary; no cached review, source
+    coordinate conversion, or physical qualification is implied.
+    """
+    file = root / row["packageFile"]
+    _ordinary(file)
+    review = open_package(file, expected_package_id=row["packageId"])
+    require(review["world"]["sourceWorld"] == row["sourceWorld"]
+            and content_id(review["coordinates"]) == row["frameSHA256"]
+            and review["patchId"] == row["patchId"], "package scope mismatch")
+    require(xyz(review["query"]["requestedGoalXYZ"]) == xyz(row["destinationXYZ"]),
+            "package requested destination mismatch")
+    return review
+
+
+def scoped_packages(root, rows, *, source_world, frame_sha256, patch_id, build_id):
+    """Load one deterministic world/frame/patch/build review inventory.
+
+    All matching world/frame/patch rows must verify even if subsequently
+    excluded by build. Compare full world metadata within the chosen build.
+    No proximity, path-flag or topology policy belongs to this intake layer.
+    The return inventory retains original row/review pairs for both graphs.
+    """
+    admitted, excluded = [], []
+    world_identity = None
+    for row in sorted(rows, key=lambda value: value["routeId"]):
+        if (row["sourceWorld"] != source_world or row["frameSHA256"] != frame_sha256
+                or row["patchId"] != patch_id):
+            continue
+        review = open_catalog_package(root, row)
+        if review["buildId"] != build_id:
+            excluded.append({"routeId": row["routeId"], "reason": "different-planner-build"})
+            continue
+        identity = content_id(review["world"])
+        require(world_identity is None or world_identity == identity,
+                "conflicting source world metadata")
+        world_identity = identity
+        admitted.append((row, review))
+    return admitted, excluded, world_identity
+
+
 def select_route(catalog,*,catalog_sha256,destination_id,source_world,
                  frame_sha256,patch_id,start_xyz,max_start_xz,max_start_y,
                  max_snap_xz,max_snap_y):
@@ -125,14 +170,7 @@ def select_route(catalog,*,catalog_sha256,destination_id,source_world,
         if (row["destinationId"]!=destination_id or row["sourceWorld"]!=source_world
                 or row["frameSHA256"]!=frame_sha256 or row["patchId"]!=patch_id):
             continue
-        file=root/row["packageFile"]
-        _ordinary(file)
-        review=open_package(file,expected_package_id=row["packageId"])
-        require(review["world"]["sourceWorld"]==source_world
-                and content_id(review["coordinates"])==frame_sha256
-                and review["patchId"]==patch_id,"package scope mismatch")
-        require(tuple(review["query"]["requestedGoalXYZ"])==xyz(row["destinationXYZ"]),
-                "package requested destination mismatch")
+        review = open_catalog_package(root, row)
         points=review["points"]
         a=points[0]["xyz"]
         dx=math.hypot(start[0]-a[0],start[2]-a[2])

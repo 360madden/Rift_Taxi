@@ -17,8 +17,7 @@ from pathlib import Path
 
 from .contracts import TraceError
 from .world_candidate_review import content_id, xyz
-from .world_review_package import open_package
-from .world_route_catalog import _catalog, _id, _ordinary, _sha, require
+from .world_route_catalog import _catalog, _id, _sha, require, scoped_packages
 
 
 def load_graph(catalog, *, catalog_sha256, source_world, frame_sha256,
@@ -38,29 +37,10 @@ def load_graph(catalog, *, catalog_sha256, source_world, frame_sha256,
         raise TraceError("world review graph: invalid build ID")
     root, rows = _catalog(catalog, catalog_sha256)
     edges = []
-    excluded = []
-    world_identity = None
-    for row in sorted(rows, key=lambda item: item["routeId"]):
-        if (row["sourceWorld"] != source_world or row["frameSHA256"] != frame_sha256
-                or row["patchId"] != patch_id):
-            continue
-        path = root / row["packageFile"]
-        _ordinary(path)
-        review = open_package(path, expected_package_id=row["packageId"])
-        require(review["world"]["sourceWorld"] == source_world
-                and content_id(review["coordinates"]) == frame_sha256
-                and review["patchId"] == patch_id, "package scope mismatch")
-        require(xyz(review["query"]["requestedGoalXYZ"]) == xyz(row["destinationXYZ"]),
-                "package requested destination mismatch")
-        if review["buildId"] != build_id:
-            excluded.append({"routeId": row["routeId"], "reason": "different-planner-build"})
-            continue
-        # Names alone do not establish a common world. Refuse conflicting
-        # full upstream metadata rather than combining ambiguous geometry.
-        identity = content_id(review["world"])
-        require(world_identity is None or world_identity == identity,
-                "conflicting source world metadata")
-        world_identity = identity
+    admitted, excluded, world_identity = scoped_packages(
+        root, rows, source_world=source_world, frame_sha256=frame_sha256,
+        patch_id=patch_id, build_id=build_id)
+    for row, review in admitted:
         start = xyz(review["query"]["snappedStartXYZ"])
         end = xyz(review["query"]["snappedGoalXYZ"])
         points = review["points"]
