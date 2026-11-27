@@ -16,7 +16,7 @@ import json
 import math
 from pathlib import Path
 
-from .contracts import TraceError
+from .contracts import TraceError, _number
 from .local_taxi import Graph, Node, Edge, MAX_EDGES, coordinates, plan_route
 from .world_candidate_review import content_id, require, xyz
 from .world_route_catalog import _catalog, open_catalog_package, scoped_packages
@@ -156,6 +156,69 @@ def plan_world_route(world, *, destination, start=None, start_xyz=None, blocked_
             "corridorClearanceVerified": False}
 
 
+def review_position(world, *, position, max_xz, max_y, limit=12):
+    """Inspect nearby vertices and directed segments in source coordinates.
+
+    This is a geometric review of a caller-supplied XYZ, not localization,
+    collision clearance, an execution start, or a connector. Each edge uses
+    the clamped closest point in full 3D; horizontal/vertical thresholds are
+    applied to that particular projection, not a swept corridor. Distinct
+    overlapping edges and vertices remain separate candidates.
+    """
+    require(world.graph.classification == CLASSIFICATION, "review graph required")
+    query = coordinates(position)
+    h, v = _number(max_xz, "max XZ"), _number(max_y, "max Y")
+    require(0 <= h <= 100 and 0 <= v <= 100, "position review limits must be 0..100")
+    require(type(limit) is int and 1 <= limit <= 64, "candidate limit must be 1..64")
+
+    def distances(point):
+        dxz = math.hypot(query[0]-point[0], query[2]-point[2])
+        dy = abs(query[1]-point[1])
+        return dxz, dy, math.hypot(dxz, dy)
+
+    vertices, segments = [], []
+    aliases = {}
+    for alias, node_id in sorted(world.aliases.items()):
+        aliases.setdefault(node_id, []).append(alias)
+    exact = []
+    for node in world.graph.nodes.values():
+        dxz, dy, d = distances(node.xyz)
+        if query == node.xyz:
+            exact.append(node.id)
+        if dxz <= h and dy <= v:
+            vertices.append({"nodeId": node.id, "aliases": aliases[node.id],
+                             "xyz": list(node.xyz), "distanceXZ": dxz,
+                             "distanceY": dy, "distance3D": d})
+    for edge in world.graph.edges.values():
+        a, b = world.graph.nodes[edge.source].xyz, world.graph.nodes[edge.target].xyz
+        delta = tuple(y-x for x,y in zip(a,b))
+        # Use the already validated nonzero edge length for a stable unit
+        # direction. Retain exact endpoints when the projection clamps.
+        unit = tuple(x/edge.length for x in delta)
+        along = math.fsum((q-x)*u for q,x,u in zip(query,a,unit))
+        t = max(0., min(1., along/edge.length))
+        projection = a if t == 0 else b if t == 1 else tuple(
+            x+t*d for x,d in zip(a,delta))
+        dxz, dy, d = distances(projection)
+        if dxz <= h and dy <= v:
+            segments.append({"edgeId":edge.id, "fromNode":edge.source,
+                             "toNode":edge.target, "fraction":t,
+                             "projectedXYZ":list(projection), "distanceXZ":dxz,
+                             "distanceY":dy,"distance3D":d,
+                             "edgeSource":world.edge_sources[edge.id]})
+    vertices.sort(key=lambda row:(row["distance3D"],row["nodeId"]))
+    segments.sort(key=lambda row:(row["distance3D"],row["edgeId"]))
+    return {"schema":"taxi.world-position-review/1", "classification":CLASSIFICATION,
+            "graphSHA256":world.graph.sha256, "scope":world.scope,
+            "queryXYZ":list(query), "limits":{"xz":h,"y":v,"perKind":limit},
+            "exactNodeIds":sorted(exact), "vertexCount":len(vertices),
+            "segmentCount":len(segments), "vertices":vertices[:limit],
+            "segments":segments[:limit], "status":"review-candidates" if vertices or segments else "no-candidates",
+            "automaticStartBinding":False, "transformQualified":False,
+            "endpointConnectorsVerified":False,"physicalQualification":False,
+            "productionInputAuthorized":False,"gameInputSent":False}
+
+
 def main(argv=None):
     """List a local imported map or plan a route, without connecting to RIFT."""
     p = argparse.ArgumentParser(prog="rift-taxi-world", description=__doc__)
@@ -164,6 +227,12 @@ def main(argv=None):
     p.add_argument("--anchor-route", required=True, help="catalog route selecting one map/build scope")
     sub = p.add_subparsers(dest="operation", required=True)
     sub.add_parser("destinations")
+    locate = sub.add_parser("locate", help="review nearby source geometry without snapping")
+    locate.add_argument("--xyz", nargs=3, type=float, required=True)
+    locate.add_argument("--max-xz", type=float, required=True)
+    locate.add_argument("--max-y", type=float, required=True)
+    locate.add_argument("--limit", type=int, default=12)
+    locate.add_argument("--out", type=Path)
     route = sub.add_parser("plan")
     route.add_argument("--destination", required=True, help="route ID from destinations")
     source = route.add_mutually_exclusive_group(required=True)
@@ -177,15 +246,18 @@ def main(argv=None):
                                  anchor_route=args.anchor_route)
         if args.operation == "destinations":
             result = describe_world_graph(world)
+        elif args.operation == "locate":
+            result = review_position(world, position=args.xyz, max_xz=args.max_xz,
+                                     max_y=args.max_y, limit=args.limit)
         else:
             result = plan_world_route(world, destination=args.destination, start=args.start,
                                       start_xyz=args.start_xyz, blocked_edges=args.blocked_edge)
-            if args.out is not None:
-                with args.out.open("x", encoding="utf-8", newline="\n") as stream:
-                    json.dump(result, stream, indent=2, allow_nan=False)
-                    stream.write("\n")
+        if getattr(args, "out", None) is not None:
+            with args.out.open("x", encoding="utf-8", newline="\n") as stream:
+                json.dump(result, stream, indent=2, allow_nan=False)
+                stream.write("\n")
         print(json.dumps(result, indent=2, allow_nan=False))
-        return 1 if result.get("status") == "no-route" else 0
+        return 1 if result.get("status") in ("no-route", "no-candidates") else 0
     except (TraceError, OSError, ValueError, OverflowError, RecursionError) as exc:
         p.exit(2, f"World Taxi planning refused: {exc}\n")
 
