@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — independent synthetic route projection audit
+
+Indexed lookahead head 3178560 passed comprehensive run 45929131072 (68 s; Windows 714/714 in 44.611 s). Strengthen existing synthetic trajectory verifier using an independent full-scan bounded XZ projection, reconstructed prior applied-displacement budget, ordered sharp-corner gates, per-frame counts and passage witness checks. Reject internally plausible forged progress or coordinated cross-track/summary changes. Three focused tests added, including an ordered reversal fixture. No simulator or runtime steering change. The verifier still checks model consistency, not controller optimality, physical geometry or arrival. Full hosted validation pending.
+
 ## November 27 — indexed offline lookahead lookup
 
 Added a binary-search starting index to the existing lookahead geometry for routes longer than eight vertices; short routes retain a linear walk. Exact vertex and repeated-horizontal-arc ties, degenerate-segment handling and interpolation arithmetic are preserved. Added two regressions with seeded full-scan oracle and a vertical duplicate boundary. An isolated Linux microbenchmark of the original versus indexed primitive (not whole application) checked 67,468 exact results; median 20k queries on 500 vertices 0.154647 vs 0.021102 s, on 50 vertices 0.028281 vs 0.018453 s, on five vertices indexing was slower. These timings are not full-suite or live-navigation speed claims; the committed hybrid retains the original short-route path. No physical qualification or input. Verify comprehensive hosted CI before acceptance.
