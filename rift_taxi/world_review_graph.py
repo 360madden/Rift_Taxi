@@ -18,7 +18,7 @@ from pathlib import Path
 from .contracts import TraceError
 from .world_candidate_review import content_id, xyz
 from .world_review_package import open_package
-from .world_route_catalog import _catalog, _ordinary, _sha, require
+from .world_route_catalog import _catalog, _id, _ordinary, _sha, require
 
 
 def load_graph(catalog, *, catalog_sha256, source_world, frame_sha256,
@@ -102,6 +102,72 @@ def list_endpoints(graph):
     return [endpoints[key] for key in sorted(endpoints)]
 
 
+def list_destinations(graph):
+    """Group verified catalog labels without conflating requested and snapped XYZ.
+
+    The catalog already enforces one requested coordinate per label/scope.
+    A label is eligible for exact-endpoint review planning only if at least
+    one scoped package ends exactly at that requested coordinate. A snapped
+    alternative is visible but never silently substituted for the destination.
+    Route IDs are catalog identifiers, not authenticated in-game place names.
+    """
+    groups = {}
+    for edge in graph["edges"]:
+        dest = edge["destinationId"]
+        goal = xyz(edge["query"]["requestedGoalXYZ"])
+        entry = groups.setdefault(dest, {"destinationId": dest,
+                                         "requestedGoalXYZ": list(goal),
+                                         "exactGoalRoutes": [], "snappedAlternatives": []})
+        require(tuple(entry["requestedGoalXYZ"]) == goal,
+                "contradictory destination coordinates")
+        if tuple(edge["endXYZ"]) == goal:
+            entry["exactGoalRoutes"].append(edge["routeId"])
+        else:
+            entry["snappedAlternatives"].append(
+                {"routeId": edge["routeId"], "snappedGoalXYZ": edge["endXYZ"],
+                 "endpointOffset": edge["endpointOffsets"]["goal"]})
+    for entry in groups.values():
+        entry["exactGoalRoutes"].sort()
+        entry["snappedAlternatives"].sort(key=lambda row: row["routeId"])
+        entry["exactGoalBound"] = bool(entry["exactGoalRoutes"])
+    return [groups[key] for key in sorted(groups)]
+
+
+def _blocked(graph, blocked_routes):
+    """Validate route exclusions even when a destination cannot be bound."""
+    known = {edge["routeId"] for edge in graph["edges"]}
+    require(isinstance(blocked_routes, (list, tuple)) and len(blocked_routes) <= 64
+            and all(isinstance(r, str) and r in known for r in blocked_routes),
+            "unknown or invalid blocked review route")
+    return set(blocked_routes)
+
+
+def plan_named_destination(graph, *, start_xyz, destination_id, blocked_routes=()):
+    """Resolve a catalog destination and run the existing exact-endpoint search.
+
+    A matching package binds the requested goal, even if that package is
+    blocked for this query. The search may reach the same exact goal using
+    another scoped directed chain. No goal offset or physical arrival is implied.
+    """
+    _id(destination_id, "destination ID")
+    start = xyz(start_xyz)
+    blocked = _blocked(graph, blocked_routes)
+    destination = next((row for row in list_destinations(graph)
+                        if row["destinationId"] == destination_id), None)
+    if destination is None or not destination["exactGoalBound"]:
+        result = {k: v for k, v in graph.items() if k != "edges"}
+        return {**result, "schema": "taxi.world-review-chain/1",
+                "status": "unknown-destination" if destination is None else "unbound-destination",
+                "startXYZ": list(start), "goalXYZ": None if destination is None else destination["requestedGoalXYZ"],
+                "destinationId": destination_id, "destinationBinding": destination,
+                "blockedRoutes": sorted(blocked), "segments": [], "junctions": [],
+                "pathLength3D": None}
+    result = plan_review_chain(graph, start_xyz=list(start),
+                               goal_xyz=destination["requestedGoalXYZ"],
+                               blocked_routes=blocked_routes)
+    return {**result, "destinationId": destination_id, "destinationBinding": destination}
+
+
 def plan_review_chain(graph, *, start_xyz, goal_xyz, blocked_routes=()):
     """Shortest directed package chain by actual 3D polyline length.
 
@@ -111,11 +177,7 @@ def plan_review_chain(graph, *, start_xyz, goal_xyz, blocked_routes=()):
     """
     start, goal = xyz(start_xyz), xyz(goal_xyz)
     edges = graph["edges"]
-    known = {e["routeId"] for e in edges}
-    require(isinstance(blocked_routes, (list, tuple)) and len(blocked_routes) <= 64
-            and all(isinstance(r, str) and r in known for r in blocked_routes),
-            "unknown or invalid blocked review route")
-    blocked = set(blocked_routes)
+    blocked = _blocked(graph, blocked_routes)
     endpoints = {tuple(row["xyz"]) for row in list_endpoints(graph)}
     base = {k: v for k, v in graph.items() if k != "edges"}
     base.update(schema="taxi.world-review-chain/1", startXYZ=list(start), goalXYZ=list(goal),
@@ -167,9 +229,12 @@ def main(argv=None):
         p.add_argument("--" + flag, required=True)
     sub = p.add_subparsers(dest="operation", required=True)
     sub.add_parser("endpoints")
+    sub.add_parser("destinations", help="list local destination IDs and exact goal bindings")
     plan = sub.add_parser("plan")
     plan.add_argument("--start-xyz", nargs=3, type=float, required=True)
-    plan.add_argument("--goal-xyz", nargs=3, type=float, required=True)
+    goal = plan.add_mutually_exclusive_group(required=True)
+    goal.add_argument("--goal-xyz", nargs=3, type=float)
+    goal.add_argument("--destination", help="exact catalog destination ID")
     plan.add_argument("--blocked-route", action="append", default=[])
     plan.add_argument("--out", type=Path)
     a = p.parse_args(argv)
@@ -181,6 +246,14 @@ def main(argv=None):
             result = {k: v for k, v in graph.items() if k != "edges"}
             result["endpoints"] = list_endpoints(graph)
             result["status"] = "review-endpoints" if result["endpoints"] else "no-review-endpoints"
+        elif a.operation == "destinations":
+            result = {k: v for k, v in graph.items() if k != "edges"}
+            result["destinations"] = list_destinations(graph)
+            result["status"] = "review-destinations" if result["destinations"] else "no-review-destinations"
+        elif a.destination is not None:
+            result = plan_named_destination(graph, start_xyz=a.start_xyz,
+                                            destination_id=a.destination,
+                                            blocked_routes=a.blocked_route)
         else:
             result = plan_review_chain(graph, start_xyz=a.start_xyz, goal_xyz=a.goal_xyz,
                                        blocked_routes=a.blocked_route)
@@ -189,7 +262,7 @@ def main(argv=None):
             with a.out.open("x", encoding="utf-8", newline="\n") as stream:
                 stream.write(encoded)
         print(encoded, end="")
-        return 0 if result["status"] in ("review-endpoints", "review-chain-found",
+        return 0 if result["status"] in ("review-endpoints", "review-destinations", "review-chain-found",
                                          "same-review-endpoint") else 1
     except (TraceError, OSError, ValueError, OverflowError, RecursionError) as exc:
         p.exit(2, f"World review graph refused: {exc}\n")
