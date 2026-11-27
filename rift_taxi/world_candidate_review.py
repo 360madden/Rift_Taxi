@@ -141,7 +141,8 @@ def _validate(candidate):
             require(accepted and row["accepted"] is True, "source rejected endpoint snap")
     return {"candidateId": candidate["candidateId"], "patchId": candidate["patchId"],
             "buildId": build, "world": world, "coordinates": c,
-            "sourceEvidence": evidence, "points": normalized, "endpointOffsets": snaps}
+            "sourceEvidence": evidence, "points": normalized, "endpointOffsets": snaps,
+            "query": {key: list(value) for key,value in ends.items()}}
 
 
 def inspect_candidate(path, *, expected_sha256, source_commit):
