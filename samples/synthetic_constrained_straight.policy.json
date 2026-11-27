@@ -1,0 +1,35 @@
+{
+  "schema": "taxi.synthetic-route-constraints/1",
+  "traceSHA256": "4da24bc188addc3cd0d558b7f1132933b71be9d3e97938e67c3781f52a9cd07e",
+  "maxSampleGapSeconds": 0.15,
+  "stopDwellSeconds": 0.4,
+  "stopYTolerance": 0.1,
+  "passageRegions": [
+    {
+      "pointIndex": 1,
+      "minXYZ": [
+        1.5,
+        -0.1,
+        -0.5
+      ],
+      "maxXYZ": [
+        2.5,
+        0.1,
+        0.5
+      ]
+    },
+    {
+      "pointIndex": 4,
+      "minXYZ": [
+        5.5,
+        -0.1,
+        -0.5
+      ],
+      "maxXYZ": [
+        6.5,
+        0.1,
+        0.5
+      ]
+    }
+  ]
+}

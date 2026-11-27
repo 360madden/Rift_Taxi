@@ -5,10 +5,11 @@ actuator is involved. A valid report is internally consistent, not
 authenticated physical evidence.
 """
 import copy
+from dataclasses import replace
 from pathlib import Path
 import unittest
 
-from rift_taxi.contracts import TraceError, load_trace
+from rift_taxi.contracts import Point, TraceError, load_trace
 from rift_taxi.simulation import simulate_route
 from rift_taxi.simulation_integrity import verify_synthetic_trajectory
 
@@ -86,6 +87,48 @@ class SyntheticIntegrityTests(unittest.TestCase):
         del result["syntheticDelay"]
         with self.assertRaisesRegex(TraceError,"lack delay"):
             verify_synthetic_trajectory(result,self.trace)
+
+    def test_reject_plausible_but_forged_arc_projection(self):
+        # A small forged advance stays within the old displacement bound.
+        # Independent local geometry now detects it even when endpoints,
+        # integration and aggregate final progress are unchanged.
+        result = copy.deepcopy(self.normal)
+        result["frames"][2]["progress"] -= .01
+        with self.assertRaisesRegex(TraceError,"projected progress"):
+            verify_synthetic_trajectory(result,self.trace)
+
+    def test_reject_coordinated_cross_track_and_summary_forgery(self):
+        result = copy.deepcopy(self.normal)
+        for frame in result["frames"]:
+            frame["crossTrackErrorXZ"] = 0.
+        result["metrics"]["maxCrossTrackErrorXZ"] = 0.
+        self.assertGreater(self.normal["metrics"]["maxCrossTrackErrorXZ"],0.)
+        with self.assertRaisesRegex(TraceError,"projected cross-track"):
+            verify_synthetic_trajectory(result,self.trace)
+
+    def test_ordered_corner_witnesses_recomputed_from_geometry(self):
+        # The first short segment is already inside the declared synthetic
+        # passage radius; the next leg reverses direction. Keep the original
+        # model rule, rather than silently requiring a new physical criterion.
+        trace = replace(self.trace,points=(
+            Point("start","guide",(0.,0.,0.)),
+            Point("reversal","guide",(.1,0.,0.)),
+            Point("goal","destination",(-2.,0.,0.))))
+        report = simulate_route(trace,speed_policy="turn-limited-ordered",max_seconds=.2)
+        verify_synthetic_trajectory(report,trace)
+        witnesses = report["syntheticRecovery"]["orderedSharpCornerPassages"]
+        self.assertEqual(len(witnesses),1)
+        self.assertEqual(witnesses[0]["vertexIndex"],1)
+        for field,value in (("vertexIndex",2),("t",.1),("vertexArc",.2),
+                            ("xyz",[9.,0.,0.]),("progress",.1)):
+            changed = copy.deepcopy(report)
+            changed["syntheticRecovery"]["orderedSharpCornerPassages"][0][field] = value
+            with self.subTest(field=field),self.assertRaisesRegex(TraceError,"ordered corner"):
+                verify_synthetic_trajectory(changed,trace)
+        changed = copy.deepcopy(report)
+        changed["frames"][0]["orderedSharpCornersPassed"] = 0
+        with self.assertRaisesRegex(TraceError,"corner count"):
+            verify_synthetic_trajectory(changed,trace)
 
     def test_timeout_and_terminal_frame_remain_distinct(self):
         """Accept honest failures but reject nonzero terminal yaw requests."""

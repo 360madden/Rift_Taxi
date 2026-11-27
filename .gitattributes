@@ -1,0 +1,4 @@
+# Portable synthetic fixtures are byte-hashed in the cloud catalog.
+# Keep checkout bytes identical on Windows and Linux.
+samples/*.json text eol=lf
+samples/cloud_fixtures/*.json text eol=lf

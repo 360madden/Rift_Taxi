@@ -13,7 +13,7 @@ import tempfile
 import unittest
 
 from rift_taxi.contracts import Point, PoseSample, TraceError, load_trace
-from rift_taxi.steering import _angle_delta, _project, _segments, preview_steering
+from rift_taxi.steering import _angle_delta, _project, _segments, _lookahead_point, preview_steering
 
 ROOT = Path(__file__).resolve().parents[1]
 SYNTHETIC = ROOT / "samples" / "synthetic_continuous.json"
@@ -113,6 +113,52 @@ class SteeringPreviewTests(unittest.TestCase):
         # wins. No nearest-segment shortcut is allowed to prefer the last.
         self.assertEqual(_project(points, cumulative, (2., 0., 0.), 0., total), (2., 0.))
         self.assertEqual(_project(points, cumulative, (2., 0., 0.), 4., total), (6., 0.))
+
+    @staticmethod
+    def full_scan_lookahead(points, cumulative, along):
+        """Frozen pre-index reference; preserve the first eligible arc tie."""
+        if along >= cumulative[-1]:
+            return points[-1].xyz
+        for i in range(len(points)-1):
+            if along > cumulative[i+1]:
+                continue
+            distance = cumulative[i+1]-cumulative[i]
+            if distance <= 1e-12:
+                continue
+            portion=(along-cumulative[i])/distance
+            a,b=points[i].xyz,points[i+1].xyz
+            return tuple(start+portion*(finish-start) for start,finish in zip(a,b))
+        return points[-1].xyz
+
+    def test_indexed_lookahead_preserves_exact_full_scan_arithmetic(self):
+        rng=random.Random(20261127)
+        # Include both sides of the small-route threshold, equal arc
+        # coordinates with differing height, near-zero segments and every
+        # vertex boundary. No approximation tolerance hides changed ties.
+        for n in (2,5,8,9,16,50,500):
+            for _ in range(5):
+                vertices=[(0.,0.,0.),(1.,1.,0.)]
+                while len(vertices)<n:
+                    x,y,z=vertices[-1]
+                    vertices.append((x+rng.choice((0.,1e-13,1.,3.)),
+                                     y+rng.uniform(-3.,3.),
+                                     z+rng.choice((0.,0.,2.))))
+                points=tuple(Point(str(i),"destination" if i==n-1 else "guide",xyz)
+                             for i,xyz in enumerate(vertices))
+                cumulative,total=_segments(points)
+                queries=[*cumulative,-.5,total+.5]
+                queries.extend(rng.uniform(0.,total) for _ in range(40))
+                for q in queries:
+                    self.assertEqual(_lookahead_point(points,cumulative,q),
+                                     self.full_scan_lookahead(points,cumulative,q))
+
+    def test_exact_vertex_uses_earlier_segment_before_vertical_duplicate(self):
+        vertices=((0.,0.,0.),(1.,2.,0.),(1.,99.,0.),
+                  *((float(i),0.,0.) for i in range(2,10)))
+        points=tuple(Point(str(i),"guide",p) for i,p in enumerate(vertices))
+        cumulative,_=_segments(points)
+        self.assertEqual(_lookahead_point(points,cumulative,1.),(1.,2.,0.))
+        self.assertEqual(_lookahead_point(points,cumulative,1.5),(1.5,49.5,0.))
 
     def test_stationary_closed_loop_cannot_arrive_at_start(self):
         # A global nearest-point tie used to select the route's final arc

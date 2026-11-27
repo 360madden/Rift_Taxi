@@ -16,6 +16,24 @@ Status validation requires explicit booleans, unique supported keys, finite boun
 
 **22/22 focused supervisor tests and 367/367 full regressions passed on LEGION (Python 3.14.10).** Nine new inert/transport tests were added, reusing the existing release state and fake fixtures. Existing Windows child-process tests remain dry-run only. A dead release worker cannot be assumed to have released any keys; actual physical child-death/focus-loss recovery and game-consumed STOP remain independent M1 gates. No live input occurred in this cycle.
 
+## November 27 — independent lease-clock admission hardening
+
+LEGION, 03:48 PHT, base commit 2033bd4. The release-only state machine previously read its clock without validating monotonicity or type. Invalid samples could renew a lease, rollback could prolong a reservation, and an operation could check expiry using one sample but set a new deadline from another. This was a concrete offline defect, not an observed failure during a live RIFT probe.
+
+Six new deterministic state regressions reproduced the defect against the old source (13 state tests, 10 failing assertions and two errors across the new cases; job rt-20261127-clock-regression-before, exit 1). The correction uses one validated bounded finite numeric clock sample per command, rejects rollback even across an idle CLEAR, and latches STOP on invalid time or clock exception. It preserves the first fault reason and attempts release of every reserved key. Failed releases remain uncertain and can be retried by the existing mechanism. The constructor rejects nonnumeric/out-of-range TTL before floating-point conversion. No new input path, altered physical admission, or automatic rearming.
+
+Post-fix release-supervisor tests: **28/28**, including the actual Windows dry-run child-process/parent-crash tests (2.075 s; exit 0, job rt-20261127-clock-regression-after). All release callbacks in these tests are inert; no physical input, key consumption, or game response is asserted. The existing separate supervisor does not guarantee progress if a native release function or the entire process is blocked or killed.
+
+Desktop capture remains blocked by Workbridge's missing deployed runtime closure. The release-directory listing was refused as PROTECTED_PATH by its project-file connector. This is a scope restriction, not proof that validated releases are absent. No alternate access or active runtime changes were attempted. See [desktop dependency diagnosis](M1_DESKTOP_DEPENDENCY_2026-11-27.md).
+
+### Remaining M1 evidence checkpoints
+
+- Workbridge owner: validated release and authorized WB-001 deployment, then fresh permitted desktop smoke; do not treat a staging file or healthy terminal as a capture pass.
+- Taxi: revalidate exact host/process/window/actor/zone and scene before a new bounded experiment; no archived receipt supplies present authority.
+- Obtain independent changed-state position and body-heading evidence with source-time provenance; distinguish producer advancement from native passive freshness.
+- Independently establish release and settled pose during the remaining physical fault cases, preserving current explicit admission and STOP gates.
+- Only after those prerequisites, assess M1 acceptance. Production controller remains disarmed.
+
 ## What exists
 
 | Module | Responsibility |

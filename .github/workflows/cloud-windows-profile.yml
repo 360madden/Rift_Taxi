@@ -1,0 +1,74 @@
+# Opt-in Windows profiling experiment on separate standard hosted machines.
+# Does not replace the serial Windows patch recovery or any required PR check.
+name: Windows parallel validation experiment
+on:
+  push:
+    branches:
+      - 'research/**'
+      - 'cloud/**'
+    paths:
+      # Explicit experiment only; do not repeat on normal code pushes.
+      - '.github/workflows/cloud-windows-profile.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-profile-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  shards:
+    name: Windows shard ${{ matrix.index }}
+    runs-on: windows-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        index: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Run assigned complete test modules
+        run: python -B -m scripts.cloud_test_runner run --shards 4 --index ${{ matrix.index }} --out cloud-results/shard-${{ matrix.index }}.json
+      - name: Retain shard receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-profile-shard-${{ github.run_attempt }}-${{ matrix.index }}
+          path: cloud-results/shard-${{ matrix.index }}.json
+          if-no-files-found: error
+          retention-days: 14
+  merge:
+    name: Verify exact test coverage
+    needs: shards
+    if: ${{ !cancelled() }}
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: windows-profile-shard-${{ github.run_attempt }}-*
+          path: cloud-results
+          merge-multiple: true
+      - name: Recompute inventory and verify all receipts
+        run: python -B -m scripts.cloud_test_runner merge --shards 4 --dir cloud-results --out cloud-results/merged.json
+      # Unlike Linux, the Windows baseline requires an unskipped suite.
+      - name: Require complete unskipped Windows inventory
+        run: python -B -c "import json; from pathlib import Path; r=json.loads(Path('cloud-results/merged.json').read_text(encoding='utf-8')); assert r['identity']['platform']=='Windows' and r['allDiscoveredTestsAccountedFor'] is True and r['physicalQualification'] is False and r['testsSkipped']==0 and r['testsDiscovered']==r['testsPassed'] and r['testsPassed']>=694"
+      - name: Retain verified aggregate
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-profile-aggregate-${{ github.run_attempt }}
+          path: cloud-results/merged.json
+          if-no-files-found: error
+          retention-days: 14

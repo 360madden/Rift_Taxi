@@ -109,6 +109,74 @@ class StateTests(unittest.TestCase):
         self.assertEqual(self.events, ["D", "W", "D"])
         self.assertFalse(second["gameResponseVerified"])
 
+    def test_invalid_clock_releases_and_latches_without_renewal(self):
+        # A bad independent time source may not extend a reservation. The
+        # fake sink records release attempts only, never actual input.
+        for bad in (float("nan"), float("inf"), -1., True, "25", 10**1000, 1e15):
+            with self.subTest(clock=repr(bad)[:80]):
+                self.setUp()
+                self.state.command("reserve", "W")
+                self.state.command("reserve", "D")
+                self.clock.now = bad
+                with self.assertRaises(SupervisorUnavailable):
+                    self.state.command("renew")
+                self.assertEqual(self.state.reason, "clock-invalid")
+                self.assertEqual(self.events, ["D", "W"])
+                self.assertIsNone(self.state.deadline)
+                self.assertTrue(self.state.stopped)
+
+    def test_clock_rollback_when_idle_cannot_admit_new_reservation(self):
+        self.state.command("reserve", "W")
+        self.state.command("clear", "W")
+        self.clock.now -= 1.
+        with self.assertRaises(SupervisorUnavailable):
+            self.state.command("reserve", "D")
+        self.assertEqual(self.state.reason, "clock-rollback")
+        self.assertEqual(self.events, [])
+        self.assertEqual(self.state.held, set())
+
+    def test_clock_rollback_with_held_keys_preserves_failed_release(self):
+        self.state.command("reserve", "W")
+        self.accepted = False
+        self.clock.now -= .001
+        self.assertTrue(self.state.expire())
+        self.assertEqual(self.state.reason, "clock-rollback")
+        self.assertEqual(self.state.held, {"W"})
+        self.accepted = True
+        self.state.stop("retry")
+        self.assertEqual(self.events, ["W", "W"])
+        self.assertFalse(self.state.held)
+        self.assertEqual(self.state.reason, "clock-rollback")
+
+    def test_clock_exception_does_not_prevent_explicit_stop(self):
+        self.state.command("reserve", "A")
+        def broken_clock():
+            raise OSError("unavailable")
+        self.state.clock = broken_clock
+        r = self.state.command("stop")
+        self.assertTrue(r["stopped"])
+        self.assertEqual(r["reason"], "clock-invalid")
+        self.assertEqual(r["possibleHeld"], [])
+        self.assertEqual(self.events, ["A"])
+
+    def test_admission_and_deadline_use_one_clock_snapshot(self):
+        # The command must not authorize at one epoch and compute a new
+        # lease from an unvalidated second read at a different epoch.
+        reads = iter((25., 25.2, 26.))
+        self.state.clock = lambda: next(reads)
+        self.assertAlmostEqual(self.state.command("reserve", "W")["deadlineMonotonicSeconds"],25.3)
+        self.assertAlmostEqual(self.state.command("renew")["deadlineMonotonicSeconds"],25.5)
+        self.assertTrue(self.state.expire())
+        self.assertEqual(self.events, ["W"])
+
+    def test_invalid_initial_clock_cannot_reserve(self):
+        self.clock.now = float("nan")
+        with self.assertRaises(SupervisorUnavailable):
+            self.state.command("reserve", "W")
+        self.assertEqual(self.state.reason, "clock-invalid")
+        self.assertEqual(self.events, [])
+        self.assertFalse(self.state.held)
+
     def test_bad_operations_and_parameters_rejected(self):
         for ttl in (-1, 0, 5, float("nan"), float("inf"), True):
             with self.assertRaises(ValueError):

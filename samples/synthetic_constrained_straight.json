@@ -1,0 +1,102 @@
+{
+  "schema": "taxi.motion-trace/1",
+  "sourceType": "synthetic",
+  "source": {
+    "generator": "taxi-authored-constrained-course/1"
+  },
+  "frame": {
+    "frameId": "synthetic-local-xyz",
+    "axisOrder": [
+      "x",
+      "y",
+      "z"
+    ],
+    "upAxis": "y",
+    "units": "synthetic-units"
+  },
+  "route": {
+    "id": "synthetic-constrained-straight",
+    "arrivalToleranceXZ": 0.3,
+    "points": [
+      {
+        "name": "Start",
+        "kind": "guide",
+        "xyz": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "First passage",
+        "kind": "mandatory_passage",
+        "xyz": [
+          2,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Requested stop",
+        "kind": "hard_stop",
+        "xyz": [
+          4,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Optional guide",
+        "kind": "optional",
+        "xyz": [
+          5,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Second passage",
+        "kind": "mandatory_passage",
+        "xyz": [
+          6,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "Destination",
+        "kind": "destination",
+        "xyz": [
+          8,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "movementWindow": [
+    0,
+    1
+  ],
+  "poses": [
+    {
+      "t": 0,
+      "xyz": [
+        0,
+        0,
+        0
+      ],
+      "actorYawDeg": 0
+    },
+    {
+      "t": 1,
+      "xyz": [
+        0,
+        0,
+        0
+      ],
+      "actorYawDeg": 0
+    }
+  ],
+  "events": []
+}

@@ -77,6 +77,46 @@ class SyntheticJourneyCLITests(unittest.TestCase):
         self.assertIn("syntheticCommandPrediction", report["approach"])
         self.assertFalse(report["gameInputSent"])
 
+    def test_summary_matches_full_receipt(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "full.json"
+            result = self.invoke("--summary", "--out", output,
+                                 "--approach-mode", "predict-near-stall", "--delay-steps", 2)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            compact = json.loads(result.stdout)
+            full = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(compact["schema"], "taxi.synthetic-journey-summary/1")
+            self.assertEqual(compact["summary"], full["summary"])
+            self.assertEqual(compact["inputTraceSHA256"], full["inputTraceSHA256"])
+            self.assertEqual(compact["approachMode"], "predict-near-stall")
+            self.assertNotIn("approach", compact)
+            self.assertFalse(compact["physicalQualification"])
+
+    def test_require_settled_failure_retains_receipt(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "failed.json"
+            result = self.invoke("--summary", "--require-settled",
+                                 "--approach-budget", .2, "--out", output)
+            self.assertEqual(result.returncode, 1, result.stderr)
+            compact = json.loads(result.stdout)
+            full = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(compact["summary"], full["summary"])
+            self.assertEqual(compact["approachStatus"], "time-budget-exhausted")
+            self.assertIsNone(compact["terminalCorrectionStatus"])
+            self.assertFalse(compact["summary"]["finalModelSettled"])
+
+    def test_require_settled_success_and_refusal(self):
+        result = self.invoke("--summary", "--require-settled")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(json.loads(result.stdout)["summary"]["finalModelSettled"])
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "existing.json"
+            output.write_bytes(b"preserve")
+            refused = self.invoke("--summary", "--require-settled", "--out", output)
+            self.assertEqual(refused.returncode, 2)
+            self.assertEqual(refused.stdout, "")
+            self.assertEqual(output.read_bytes(), b"preserve")
+
     def test_invalid_budget_refuses_without_creating_output(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "invalid.json"

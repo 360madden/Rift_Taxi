@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import datetime
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -17,7 +16,7 @@ import shutil
 import tempfile
 from typing import Any
 
-from .contracts import TraceError, MAX_SOURCE_BYTES, load_trace
+from .contracts import TraceError, MAX_SOURCE_BYTES, load_trace, _read_bounded, _strict_json, _number
 
 _COMMIT = re.compile(r"[a-fA-F0-9]{40}\Z")
 _SHA = re.compile(r"[a-fA-F0-9]{64}\Z")
@@ -32,12 +31,11 @@ def _required_obj(value: Any, label: str) -> dict:
 def _valid_xyz(value: Any, label: str) -> list[float]:
     obj = _required_obj(value, label)
     try:
-        values = [float(obj[key]) for key in ("x", "y", "z")]
-    except (KeyError, TypeError, OverflowError, ValueError) as error:
+        # Keep numeric JSON types strict: a bool or numeric string is not
+        # an observed coordinate, even if float() would accept it.
+        return [_number(obj[key], f"{label}.{key}") for key in ("x", "y", "z")]
+    except KeyError as error:
         raise TraceError(f"{label} requires numeric x/y/z") from error
-    if not all(math.isfinite(n) for n in values):
-        raise TraceError(f"{label} must contain finite XYZ")
-    return values
 
 
 def _utc(value: Any, label: str) -> datetime:
@@ -52,18 +50,20 @@ def _utc(value: Any, label: str) -> datetime:
     return instant
 
 
-def _read_one_record(path: Path) -> tuple[dict, bytes]:
+def _decode_one_record(raw: bytes) -> dict:
+    """Parse the caller's exact bounded byte snapshot; never reopen a path."""
     try:
-        if path.stat().st_size > MAX_SOURCE_BYTES:
-            raise TraceError("RR2 JSONL source exceeds bounded size")
-        raw = path.read_bytes()
         records = raw.decode("utf-8-sig").splitlines()
-        if len(records) != 1 or not records[0].strip():
-            raise TraceError("only a single original RR2 JSONL record is supported")
-        document = json.loads(records[0])
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise TraceError(f"cannot read RR2 original JSONL: {error}") from error
-    return _required_obj(document, "RR2 source record"), raw
+    except UnicodeDecodeError as error:
+        raise TraceError(f"cannot decode RR2 original JSONL: {error}") from error
+    if len(records) != 1 or not records[0].strip():
+        raise TraceError("only a single original RR2 JSONL record is supported")
+    return _required_obj(_strict_json(records[0], "RR2 original JSONL"), "RR2 source record")
+
+
+def _read_one_record(path: Path) -> tuple[dict, bytes]:
+    raw = _read_bounded(path, MAX_SOURCE_BYTES, "RR2 JSONL source")
+    return _decode_one_record(raw), raw
 
 
 def _relative_seconds(dt: datetime, origin: datetime) -> float:
@@ -112,7 +112,7 @@ def _convert(record: dict, *, source_sha: str, source_commit: str) -> tuple[dict
         if not isinstance(key, str) or key.lower() not in {"w", "a", "d", "s", "q", "e"}:
             raise TraceError("RR2 original key event is unsupported")
         phase = row.get("phase")
-        if phase not in {"key-down", "key-up"} or row.get("inserted") is not True:
+        if phase not in ("key-down", "key-up") or row.get("inserted") is not True:
             raise TraceError("RR2 key send event must be an inserted key-down/up")
         began = _utc(row.get("callStartedAtUtc"), f"keySendEvents[{i}].callStartedAtUtc")
         ended = _utc(row.get("callCompletedAtUtc"), f"keySendEvents[{i}].callCompletedAtUtc")

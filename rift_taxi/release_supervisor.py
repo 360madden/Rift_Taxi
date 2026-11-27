@@ -97,8 +97,7 @@ class ReleaseState:
     def __init__(self, *, ttl_s: float = 0.5,
                  clock: Callable[[], float] = time.monotonic,
                  release: Callable[[str], bool]):
-        if not isinstance(ttl_s, (int, float)) or isinstance(ttl_s, bool) \
-                or not math.isfinite(ttl_s) or not 0.10 <= ttl_s <= 2.0:
+        if type(ttl_s) not in (int, float) or not 0.10 <= ttl_s <= 2.0:
             raise ValueError("release ttl must be within 0.10..2.0 seconds")
         if not callable(clock) or not callable(release):
             raise ValueError("clock and release callback required")
@@ -110,6 +109,7 @@ class ReleaseState:
         self.stopped = False
         self.reason: str | None = None
         self.release_results: list[tuple[str, bool]] = []
+        self._last_clock: float | None = None
 
     def status(self) -> dict:
         return {
@@ -143,14 +143,42 @@ class ReleaseState:
         self._release_all()
         return self.status()
 
-    def expire(self) -> bool:
-        if (not self.stopped and self.deadline is not None
-                and self.clock() >= self.deadline):
+    def _admit_clock(self) -> float | None:
+        """Validate a single monotonic sample before admitting a lease operation.
+
+        Clock failure must not suppress release or resurrect an expired lease.
+        Validate even when idle, retaining the last admitted epoch across CLEAR.
+        Leave room below the status protocol's finite deadline bound for the
+        maximum TTL. Reject bools and unrepresentable numeric inputs before
+        floating-point conversion. No clock is needed to attempt STOP/release.
+        """
+        if self.stopped:
+            return None
+        try:
+            raw = self.clock()
+            if type(raw) not in (int, float) or not 0 <= raw <= 1e15 - 2:
+                raise ValueError("invalid monotonic sample")
+            now = float(raw)
+        except Exception:
+            self.stop("clock-invalid")
+            return None
+        if self._last_clock is not None and now < self._last_clock:
+            self.stop("clock-rollback")
+            return None
+        self._last_clock = now
+        if self.deadline is not None and now >= self.deadline:
             self.stop("lease-expired")
+            return None
+        return now
+
+    def expire(self) -> bool:
+        self._admit_clock()
         return self.stopped
 
     def command(self, action: str, key: str | None = None) -> dict:
-        self.expire()
+        # Use the very same admitted timestamp for expiry and new deadline.
+        # A second unvalidated read could cross the previous lease boundary.
+        now = self._admit_clock()
         if action == "status":
             return self.status()
         if action == "stop":
@@ -176,7 +204,8 @@ class ReleaseState:
         else:
             self.stop("invalid-operation")
             raise SupervisorUnavailable("unknown supervisor operation")
-        self.deadline = self.clock() + self.ttl_s if self.held else None
+        assert now is not None  # STOP and invalid clocks were refused above.
+        self.deadline = now + self.ttl_s if self.held else None
         return self.status()
 
 

@@ -13,8 +13,8 @@ import sys
 import tempfile
 import unittest
 
-from rift_taxi.contracts import InputEvent, TraceError, load_trace
-from rift_taxi.replay import Span, _turn_overlap, analyze, compare
+from rift_taxi.contracts import InputEvent, Point, PoseSample, TraceError, load_trace
+from rift_taxi.replay import Span, _turn_overlap, _release_proxies, _interpolated_xyz, _distance_xz, analyze, compare
 
 ROOT = Path(__file__).resolve().parents[1]
 STOP = ROOT / "samples" / "synthetic_stop_go.json"
@@ -66,6 +66,45 @@ class ContractTests(unittest.TestCase):
         def change(doc):
             doc["events"].insert(0, {"t": 0, "key": "D", "edge": "up"})
         self.load_modified(change)
+
+    def test_duplicate_trace_keys_are_refused_at_all_levels(self):
+        raw = STOP.read_text(encoding="utf-8")
+        for invalid in (raw.replace('"sourceType": "synthetic"',
+                                    '"sourceType": "historical", "sourceType": "synthetic"', 1),
+                        raw.replace('"upAxis": "y"', '"upAxis": "z", "upAxis": "y"', 1)):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "duplicate.json"
+                path.write_text(invalid, encoding="utf-8")
+                with self.assertRaisesRegex(TraceError, "duplicate JSON key"):
+                    load_trace(path)
+
+    def test_overflow_number_and_excessive_nesting_are_refused(self):
+        raw = STOP.read_text(encoding="utf-8")
+        for invalid in (raw.replace('"arrivalToleranceXZ": 0.3',
+                                    '"arrivalToleranceXZ": 1e400', 1),
+                        "["*2000 + "0" + "]"*2000):
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "invalid.json"
+                path.write_text(invalid, encoding="utf-8")
+                with self.assertRaises(TraceError):
+                    load_trace(path)
+
+    def test_unhashable_source_type_is_a_contract_error(self):
+        for value in ([], {}, None, True):
+            with self.subTest(value=value):
+                self.load_modified(lambda d: d.update(sourceType=value))
+
+    def test_bounded_read_enforces_actual_read_length(self):
+        from unittest.mock import patch, mock_open
+        from rift_taxi.contracts import _read_bounded
+        from types import SimpleNamespace
+        # A file may grow between its initial stat and open. A limit+1
+        # read detects that case without allocating the entire larger file.
+        with patch.object(Path, "stat", return_value=SimpleNamespace(st_size=1, st_mode=0o100644)), \
+                patch.object(Path, "open", mock_open(read_data=b"12345")) as opened:
+            with self.assertRaisesRegex(TraceError, "bounded size"):
+                _read_bounded(Path("fixture"), 4, "fixture")
+            opened.return_value.read.assert_called_once_with(5)
 
     def test_missing_yaw_is_unavailable_not_zero(self):
         doc = json.loads(STOP.read_text(encoding="utf-8"))
@@ -207,6 +246,72 @@ class MetricTests(unittest.TestCase):
             seconds, count = _turn_overlap(forward, turns, start, end)
             self.assertAlmostEqual(seconds, sum(amounts), places=10)
             self.assertEqual(count, sum(a > 0. for a in amounts))
+
+    def test_release_proxy_sweep_matches_original_definition(self):
+        # Independent pairwise oracle: duplicate hard stops, visits,
+        # boundary releases and out-of-window hard stops.
+        rng = random.Random(20261127)
+        base = load_trace(CONTINUOUS)
+        for _ in range(100):
+            points = [Point("start","guide",(0.,0.,0.))]
+            for i in range(12):
+                xyz = tuple(float(rng.randrange(5)) for _ in range(3))
+                points.append(Point(str(i),rng.choice(
+                    ("guide","optional","hard_stop","mandatory_passage")),xyz))
+            points.extend((Point("duplicate-1","hard_stop",(4.,0.,0.)),
+                           Point("duplicate-2","hard_stop",(4.,0.,0.)),
+                           base.points[-1]))
+            times=sorted(rng.sample(range(1,50),10))
+            events=tuple(e for i in times for e in
+                         (InputEvent(i/10-.01,"W","down"),InputEvent(i/10,"W","up")))
+            trace=replace(base,points=tuple(points),events=events,
+                          window_start=1.,window_end=4.,arrival_tolerance_xz=.8)
+            releases=[e for e in events if e.edge=="up"]
+            eligible=[e for e in releases if 1.<e.t<4.]
+            expected_guides=sum(any(p.kind in ("guide","optional")
+                and _distance_xz(_interpolated_xyz(trace.poses,e.t),p.xyz)<=.8
+                for p in trace.points[1:-1]) for e in eligible)
+            expected_hard=sum(any(_distance_xz(_interpolated_xyz(trace.poses,e.t),
+                p.xyz)<=.8 for e in releases) for p in trace.points if p.kind=="hard_stop")
+            self.assertEqual(_release_proxies(trace),
+                             (len(eligible),expected_guides,expected_hard))
+
+    def test_release_position_interpolated_at_most_once(self):
+        from unittest.mock import patch
+        from rift_taxi import replay
+        base=load_trace(STOP)
+        hard=tuple(Point(str(i),"hard_stop",(100.,0.,100.)) for i in range(100))
+        trace=replace(base,points=(base.points[0],*hard,*base.points[1:]))
+        with patch.object(replay,"_interpolated_xyz",wraps=_interpolated_xyz) as interp:
+            result=_release_proxies(trace)
+        ups=sum(e.key=="W" and e.edge=="up" for e in trace.events)
+        self.assertEqual(interp.call_count,ups)
+        self.assertEqual(result,(3,3,0))
+
+    def test_finite_inputs_cannot_overflow_replay_metrics(self):
+        base=load_trace(CONTINUOUS)
+        # Remove releases to isolate the trajectory metric, not proximity.
+        base=replace(base,events=())
+        cases=[
+            (replace(base,poses=(PoseSample(0.,(-1e308,0.,0.),0.),
+                                PoseSample(5.5,(1e308,0.,0.),0.))),"XZ distance"),
+            (replace(base,poses=(PoseSample(0.,(0.,0.,0.),0.),
+                                PoseSample(2.,(1e308,0.,0.),0.),
+                                PoseSample(5.5,(0.,0.,0.),0.))),"polyline distance"),
+            (replace(base,poses=tuple(replace(p,xyz=(p.xyz[0],1e308,p.xyz[2]))
+                                      for p in base.poses),
+                     points=(*base.points[:-1],replace(base.points[-1],
+                         xyz=(base.points[-1].xyz[0],-1e308,base.points[-1].xyz[2])))),
+             "Y error"),
+        ]
+        for trace,message in cases:
+            with self.subTest(message=message),self.assertRaisesRegex(TraceError,message):
+                analyze(trace)
+
+    def test_extreme_interpolation_remains_finite(self):
+        poses=(PoseSample(0.,(-1e308,0.,0.),None),
+               PoseSample(2.,(1e308,0.,0.),None))
+        self.assertEqual(_interpolated_xyz(poses,1.),(0.,0.,0.))
 
     def test_compare_same_route_reports_delta_without_live_claim(self):
         report = compare(load_trace(STOP), load_trace(CONTINUOUS))

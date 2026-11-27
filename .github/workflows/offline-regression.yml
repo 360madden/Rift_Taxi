@@ -5,6 +5,10 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+# Cancel obsolete runs of the same PR/ref rather than queue stale commits.
+concurrency:
+  group: offline-regression-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   regression:
     name: Python 3.14 / ${{ matrix.os }}
@@ -77,11 +81,7 @@ jobs:
           python-version: '3.11'
       # Check the declared minimum on the source tree before verifying an
       # installed wheel. No physical game client or sibling checkout is used.
-      - name: Run focused archive and comparison tests
-        run: |
-          python -B -m unittest discover -s tests -p 'test_delay_factorial*.py' -v
-          python -B -m unittest discover -s tests -p 'test_simulation_holdout_v4*.py' -v
-          python -B -m unittest discover -s tests -p 'test_simulation_v4_terminal_observation.py' -v
+      # The full suite includes the previously repeated focused tests.
       - name: Run full minimum-version regression suite
         run: python -B -m unittest discover -s tests -v
       - name: Build and install wheel
@@ -103,8 +103,11 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           python -I -m rift_taxi.synthetic_journey_demo --help
+          python -I -m rift_taxi.synthetic_journey_audit --help
           python -I -m rift_taxi.synthetic_journey_demo "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" --delay-steps 2 --out installed-journey.json
           python -I -c "import json; from pathlib import Path; r=json.loads(Path('installed-journey.json').read_text(encoding='utf-8')); assert r['schema']=='taxi.synthetic-journey-demo/1' and r['routeId']=='three-bend-synthetic-course' and r['classification']=='SYNTHETIC_ONLY' and not r['gameInputSent'] and not r['physicalQualification']; print('INSTALLED_JOURNEY', r['summary'])"
+          # Verify the saved report from the installed wheel in isolated mode.
+          python -I -m rift_taxi.synthetic_journey_audit "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" installed-journey.json --terminal-budget 5 --out installed-journey-audit.json
       # Exercise every new opt-in approach from the installed package, not
       # just imports or the source checkout. Report status may be failed.
       - name: Run installed experimental journey modes
@@ -114,8 +117,35 @@ jobs:
             delay=2
             if [ "$mode" = zero-delay-rejoin ]; then delay=0; fi
             python -I -m rift_taxi.synthetic_journey_demo "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" --delay-steps "$delay" --approach-mode "$mode" --out "installed-journey-$mode.json"
+            python -I -m rift_taxi.synthetic_journey_audit "$GITHUB_WORKSPACE/samples/synthetic_continuous.json" "installed-journey-$mode.json" --terminal-budget 5 --out "installed-journey-$mode-audit.json"
           done
           python -I -c "import json; from pathlib import Path; modes=('predict-near-goal','predict-near-stall','zero-delay-rejoin'); reports=[json.loads(Path('installed-journey-'+m+'.json').read_text(encoding='utf-8')) for m in modes]; assert all(r['experimentalApproachMode']==m and r['classification']=='SYNTHETIC_ONLY' and not r['gameInputSent'] and not r['physicalQualification'] for m,r in zip(modes,reports)); assert all('syntheticCommandPrediction' in r['approach'] for r in reports[:2]); assert 'syntheticTerminalProgressRecovery' in reports[2]['approach']; print('INSTALLED_EXPERIMENTAL_JOURNEYS', [r['summary']['status'] for r in reports])"
+      # The checked-in trace/policy pair has an exact byte pin. Run the
+      # installed constrained producer and a separate saved-report verifier
+      # without importing the checkout or any sibling application.
+      - name: Run installed constrained journey and audit
+        working-directory: ${{ runner.temp }}
+        run: |
+          trace="$GITHUB_WORKSPACE/samples/synthetic_constrained_straight.json"
+          policy="$GITHUB_WORKSPACE/samples/synthetic_constrained_straight.policy.json"
+          python -I -m rift_taxi.synthetic_constrained_journey "$trace" "$policy" --delay-steps 2 --require-observed --out installed-journey-constrained.json > /dev/null
+          python -I -m rift_taxi.synthetic_constrained_audit "$trace" "$policy" installed-journey-constrained.json --out installed-journey-constrained-audit.json
+          python -I -c "import json; from pathlib import Path; r=json.loads(Path('installed-journey-constrained-audit.json').read_text(encoding='utf-8')); assert r['allObligationsObserved'] and r['completedLegs']==r['plannedLegs']==2 and r['declaredPolicySHA256Matched'] is True and r['approachControllerReexecuted'] is False and r['physicalQualification'] is False and r['gameInputSent'] is False; print('INSTALLED_CONSTRAINED_JOURNEY',r['journeyStatus'])"
+      # Test the user-facing pathfinder and actual selected-route model execution
+      # from the installed wheel, outside the checkout and without sibling tools.
+      - name: Run installed local Taxi prototype
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -I -m rift_taxi.local_taxi destinations
+          python -I -m rift_taxi.local_taxi journey --start entrance --destination bank --delay-steps 2 --out installed-journey-local-main.json
+          python -I -m rift_taxi.local_taxi journey --start entrance --destination bank --blocked-edge main-west-to-main-east --delay-steps 2 --out installed-journey-local-detour.json
+          python -I -c "import json; from pathlib import Path; a,b=[json.loads(Path('installed-journey-local-'+name+'.json').read_text(encoding='utf-8')) for name in ('main','detour')]; assert a['status']==b['status']=='model-arrived' and a['plan']['edges']!=b['plan']['edges'] and b['plan']['distance']>a['plan']['distance'] and all(r['physicalQualification'] is False and r['gameInputSent'] is False for r in (a,b))"
+          set +e
+          python -I -m rift_taxi.local_taxi plan --start entrance --destination bank --blocked-edge entrance-to-main-west --blocked-edge entrance-to-north-west --out installed-journey-local-no-route.json
+          result=$?
+          set -e
+          test "$result" -eq 1
+          python -I -c "import json; from pathlib import Path; r=json.loads(Path('installed-journey-local-no-route.json').read_text(encoding='utf-8')); assert r['status']=='no-route' and not r['points'] and r['gameInputSent'] is False"
       - name: Upload installed synthetic journey
         uses: actions/upload-artifact@v4
         with:

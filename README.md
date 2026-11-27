@@ -39,6 +39,19 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 
 **Development workflow:** [AI-first autonomous execution](docs/AUTONOMY_POLICY.md) is the default. The AI should carry out coding, investigation, Windows/game inspection, evidence collection, testing and GitHub synchronization with minimal user intervention while preserving accurate live-game qualification.
 
+## Try the standalone local Taxi prototype
+
+From `C:\work\Rift_Taxi` on Windows, with Python 3.11 or later:
+
+```powershell
+python -m rift_taxi.local_taxi destinations
+python -m rift_taxi.local_taxi plan --start entrance --destination bank
+python -m rift_taxi.local_taxi journey --start entrance --destination bank
+python -m rift_taxi.local_taxi journey --start entrance --destination bank --blocked-edge main-west-to-main-east
+```
+
+The prototype chooses a shortest path through explicit directed connections using A*, reroutes when an edge is blocked, and follows the selected path using the existing synthetic journey controller. Add `--map PATH` **before** the command to use a local graph instead of the bundled demo, and optionally `--map-sha256 HASH` for an exact input pin. An installed wheel also provides the `rift-taxi-local` command. No game, internet, AI service or sibling application is needed. This initial graph represents an authored flat synthetic environment; it does not claim real-world geometry clearance or live movement. Exit 1 means no route or a blocked model journey; exit 2 means invalid input.
+
 ## 📍 Current state
 
 **Latest accepted offline baseline (November 24 PST):** PR #7 merged at `4803c92`. [Hosted run 45563551288](https://github.com/360madden/Rift_Taxi/actions/runs/45563551288) passed 556/556 Windows tests, 540 passed plus 16 Windows-specific skips on Python 3.11 Linux; all three hosted jobs succeeded. Installed baseline and all three experimental synthetic journey modes ran successfully. Both original LEGION factorial archives were recovered and independently verified. [Recovery and research handoff](docs/HANDOFF_CURRENT.md). The V4 lookahead candidate remains rejected; no live qualification is implied.
@@ -169,9 +182,18 @@ python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json 
 # Zero-delay synthetic approach recovery
 python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json --approach-mode zero-delay-rejoin
 
+# Concise automation output while preserving the full report (new path)
+python -B -m rift_taxi.synthetic_journey_demo samples\synthetic_continuous.json --summary --require-settled --out artifacts\new-journey.json
+
+# Audit the complete saved synthetic journey (original v1 budget is required)
+$pin = (Get-FileHash artifacts\new-journey.json -Algorithm SHA256).Hash
+python -B -m rift_taxi.synthetic_journey_audit samples\synthetic_continuous.json artifacts\new-journey.json --terminal-budget 5 --expected-sha256 $pin --out artifacts\new-journey-audit.json
+
 # Re-run the regression suite
 python -B -m unittest discover -s tests -v
 ```
+
+The saved-journey audit independently checks approach trajectory consistency, reproduces the existing deterministic drain/correction phases, and recomputes summary totals. It does not rerun the approach controller, authenticate physical data, or establish live arrival. V1 journey reports omit the terminal budget; pass the original explicit value (default 5 seconds when producing a report). The optional SHA-256 checks the supplied report bytes; it does not authenticate the producer.
 
 The **opt-in, read-only** `inspect-native-candidate`, `inspect-native-burst` and `observe-native-series` commands require exact PID, process creation ticks, executable path/hash, window handle and host. `observe-native-series` acquires 3–128 owner-checked candidates from one pinned read-only process handle, recording observed sample timing and enforcing foreground/identity on every sample. Its opt-in `--observe-manual-keys` switch also polls Windows W/A/D high-bit states before/after native reads **without inserting any keys**; these snapshots are not proof of RIFT input consumption. See the [physical sampler evidence](docs/M1_LIVE_NATIVE_SERIES_LEGION_2026-11-23.md) and [key-observation experiment](docs/M1_READONLY_MANUAL_KEY_OBSERVATION_LEGION_2026-11-23.md). Both commands support `--include-matrix-candidate` and `--include-refresh-guard-candidate`: the burst compares 2–8 XYZ/yaw observations, optional matrices and source-pinned cached-XYZ refresh guards. Guard eligibility never establishes writer execution or passive freshness. The one-shot command also supports `--include-actor-translation-candidate` to reconstruct the source-pinned model-world translation; it is **not** an independent position provider. `compare-native-candidates` compares two exact-source, same-session saved one-shot reports **offline**. `compare-facing-phases` analyzes five complete, separately labeled matrix bursts **offline**. The native commands also offer `--start-delay-seconds` (0–15) to switch focus back to RIFT before reading, and refuse occupied output paths before capture. **These read-only commands alone do not establish physical movement, passive freshness or qualified body heading.** None of the commands auto-selects RIFT or enables movement; see [capture instructions](docs/M1_NATIVE_READONLY.md#explicit-pinned-candidate-capture-cli-m1-diagnostic-only).
 

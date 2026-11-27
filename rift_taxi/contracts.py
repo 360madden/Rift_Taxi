@@ -8,6 +8,7 @@ import json
 import math
 from pathlib import Path
 import re
+import stat
 from typing import Any, Literal
 
 SCHEMA = "taxi.motion-trace/1"
@@ -22,6 +23,56 @@ _DRIVE_OR_ABSOLUTE = re.compile(r"^[A-Za-z]:")
 
 class TraceError(ValueError):
     """Invalid, ambiguous or unsupported trace input."""
+
+
+def _read_bounded(path: Path, maximum: int, label: str) -> bytes:
+    """Read one bounded byte snapshot; a pre-read stat alone is not a bound.
+
+    Ordinary file input only. Preserve the exact bytes for hashing and
+    parsing, not a second read of the same pathname. This detects oversize
+    content, not all possible concurrent writes or malicious path races.
+    """
+    try:
+        info = path.stat()
+        if not stat.S_ISREG(info.st_mode):
+            raise TraceError(f"{label} must be an ordinary file")
+        if info.st_size > maximum:
+            raise TraceError(f"{label} exceeds bounded size")
+        with path.open("rb") as stream:
+            raw = stream.read(maximum + 1)
+        if len(raw) > maximum:
+            raise TraceError(f"{label} exceeds bounded size")
+        return raw
+    except OSError as error:
+        raise TraceError(f"cannot read {label}: {error}") from error
+
+
+def _strict_json(raw: bytes | str, label: str) -> Any:
+    """Reject ambiguous objects and nonfinite values anywhere in a document."""
+    def unique(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise TraceError(f"{label}: duplicate JSON key {key!r}")
+            obj[key] = value
+        return obj
+
+    def finite_float(value):
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise TraceError(f"{label}: nonfinite JSON number")
+        return parsed
+
+    def reject_constant(value):
+        raise TraceError(f"{label}: nonfinite JSON constant {value}")
+
+    try:
+        return json.loads(raw, object_pairs_hook=unique,
+                          parse_float=finite_float, parse_constant=reject_constant)
+    except TraceError:
+        raise
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
+        raise TraceError(f"cannot decode {label}: {error}") from error
 
 
 def _dict(value: Any, label: str) -> dict[str, Any]:
@@ -105,7 +156,7 @@ class MovementTrace:
     verified_source_sha256: str | None
 
 
-def _verify_source_file(source: dict[str, Any], trace_path: Path) -> str:
+def _verify_source_file(source: dict[str, Any], trace_path: Path) -> tuple[str, bytes]:
     _require_keys(
         source,
         {"repository", "commit", "originalFile", "sha256", "timeBasis"},
@@ -115,7 +166,7 @@ def _verify_source_file(source: dict[str, Any], trace_path: Path) -> str:
         raise TraceError("historical input currently supports source.repository=RR2 only")
     if not _COMMIT.fullmatch(_text(source["commit"], "source.commit")):
         raise TraceError("source.commit must be a 40-digit Git SHA")
-    if source["timeBasis"] not in {"single-monotonic", "same-host-utc"}:
+    if source["timeBasis"] not in ("single-monotonic", "same-host-utc"):
         raise TraceError("historical trace requires an explicit single-clock time basis")
     expected = _text(source["sha256"], "source.sha256")
     if not _SHA256.fullmatch(expected):
@@ -130,15 +181,11 @@ def _verify_source_file(source: dict[str, Any], trace_path: Path) -> str:
     candidate = (root / relative).resolve()
     if not candidate.is_relative_to(root) or not candidate.is_file():
         raise TraceError("historical source file missing or outside trace folder")
-    if candidate.stat().st_size > MAX_SOURCE_BYTES:
-        raise TraceError("historical original source too large")
-    digest = hashlib.sha256()
-    with candidate.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    if digest.hexdigest().lower() != expected.lower():
+    raw = _read_bounded(candidate, MAX_SOURCE_BYTES, "historical original source")
+    actual = hashlib.sha256(raw).hexdigest()
+    if actual != expected.lower():
         raise TraceError("historical source SHA256 mismatch")
-    return digest.hexdigest()
+    return actual, raw
 
 
 def load_trace(path: str | Path) -> MovementTrace:
@@ -148,13 +195,8 @@ def load_trace(path: str | Path) -> MovementTrace:
     real game session or independently certify that the submitted data is original.
     """
     file = Path(path)
-    try:
-        if file.stat().st_size > MAX_BYTES:
-            raise TraceError("trace JSON too large")
-        raw = file.read_bytes()
-        document = json.loads(raw)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
-        raise TraceError(f"cannot load trace JSON: {error}") from error
+    raw = _read_bounded(file, MAX_BYTES, "trace JSON")
+    document = _strict_json(raw, "trace JSON")
     data = _dict(document, "trace")
     _require_keys(
         data,
@@ -166,15 +208,16 @@ def load_trace(path: str | Path) -> MovementTrace:
         raise TraceError(f"unsupported trace schema: {data['schema']!r}")
 
     source_type = data["sourceType"]
-    if source_type not in {"synthetic", "historical"}:
+    if source_type not in ("synthetic", "historical"):
         raise TraceError("sourceType must be synthetic or historical")
     source = _dict(data["source"], "source")
     verified_sha = None
+    verified_raw = None
     if source_type == "synthetic":
         _require_keys(source, {"generator"}, "synthetic source")
         _text(source["generator"], "source.generator")
     else:
-        verified_sha = _verify_source_file(source, file)
+        verified_sha, verified_raw = _verify_source_file(source, file)
 
     frame = _dict(data["frame"], "frame")
     _require_keys(frame, {"frameId", "axisOrder", "upAxis", "units"}, "frame")
@@ -265,10 +308,13 @@ def load_trace(path: str | Path) -> MovementTrace:
     if source_type == "historical" and source["timeBasis"] == "same-host-utc":
         # Integrity of raw bytes is not enough: the normalized pose/key timeline
         # must also agree with the SHA-verified original RR2 record.
-        from .import_rr2 import _convert, _read_one_record
+        from .import_rr2 import _convert, _decode_one_record
 
-        original = file.parent / source["originalFile"]
-        upstream, _ = _read_one_record(original)
+        # The parser must consume exactly the bytes that matched the pin.
+        # Reopening the pathname would permit a different snapshot to be
+        # normalized under the first snapshot's SHA-256.
+        assert verified_raw is not None and verified_sha is not None
+        upstream = _decode_one_record(verified_raw)
         normalized, _ = _convert(
             upstream, source_sha=verified_sha, source_commit=source["commit"]
         )

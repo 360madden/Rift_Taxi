@@ -102,7 +102,8 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                    speed_policy: str = "fixed", delay_steps: int = 0,
                    predict_command_application: bool = False,
                    prediction_rejoin_policy: str = "near-goal",
-                   recover_terminal_progress: bool = False) -> dict[str, Any]:
+                   recover_terminal_progress: bool = False,
+                   prediction_delay_steps: int | None = None) -> dict[str, Any]:
     """Run a deterministic ideal kinematic plant with feedback, no OS input.
 
     Units, speed, yaw rate, turn response and stopping are explicitly synthetic.
@@ -114,6 +115,9 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     queued ideal motion to compute a future control pose, but preserves
     actual observed arc progress, corner witnesses and terminal criteria.
     With zero delay prediction is an exact no-op, including report bytes.
+    For offline mismatch research only, prediction_delay_steps may specify a
+    different positive assumed FIFO length. The physical model's actual FIFO
+    and the estimator's request-history FIFO stay separate.
     The near-stall experiment delays rejoin until forecast error is at most
     one tenth of arrival tolerance; near-goal preserves the V2 experiment.
     Separately opt into zero-delay terminal progress recovery; this uses
@@ -147,6 +151,12 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         raise TraceError("recover_terminal_progress must be boolean")
     if recover_terminal_progress and (delay_steps != 0 or speed_policy != "turn-limited-ordered"):
         raise TraceError("terminal progress recovery requires zero delay and ordered policy")
+    if prediction_delay_steps is not None and (
+            type(prediction_delay_steps) is not int or not 1 <= prediction_delay_steps <= 10
+            or not predict_command_application or delay_steps == 0):
+        raise TraceError("prediction_delay_steps requires positive actual delay and prediction, within 1..10")
+    assumed_steps = delay_steps if prediction_delay_steps is None else prediction_delay_steps
+    mismatch = assumed_steps != delay_steps
     prediction_active = predict_command_application and delay_steps > 0
     rejoin_fraction = .1 if (recover_terminal_progress or prediction_rejoin_policy == "near-stall") else 1.
     dt = _bounded_number(dt, "dt", .01, .2)
@@ -178,6 +188,10 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
     # sensor delay; only command application is delayed. This is not a
     # measured physical actuator or a key-event queue.
     pending = deque([(0., 0.)] * delay_steps)
+    # A wrong-delay controller can reconstruct only its assumed queue from
+    # its own issued commands, not consult the plant's actual pending state.
+    # Reuse the original path when the assumed delay equals the actual one.
+    assumed_pending = deque([(0., 0.)] * assumed_steps) if mismatch else pending
     position = initial.xyz
     yaw = _angle_delta(initial.actor_yaw_deg, 0.)
     progress = 0.
@@ -256,7 +270,7 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         control_position, control_yaw = position, yaw
         control_distance = distance
         if prediction_active:
-            control_position, control_yaw = _predict_pending_pose(position, yaw, pending, dt)
+            control_position, control_yaw = _predict_pending_pose(position, yaw, assumed_pending, dt)
             control_distance = _xz_distance(control_position, goal)
         target_arc = min(total, progress+lookahead)
         if ordered and sharp_cursor < len(sharp):
@@ -330,6 +344,9 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
         if delay_steps:
             pending.append((velocity, yaw_rate))
             velocity, yaw_rate = pending.popleft()
+        if mismatch:
+            assumed_pending.append((requested_velocity, requested_yaw_rate))
+            assumed_pending.popleft()
         frames.append({"t": time, "xyz": list(position), "yawDegrees": yaw,
                        "progress": progress, "crossTrackErrorXZ": error,
                        "lookaheadXYZ": list(target), "headingErrorDegrees": heading_error,
@@ -407,9 +424,10 @@ def simulate_route(trace: MovementTrace, *, dt: float = .05, speed: float = 3.,
                                                    "terminalRejoinFraction": .1,
                                                    "observedProgressOnly": True}}
            if recover_terminal_progress else {}),
-        **({"syntheticCommandPrediction": {"method": "queued-pose-midpoint/1",
+        **({"syntheticCommandPrediction": {"method": "assumed-queue-midpoint/1" if mismatch else "queued-pose-midpoint/1",
                                            "observedProgressOnly": True,
-                                           "nominalHorizonSeconds": delay_steps*dt,
+                                           "nominalHorizonSeconds": assumed_steps*dt,
+                                             **({"assumedDelaySteps": assumed_steps} if mismatch else {}),
                                             **({"terminalRejoinPolicy": "near-stall",
                                                 "terminalRejoinFraction": .1}
                                                if prediction_rejoin_policy == "near-stall" else {})}}
