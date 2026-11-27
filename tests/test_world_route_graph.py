@@ -16,7 +16,7 @@ from rift_taxi.world_candidate_review import IDENTITY_FIELDS, content_id
 from rift_taxi.world_review_package import create_package
 from rift_taxi.world_route_catalog import SCHEMA, select_route
 from rift_taxi.world_review_graph import load_graph
-from rift_taxi.world_route_graph import load_world_graph, plan_world_route
+from rift_taxi.world_route_graph import load_world_graph, plan_world_route, review_position, main
 from test_world_candidate_review import fixture
 
 
@@ -201,3 +201,77 @@ class WorldGraphTests(unittest.TestCase):
         for operation in self.shared_queries()[:2]:
             with self.assertRaisesRegex(TraceError, "conflicting source world metadata"):
                 operation()
+
+
+    def test_position_review_projects_full_3d_and_keeps_source_binding(self):
+        self.add("slope", [[0,0,0],[4,2,0]])
+        world = self.load("slope")
+        r = review_position(world, position=[2,1,1], max_xz=1, max_y=.1)
+        self.assertEqual(r["vertexCount"],0)
+        self.assertEqual(r["segmentCount"],1)
+        hit=r["segments"][0]
+        self.assertAlmostEqual(hit["fraction"],.5)
+        self.assertEqual(hit["projectedXYZ"],[2,1,0])
+        self.assertEqual(hit["distanceXZ"],1.)
+        self.assertEqual(hit["distanceY"],0.)
+        self.assertEqual(hit["edgeSource"],world.edge_sources["slope:edge:0"])
+        self.assertEqual(r["graphSHA256"],world.graph.sha256)
+        for key in ("automaticStartBinding","transformQualified","endpointConnectorsVerified",
+                    "physicalQualification","productionInputAuthorized","gameInputSent"):
+            self.assertIs(r[key],False)
+        # An interior projection is not an admitted start coordinate.
+        with self.assertRaises(TraceError):
+            plan_world_route(world,destination="slope",start_xyz=[2,1,0])
+
+    def test_position_review_separates_floors_and_preserves_ambiguity(self):
+        self.add("low", [[0,0,0],[4,0,0]])
+        self.add("high", [[0,3,0],[4,3,0]])
+        world=self.load("low")
+        r=review_position(world,position=[2,0,0],max_xz=0,max_y=0)
+        self.assertEqual([e["edgeId"] for e in r["segments"]],["low:edge:0"])
+        r=review_position(world,position=[2,1.5,0],max_xz=0,max_y=2)
+        self.assertEqual(r["segmentCount"],2)
+        self.assertEqual([e["edgeId"] for e in r["segments"]],["high:edge:0","low:edge:0"])
+        r=review_position(world,position=[2,1.5,0],max_xz=0,max_y=2,limit=1)
+        self.assertEqual(r["segmentCount"],2)
+        self.assertEqual(len(r["segments"]),1)
+        self.assertFalse(r["automaticStartBinding"])
+
+    def test_position_review_exact_vertices_and_clamped_projections(self):
+        self.add("a", [[0,0,0],[4,0,0]])
+        self.add("b", [[4,0,0],[8,0,0]])
+        world=self.load("a")
+        r=review_position(world,position=[4,0,0],max_xz=0,max_y=0)
+        self.assertEqual(len(r["exactNodeIds"]),1)
+        self.assertEqual(r["vertices"][0]["aliases"],["a:1","b:0"])
+        self.assertEqual([e["fraction"] for e in r["segments"]],[1.,0.])
+        r=review_position(world,position=[-1,0,0],max_xz=1,max_y=0)
+        self.assertEqual(r["segments"][0]["fraction"],0.)
+        self.assertEqual(r["segments"][0]["projectedXYZ"],[0,0,0])
+        self.assertEqual(review_position(world,position=[0,20,0],max_xz=1,max_y=1)["status"],
+                         "no-candidates")
+
+    def test_position_review_rejects_invalid_limits_and_cli_writes_exclusively(self):
+        self.add("a", [[0,0,0],[4,0,0]])
+        world=self.load("a")
+        for args in ({"max_xz":-1},{"max_y":101},{"max_y":True},
+                     {"max_xz":float("nan")},{"limit":True},{"limit":65},
+                     {"position":[0,float("inf"),0]}):
+            params={"position":[0,0,0],"max_xz":1,"max_y":1}
+            params.update(args)
+            with self.subTest(args=args), self.assertRaises(TraceError):
+                review_position(world,**params)
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        pin=hashlib.sha256(self.catalog.read_bytes()).hexdigest()
+        out=self.root/"position.json"
+        args=[str(self.catalog),"--catalog-sha256",pin,"--anchor-route","a",
+              "locate","--xyz","2","0","0","--max-xz","0","--max-y","0","--out",str(out)]
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(main(args),0)
+        original=out.read_bytes()
+        self.assertEqual(json.loads(original)["segmentCount"],1)
+        with redirect_stderr(io.StringIO()),self.assertRaises(SystemExit) as err:
+            main(args)
+        self.assertEqual(err.exception.code,2)
+        self.assertEqual(out.read_bytes(),original)
