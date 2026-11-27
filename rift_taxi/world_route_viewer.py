@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 
 from .contracts import TraceError, _number
 from .world_candidate_review import require
-from .world_route_graph import CLASSIFICATION, load_world_graph, plan_world_route
+from .world_route_graph import CLASSIFICATION, load_world_graph, plan_world_route, review_position
 
 COLORS = {"network": "#65788d", "blocked": "#ed7777", "route": "#54d6a1",
           "start": "#70b4ff", "goal": "#ffd477", "start-goal": "#ffd477"}
@@ -154,6 +154,99 @@ def scene_svg(scene):
     return ET.tostring(svg,encoding="unicode")
 
 
+def position_review_dialog(parent, world, initial_alias, on_select):
+    """Inspect source XYZ and explicitly select an existing review vertex.
+
+    Keep the supplied coordinate separate from the route start. Segment
+    projections are informational only. Editing any field invalidates the
+    result and prevents a stale candidate from being applied. No game access.
+    """
+    import tkinter as tk
+    from tkinter import ttk
+    dialog = tk.Toplevel(parent)
+    dialog.title("RIFT Taxi | Source position review")
+    dialog.geometry("740x540")
+    dialog.minsize(570,450)
+    dialog.transient(parent)
+    panel = ttk.Frame(dialog,padding=12)
+    panel.pack(fill="both",expand=True)
+    panel.columnconfigure(0,weight=1)
+    panel.columnconfigure(1,weight=1)
+    panel.rowconfigure(4,weight=1)
+    initial = world.graph.nodes[world.aliases[initial_alias]].xyz
+    fields = [tk.StringVar(master=dialog,value=str(v)) for v in (*initial,.5,.5)]
+    inputs = ttk.Frame(panel)
+    inputs.grid(row=0,column=0,columnspan=2,sticky="ew")
+    for i,(label,var) in enumerate(zip(("X","Y","Z","Max XZ","Max Y"),fields)):
+        inputs.columnconfigure(i,weight=1)
+        ttk.Label(inputs,text=label).grid(row=0,column=i,sticky="w",padx=3)
+        ttk.Entry(inputs,textvariable=var,width=14).grid(row=1,column=i,sticky="ew",padx=3)
+    ttk.Label(panel,text="Source coordinates only; review candidates are not verified movement connectors.",
+              wraplength=680).grid(row=1,column=0,columnspan=2,sticky="w",pady=(8,4))
+    status = tk.StringVar(master=dialog,value="Enter source coordinates and inspect nearby geometry.")
+    ttk.Label(panel,textvariable=status,wraplength=680).grid(row=2,column=0,columnspan=2,sticky="w")
+    ttk.Label(panel,text="Existing vertices (selectable)").grid(row=3,column=0,sticky="w")
+    ttk.Label(panel,text="Segment projections (review only)").grid(row=3,column=1,sticky="w")
+    vertices = tk.Listbox(panel,exportselection=False,height=10,width=35)
+    segments = tk.Listbox(panel,exportselection=False,height=10,width=35)
+    vertices.grid(row=4,column=0,sticky="nsew",padx=(0,4))
+    segments.grid(row=4,column=1,sticky="nsew",padx=(4,0))
+    result = None
+
+    def invalidate(*_):
+        nonlocal result
+        result = None
+        vertices.delete(0,"end")
+        segments.delete(0,"end")
+        apply.configure(state="disabled")
+        status.set("Inputs changed; inspect again.")
+
+    def inspect():
+        nonlocal result
+        invalidate()
+        try:
+            x,y,z,h,v = (float(field.get()) for field in fields)
+            result = review_position(world,position=[x,y,z],max_xz=h,max_y=v)
+        except (TraceError,ValueError,OverflowError) as exc:
+            status.set("Invalid position or limits: " + str(exc))
+            return
+        for row in result["vertices"]:
+            vertices.insert("end",f"{row['nodeId']} | XZ {row['distanceXZ']:.4g} | Y {row['distanceY']:.4g}")
+        for row in result["segments"]:
+            segments.insert("end",f"{row['edgeId']} | t {row['fraction']:.3f} | XZ {row['distanceXZ']:.4g} | Y {row['distanceY']:.4g}")
+        status.set(f"Vertices: {len(result['vertices'])}/{result['vertexCount']} | "
+                   f"Segments: {len(result['segments'])}/{result['segmentCount']} | "
+                   f"Exact nodes: {len(result['exactNodeIds'])}. Choose a vertex explicitly.")
+
+    def selection_changed(*_):
+        apply.configure(state="normal" if result is not None and len(vertices.curselection())==1
+                        else "disabled")
+
+    def apply_vertex():
+        selected = vertices.curselection()
+        if result is None or len(selected)!=1:
+            return
+        node_id = result["vertices"][selected[0]]["nodeId"]
+        if node_id not in world.aliases:
+            status.set("Select a source from the main list.")
+            return
+        # Only select a graph vertex after deliberate confirmation; never
+        # use a segment projection or the supplied XYZ as a start.
+        on_select(node_id)
+        dialog.destroy()
+
+    controls = ttk.Frame(panel)
+    controls.grid(row=5,column=0,columnspan=2,sticky="ew",pady=(8,0))
+    ttk.Button(controls,text="Inspect position",command=inspect).pack(side="left")
+    apply = ttk.Button(controls,text="Use selected vertex",command=apply_vertex,state="disabled")
+    apply.pack(side="left",padx=8)
+    ttk.Button(controls,text="Close",command=dialog.destroy).pack(side="right")
+    vertices.bind("<<ListboxSelect>>",selection_changed)
+    for field in fields:
+        field.trace_add("write",invalidate)
+    return dialog
+
+
 def launch(world):
     """Optional local desktop preview; never opens a game process."""
     import tkinter as tk
@@ -232,6 +325,13 @@ def launch(world):
             current_scene = scene
         except (TraceError,ValueError,OverflowError) as exc:
             status.set(str(exc))
+    def select_reviewed_vertex(alias):
+        start.set(alias)
+        pick_status.set("Explicit review source: " + alias)
+        draw()
+
+    ttk.Button(panel,text="Review XYZ position",command=lambda: position_review_dialog(
+        root,world,start.get(),select_reviewed_vertex)).pack(fill="x",pady=(8,0))
     ttk.Button(panel,text="Preview route",command=draw).pack(fill="x",pady=10)
     ttk.Label(panel,textvariable=status,wraplength=230,justify="left").pack(anchor="w")
     def filter_destinations(*_):
