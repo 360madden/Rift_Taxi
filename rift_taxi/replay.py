@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import math
 from typing import Any
 
-from .contracts import MovementTrace, PoseSample
+from .contracts import MovementTrace, PoseSample, TraceError
 
 
 @dataclass(frozen=True)
@@ -78,11 +78,58 @@ def _interpolated_xyz(poses: tuple[PoseSample, ...], t: float) -> tuple[float, f
             hi = middle
     a, b = poses[lo], poses[hi]
     part = (t - a.t) / (b.t - a.t)
-    return tuple(x + (y - x) * part for x, y in zip(a.xyz, b.xyz))  # type: ignore[return-value]
+    # Preserve the usual arithmetic; for opposite-sign extreme coordinates
+    # use a convex combination if the intermediate difference overflows.
+    values = []
+    for x, y in zip(a.xyz, b.xyz):
+        delta = y - x
+        value = x + delta * part if math.isfinite(delta) else (1.-part)*x + part*y
+        values.append(_finite_metric(value, "interpolated position"))
+    return tuple(values)  # type: ignore[return-value]
+
+
+def _finite_metric(value: float, label: str) -> float:
+    """Reject unrepresentable derived metrics rather than output invalid JSON."""
+    if not math.isfinite(value):
+        raise TraceError(f"replay {label} exceeds finite numeric range")
+    return value
 
 
 def _distance_xz(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
-    return math.hypot(a[0] - b[0], a[2] - b[2])
+    return _finite_metric(math.hypot(a[0]-b[0], a[2]-b[2]), "XZ distance")
+
+
+def _release_proxies(trace: MovementTrace) -> tuple[int, int, int]:
+    """Count intermediate W releases, guide proxies and hard-stop proxies.
+
+    These remain supplied-input proximity metrics, not physical stops.
+    Interpolate each relevant release once, rather than once per route
+    point. Keep unmatched hard-stop points separately: duplicate locations
+    represent distinct route points, and any matching release is sufficient
+    under the existing metric. This does not establish traversal order.
+    """
+    guides = [p.xyz for p in trace.points[1:-1] if p.kind in ("guide", "optional")]
+    unmatched = [p.xyz for p in trace.points if p.kind == "hard_stop"]
+    radius = trace.arrival_tolerance_xz
+    intermediate = guide_count = hard_count = 0
+    for event in trace.events:
+        if event.key != "W" or event.edge != "up":
+            continue
+        eligible = trace.window_start < event.t < trace.window_end
+        intermediate += int(eligible)
+        if not unmatched and not (eligible and guides):
+            continue
+        approx = _interpolated_xyz(trace.poses, event.t)
+        if eligible and any(_distance_xz(approx, xyz) <= radius for xyz in guides):
+            guide_count += 1
+        remaining = []
+        for xyz in unmatched:
+            if _distance_xz(approx, xyz) <= radius:
+                hard_count += 1
+            else:
+                remaining.append(xyz)
+        unmatched = remaining
+    return intermediate, guide_count, hard_count
 
 
 def analyze(trace: MovementTrace) -> dict[str, Any]:
@@ -99,25 +146,7 @@ def analyze(trace: MovementTrace) -> dict[str, Any]:
         turning_seconds += amount
         overlap_intervals += count
 
-    releases = [e for e in trace.events
-                if e.key == "W" and e.edge == "up" and start < e.t < end]
-    guide_release_proxies = 0
-    for release in releases:
-        approx = _interpolated_xyz(trace.poses, release.t)
-        if any(
-            p.kind in {"guide", "optional"}
-            and _distance_xz(approx, p.xyz) <= trace.arrival_tolerance_xz
-            for p in trace.points[1:-1]
-        ):
-            guide_release_proxies += 1
-    hard_stop_release_proxies = 0
-    for point in trace.points:
-        if point.kind != "hard_stop":
-            continue
-        if any(_distance_xz(_interpolated_xyz(trace.poses, e.t), point.xyz)
-               <= trace.arrival_tolerance_xz for e in trace.events
-               if e.key == "W" and e.edge == "up"):
-            hard_stop_release_proxies += 1
+    intermediate_releases, guide_release_proxies, hard_stop_release_proxies = _release_proxies(trace)
 
     # Include a turn already held when the eligible window starts, but not
     # pre-window or post-window turn intervals with zero eligible duration.
@@ -127,10 +156,16 @@ def analyze(trace: MovementTrace) -> dict[str, Any]:
     )]
     direction_alternations = sum(a != b for a, b in zip(directions, directions[1:]))
     poses = trace.poses
-    xz_distance = sum(_distance_xz(a.xyz, b.xyz) for a, b in zip(poses, poses[1:]))
+    xz_distance = _finite_metric(
+        sum(_distance_xz(a.xyz, b.xyz) for a, b in zip(poses, poses[1:])),
+        "polyline distance",
+    )
     largest_gap = max(b.t - a.t for a, b in zip(poses, poses[1:]))
     end_point = trace.points[-1].xyz
     horizontal_error = _distance_xz(poses[-1].xyz, end_point)
+    vertical_error = _finite_metric(abs(poses[-1].xyz[1] - end_point[1]), "Y error")
+    _finite_metric(forward_seconds, "forward duration")
+    _finite_metric(turning_seconds, "turn duration")
 
     return {
         "schema": "taxi.replay-metrics/1",
@@ -150,7 +185,7 @@ def analyze(trace: MovementTrace) -> dict[str, Any]:
             "trajectoryMetricScope": "full-observed-pose-timeline",
             "forwardHeldSeconds": forward_seconds,
             "forwardDutyRatio": forward_seconds / window_duration,
-            "intermediateForwardReleases": len(releases),
+            "intermediateForwardReleases": intermediate_releases,
             "guideReleaseProxies": guide_release_proxies,
             "guideStopCountVerified": None,
             "turningWhileForwardSeconds": turning_seconds,
@@ -163,7 +198,7 @@ def analyze(trace: MovementTrace) -> dict[str, Any]:
         },
         "arrival": {
             "replayFinalXZError": horizontal_error,
-            "replayFinalYError": abs(poses[-1].xyz[1] - end_point[1]),
+            "replayFinalYError": vertical_error,
             "withinDeclaredXZTolerance": horizontal_error <= trace.arrival_tolerance_xz,
             "inputKeysReleasedByTraceEnd": not still_held,
             "keysStillHeldAtTraceEnd": sorted(still_held),

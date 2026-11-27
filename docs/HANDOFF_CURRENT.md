@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — offline replay metric efficiency and finite range
+
+Replay snapshot hardening e8e51ed passed PR 45928654361 in 73 s (Windows 708/708; both Linux lanes 692 passed + 16 skips). Refactored release proximity proxies to interpolate each relevant W-up once and retire matched hard-stop points, preserving original per-event/per-point semantics and duplicate points. Added 100 seeded pairwise comparisons, interpolation-call bound, overflow rejection and extreme finite interpolation tests. No physical release or traversal-order proof; no game access. Full hosted validation pending.
+
 ## November 27, 10:28 PHT — offline replay provenance hardening
 
 Cloud checkpoint e1acbca passed both hosted workflows (Windows 701/701, comprehensive 102 s; Linux pilot 36 s). Return to core Taxi reliability: strict duplicate-key/nonfinite/deep JSON rejection, bounded reads of actual bytes, canonical numeric RR2 coordinates and typed source/phase failures. Historical normalization consumes exactly the hash-verified original snapshot rather than reopening the path. Seven focused regressions cover ambiguity, bounds, malformed types and source replacement after pin. This does not authenticate historical data, prevent all filesystem races, or qualify current physical pose. Hosted verification pending; no live game activity or sibling changes.
