@@ -1,5 +1,75 @@
 # Current RIFT Taxi handoff — November 28, 2026
 
+## November 28, 07:20 PHT — crash-worker lease and compensation repair
+
+Fixed the separately reproduced stale-lease path in crash_release_probe.
+The A-only crash worker now renews after final identity/launcher/key checks,
+validates the finite same-clock 0.55-second deadline, and rechecks remaining
+budget/liveness after DOWN, marker fsync and the hold. Ordinary failures after
+possible DOWN attempt local UP and child STOP without clock/disk dependencies.
+The actual os._exit(37) branch retains abrupt exit and independent recovery.
+A durable marker alone cannot prove that branch; marker intent stays distinct
+from the launcher's actual-exit and ordered-child-UP qualification.
+
+The old source reproduced 28 failing inert subcases. Final focused regression
+passed 22 tests in 0.844 s, including actual exit 37 with entirely fake input,
+and refusal to qualify a retained marker/child-UP with a non-37 worker exit.
+Independent source/test review passed. Full LEGION Python 3.14.10 regression
+passed 871/871 in 116.960 s; job taxi_20261128_crash_lease_full01, exit 0.
+See [repair details and source hashes](M1_PROBE_LEASE_TIMING_2026-11-28.md).
+No physical A/focus/crash experiment was performed for this repair, and the
+non-atomic check/send/exit limitation remains explicit. Post-push exact-head
+hosted CI remains the acceptance gate for the new source.
+
+The prior section preserves the real moving observation, original wrapper
+failure and derived recovery without repeating W. Read-only source review
+also confirmed both installed Telemetry files still match the prior audit:
+each has a 0.10-second Unit.Detail polling path, neither checks HUD visibility,
+and no implemented pause command was found. Hiding a panel or stopping the
+external companion cannot establish an API-quiet window. Next freshness work
+needs a verified loaded-producer inventory and an explicitly planned/restored
+quiet configuration, or an independently fresh native producer. Do not gather
+another equivalent pulse merely for more statistics. Addons/settings and
+read-only siblings remain unchanged; continue the consolidated PR #26.
+
+## November 28, 07:01 PHT — current-session motion observed during one W pulse
+
+Joey moved Atank onto open grass and explicitly indicated readiness. Fresh
+foreground-only client captures verified clear ground and released movement,
+modifier and mouse buttons. Executed exactly one existing W-only 100 ms probe
+from accepted source a97bac9, concurrently with the unchanged native reader.
+The repaired probe recorded 102.5337 ms between DOWN/UP; both OS sends were
+accepted. The independent release child acknowledged clear/stop with no held
+keys. It did not perform an emergency UP in this run.
+
+All 96 requested native observations were saved: 24 before DOWN, two during
+the hold and 70 after UP. Median observed spacing was 50.4701 ms. The first
+changed candidate appeared 33.9042 ms after DOWN; XZ displacement was
+0.60854307 source units, with unchanged Y. Final position first appeared
+34.6202 ms after UP and stayed identical through the remaining 3.47454 seconds.
+All 96 actor/position matrices matched bit-for-bit, with one owner and raw
+zone key. Later screenshot/key and native readbacks agreed with the stopped
+position. The source remains candidate-only while addon API polling is active.
+See [complete action, observation and recovery evidence](M1_MOVING_NATIVE_SERIES_LEGION_2026-11-28.md).
+
+The temporary orchestrator exited 1 after both original reports were saved:
+Windows rx.poll raised BrokenPipeError 109 during final cleanup. Preserve that
+failed runner status. Original manifest.json remains absent; recovery.json
+was derived afterward without reconstructing lost IPC/readiness timestamps.
+The exact executed script is retained separately. Its narrow poll/receive
+closure fix passed an inert Windows regression reproducing the original
+failure, plus independent review. No second physical pulse was issued.
+
+Predecessor a97bac9 passed exact-head hosted run 46075963311, attempt 1, all
+four jobs; the corrected verifier accepted it with matching remote heads
+before/after. Windows 860 passed; both Linux versions 844 passed plus 16 skips.
+The next concrete source repair is the separate crash-release worker: it still
+renews before a full identity check and lacks a fresh deadline check before
+DOWN. Correct that measured code path before another physical failure test.
+Passive XYZ freshness, absolute body yaw, public zone/world-instance identity
+and live journeys remain unqualified. Continue PR #26; preserve private raw
+captures, the original dirty checkout and main.
+
 ## November 28, 06:18 PHT — bounded probe lease and clock repair
 
 Predecessor 0a00a3b passed exact-head hosted run 46074472457, all four jobs;

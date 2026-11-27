@@ -32,12 +32,15 @@ from .native_capture import capture_native_candidate
 from .release_supervisor import (
     ExternalReleaseSupervisor, ReleaseLeasePin, SupervisorUnavailable,
 )
-from .turn_probe import _capture, _identity, TurnProbeRefused
+from .turn_probe import (
+    _capture, _identity, _probe_clock, _probe_deadline, TurnProbeRefused,
+)
 from .win32_identity import inspect_desktop
 from .win32_input import Win32ScanSender
 
 _SHA = re.compile(r"[0-9a-fA-F]{64}\Z")
 _EXIT = 37
+_CRASH_LEASE_SECONDS = .55
 
 
 class CrashReleaseRefused(ValueError):
@@ -163,8 +166,27 @@ def _launcher_alive(pid: int) -> bool:
         kernel.CloseHandle(handle)
 
 
+def _crash_deadline(lease: object, now: float, hold_s: float) -> float:
+    """Require a same-clock A lease that covers the remaining bounded hold.
+
+    The shared turn helper validates status, numeric time and hold coverage.
+    Its normal TTL is .6 s; this older crash diagnostic deliberately retains
+    .55 s and therefore applies the stricter upper bound here as well.
+    """
+    deadline = _probe_deadline(lease, "A", now, hold_s)
+    if deadline > now + _CRASH_LEASE_SECONDS:
+        raise CrashReleaseRefused("crash release deadline exceeds its .55-second lease")
+    return deadline
+
+
 def _child(args: argparse.Namespace) -> int:
-    """Internal subprocess only. No parent UP: crash proves independent lease."""
+    """Attempt one admitted A pulse, then crash only on the intended success path.
+
+    Ordinary exceptions, expired leases and uncertain sender/marker failures
+    compensate with parent UP and child STOP. Only actual os._exit(37) bypasses
+    Python cleanup; a DOWN marker alone never proves that this exit occurred.
+    All clock/lease comparisons share the release child's monotonic domain.
+    """
     pin = _pin(args)
     challenge = json.loads(Path(args.guard).read_text(encoding="utf8"))
     if (challenge.get("token") != args.guard_token
@@ -176,55 +198,108 @@ def _child(args: argparse.Namespace) -> int:
         raise CrashReleaseRefused("independent rescue launcher not live")
     if type(args.precrash_hold_ms) is not int or not 0 <= args.precrash_hold_ms <= 140:
         raise CrashReleaseRefused("bounded pre-crash A hold must be 0..140 ms")
+    last_clock = _probe_clock(time.monotonic)
     _identity(pin, inspect_desktop)
     if any(validate_key_snapshot(Win32KeySnapshot().snapshot()).values()):
         raise CrashReleaseRefused("W/A/D already down before failure child")
     _capture(pin, args.owner_key, capture_native_candidate)
     sender = Win32ScanSender()
+    hold_s = args.precrash_hold_ms / 1000.
     with ExternalReleaseSupervisor.start_turn_probe(
-        pin, ttl_s=.55, dry_run=False, audit_path=args.audit,
+        pin, ttl_s=_CRASH_LEASE_SECONDS, dry_run=False, audit_path=args.audit,
     ) as release:
-        if not release.alive:
-            raise CrashReleaseRefused("release child not alive")
-        ack = release.reserve("A")
-        renewed = release.renew()
-        if (ack.get("possibleHeld") != ["A"] or ack.get("stopped") is not False
-                or renewed.get("possibleHeld") != ["A"] or renewed.get("stopped") is not False):
-            raise CrashReleaseRefused("external A key release lease not confirmed")
-        _identity(pin, inspect_desktop)
-        if not _launcher_alive(args.launcher_pid):
-            raise CrashReleaseRefused("backup launcher died before A DOWN")
-        if any(validate_key_snapshot(Win32KeySnapshot().snapshot()).values()):
-            raise CrashReleaseRefused("keyboard state changed before DOWN")
-        down_at = time.monotonic()
-        if sender.send("A", True) is not True:
-            # Nothing intentionally held if SendInput returned failure, but
-            # the independent child remains reserved and will attempt UP.
-            raise CrashReleaseRefused("OS A DOWN not accepted")
-        marker = {
-            "schema": "taxi.m1-parent-crash-A-down/1",
-            "pid": os.getpid(), "targetPid": pin.pid,
-            "startUtcTicks": pin.start_utc_ticks,
-            "ownerKeyDecimal": str(args.owner_key),
-            "atMonotonicSeconds": down_at,
-            "downAcceptedByOS": True,
-            "parentIntentionallyOmittedKeyUp": True,
-            "externalReleaseProcessReserved": True,
-            "requestedPrecrashHoldMilliseconds": args.precrash_hold_ms,
-        }
-        with Path(args.down_marker).open("x", encoding="utf8", newline="\n") as file:
-            json.dump(marker, file, allow_nan=False)
-            file.write("\n")
-            file.flush()
-            os.fsync(file.fileno())
-        # A short optional hold permits RIFT to observe a real A-down before
-        # its sender intentionally dies. Lease TTL .55s is independent of this
-        # parent, and the launcher separately supervises emergency A-UP.
-        if args.precrash_hold_ms:
-            time.sleep(args.precrash_hold_ms / 1000.)
-        # This is intentional abrupt parent process death.
-        # The worker's context manager/finally is NOT executed.
-        os._exit(_EXIT)
+        down_attempted = False
+        try:
+            if not release.alive:
+                raise CrashReleaseRefused("release child not alive")
+            ack = release.reserve("A")
+            if (not isinstance(ack, dict) or ack.get("possibleHeld") != ["A"]
+                    or ack.get("stopped") is not False):
+                raise CrashReleaseRefused("external A key release reservation not confirmed")
+            _identity(pin, inspect_desktop)
+            if not _launcher_alive(args.launcher_pid):
+                raise CrashReleaseRefused("backup launcher died before A DOWN")
+            if any(validate_key_snapshot(Win32KeySnapshot().snapshot()).values()):
+                raise CrashReleaseRefused("keyboard state changed before DOWN")
+
+            # Full SHA admission can outlast the original reservation. Renew
+            # only after those checks, and reject even a valid ACK that arrived
+            # after the child deadline. No expired child can be resurrected.
+            last_clock = _probe_clock(time.monotonic, last_clock)
+            renewed = release.renew()
+            down_at = last_clock = _probe_clock(time.monotonic, last_clock)
+            _crash_deadline(renewed, down_at, hold_s)
+            if not release.alive:
+                raise CrashReleaseRefused("release child unavailable before A DOWN")
+            down_attempted = True  # SendInput may insert before raising/returning false.
+            if sender.send("A", True) is not True:
+                raise CrashReleaseRefused("OS A DOWN not accepted")
+            last_clock = _probe_clock(time.monotonic, last_clock)
+            _crash_deadline(renewed, last_clock, hold_s)
+            if not release.alive:
+                raise CrashReleaseRefused("release child unavailable after A DOWN")
+
+            marker = {
+                "schema": "taxi.m1-parent-crash-A-down/1",
+                "pid": os.getpid(), "targetPid": pin.pid,
+                "startUtcTicks": pin.start_utc_ticks,
+                "ownerKeyDecimal": str(args.owner_key),
+                "atMonotonicSeconds": down_at,
+                "downAcceptedByOS": True,
+                # This is intent at marker time, not proof of a later crash.
+                # The launcher still requires actual exit 37 and ordered child
+                # UP. Any later ordinary failure takes the compensation path.
+                "parentIntentionallyOmittedKeyUp": True,
+                "intentionalCrashVerified": False,
+                "externalReleaseProcessReserved": True,
+                "requestedPrecrashHoldMilliseconds": args.precrash_hold_ms,
+            }
+            with Path(args.down_marker).open("x", encoding="utf8", newline="\n") as file:
+                json.dump(marker, file, allow_nan=False)
+                file.write("\n")
+                file.flush()
+                os.fsync(file.fileno())
+
+            # File I/O and the optional hold are separately fallible/slow.
+            # Neither may consume the lease and then permit an intentional
+            # crash that abandons a key after its release child has expired.
+            last_clock = _probe_clock(time.monotonic, last_clock)
+            _crash_deadline(renewed, last_clock, hold_s)
+            if not release.alive:
+                raise CrashReleaseRefused("release child unavailable after DOWN marker")
+            if hold_s:
+                time.sleep(hold_s)
+            last_clock = _probe_clock(time.monotonic, last_clock)
+            _crash_deadline(renewed, last_clock, 0.)
+            if not release.alive:
+                raise CrashReleaseRefused("release child unavailable before intentional crash")
+
+            # A real abrupt process exit skips this except block and the
+            # context manager, preserving the independent EOF/TTL experiment.
+            # Check/exit remains non-atomic; the launcher remains a backup.
+            os._exit(_EXIT)
+            raise CrashReleaseRefused("intentional crash exit returned unexpectedly")
+        except BaseException:
+            # Compensation deliberately reads no clock and performs no disk
+            # I/O. Attempt UP even when DOWN raised after possible insertion.
+            # A failed local UP leaves the child's reservation intact for STOP.
+            try:
+                if down_attempted:
+                    try:
+                        accepted_up = sender.send("A", False) is True
+                    except Exception:
+                        accepted_up = False
+                    if accepted_up:
+                        try:
+                            release.clear("A")
+                        except SupervisorUnavailable:
+                            pass  # expiry/EOF may already have latched child STOP
+            finally:
+                try:
+                    release.stop()
+                except SupervisorUnavailable:
+                    pass  # preserve the original fault; launcher/TTL/EOF remain
+            raise
 
 
 def run_physical_crash_probe(args: argparse.Namespace) -> dict:

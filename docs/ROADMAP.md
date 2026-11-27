@@ -1,5 +1,15 @@
 # Development roadmap — from bootstrap to autonomous taxi
-**Planning baseline: 2026-11-23.** M0 documentation/bootstrap is complete; M1 is partially implemented offline. M2–M6 remain planned. No estimates substitute for milestone evidence.
+**Current execution checkpoint (November 28, 2026):** The consolidated development
+branch contains desktop route preview and synthetic journey replay. A physical
+100 ms W probe now has a complete 96-sample overlapping native candidate series,
+with observed position change and stable post-release readback. This advances
+M1 evidence; production navigation remains unqualified. Follow the
+[current handoff](HANDOFF_CURRENT.md) and
+[moving-series study](M1_MOVING_NATIVE_SERIES_LEGION_2026-11-28.md).
+
+**Historical planning baseline: 2026-11-23.** The dated milestone paragraphs
+below retain the original sequencing and historical measurements. Current
+implementation and validation details are recorded in the handoff above.
 
 **Standing development policy (user directive, November 23):** [AI-first autonomous execution](AUTONOMY_POLICY.md). The AI should perform the available machine, UI, game observation, test and GitHub work itself; ask for manual intervention only when truly unavoidable. This does not waive exact-session control/release qualification or convert unverified candidates into success.
 
