@@ -116,10 +116,25 @@ def audit_constraints(trace, policy):
     A destination witness must extend through the final observed sample.
     This is a conservative discrete acceptance rule, not continuous proof.
     """
+    return _audit_samples(trace, policy, trace.poses, _quiet_intervals(trace))
+
+
+def _audit_samples(trace, policy, poses, quiet, *, first_index=0, passage_limit=None):
+    """Shared sampled-obligation checker for two distinct evidence bases.
+
+    The supplied trace auditor derives quiet intervals from supplied key
+    events; the synthetic model adapter derives them from applied ideal
+    commands. Never invent key edges for a model trajectory. The caller
+    owns observation construction and its classification. A passage limit
+    is an exclusive sample-index bound, used to restrict modeled passages
+    to the approach phase rather than late terminal correction.
+    """
     gap,dwell,height,tolerance,regions = _policy(trace,policy)
-    quiet = _quiet_intervals(trace)
-    poses = trace.poses
-    cursor = 0
+    require(len(poses)==len(quiet) and 0<=first_index<=len(poses),
+            "observation inventory mismatch")
+    end_passage = len(poses) if passage_limit is None else passage_limit
+    require(0<=end_passage<=len(poses), "passage sample bound mismatch")
+    cursor = first_index
     while cursor < len(poses) and poses[cursor].t < trace.window_start:
         cursor += 1
     results = []
@@ -135,7 +150,7 @@ def audit_constraints(trace, policy):
             continue
         if point.kind == "mandatory_passage":
             lo,hi = regions[i]
-            for j in range(cursor,len(poses)):
+            for j in range(cursor,end_passage):
                 if all(a<=v<=b for a,v,b in zip(lo,poses[j].xyz,hi)):
                     row.update(status="sampled-region-observed",
                                witness={"sampleIndex":j,"t":poses[j].t,
