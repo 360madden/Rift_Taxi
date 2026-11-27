@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — installed constrained acceptance proposal
+
+Recover the prepared installed constrained CLI producer/auditor step and its exact-head metadata admission requirement. The minimum-Python wheel job checks exact source policy bytes, all modeled obligations and false physical flags, archives both reports, and the checkpoint verifier refuses a skipped mandatory acceptance step. LEGION is unavailable; prior local uncommitted changes must be reconciled carefully after reconnect. No physical qualification or live input. Hosted verification pending. Older historical runs require the gate version from their own revision.
+
 ## November 27 — saved constrained report audit recovered through cloud
 
 35d15f1 passed comprehensive CI 45935823679 (105 s; Windows 772/772 in 76.179 s). Added synthetic_constrained_audit: reconstruct per-leg source identities, verify approach/drain/correction, recompute dwell/ordered witnesses, actual pose carryover, failure boundaries and aggregate totals, reject truncated success or resume after failure. Both exact retained model receipt pins verified (audit SHA pins in SYNTHETIC_CONSTRAINED_JOURNEY.md); frozen delayed multibend case completed 2/2 legs and four obligations in 18.48 s, first modeled correction 1.56 s, .01 s budget refused resume. 17/17 runner+audit tests passed on LEGION. LEGION session terminated during final CI/docs edit; recovered exact locally tested audit module and test bytes with their recorded SHA-256s in this cloud-side commit. Local uncommitted workflow edit and any partial CI/docs changes require careful reconciliation; do not reset or overwrite. Installed-wheel constrained acceptance is not yet published. No physical qualification or game input. New comprehensive hosted verification pending.

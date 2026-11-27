@@ -41,6 +41,7 @@ REQUIRED = {
         "Check installed research modules and CLI help",
         "Run installed offline journey demonstration",
         "Run installed experimental journey modes",
+        "Run installed constrained journey and audit",
         "Upload installed synthetic journey",
     ),
 }

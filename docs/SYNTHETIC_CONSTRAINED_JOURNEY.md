@@ -111,3 +111,13 @@ The installed-wheel constrained producer/audit workflow addition was
 prepared locally, but not published in this recovery commit. Reconcile it
 with the cloud checkpoint after restoring the authorized connection. Do
 not discard or overwrite local uncommitted edits.
+
+## Installed-wheel acceptance checkpoint
+
+The comprehensive CI minimum-Python job now also invokes the installed
+constrained journey producer and a separate saved-report auditor using
+isolated Python mode outside the checkout, requires the pinned policy and
+all two legs/four obligations, and archives the reports. The exact-head CI
+checkpoint gate requires this new named step. Older historical runs use
+the gate from their own revision. Hosted acceptance is pending until the
+corresponding workflow run is independently verified.
