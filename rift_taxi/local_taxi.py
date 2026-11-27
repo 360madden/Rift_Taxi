@@ -174,6 +174,37 @@ def demo_graph() -> Graph:
     return decode_graph(json.dumps(doc, sort_keys=True, separators=(",", ":")).encode())
 
 
+def locate_start(graph: Graph, position, *, limit=5):
+    """Rank authored start nodes for an explicitly supplied synthetic XYZ.
+
+    Exact XYZ equality is the only admitted start binding. A nearby node is
+    merely a review suggestion, never a snapped position or new connector.
+    Distances are in graph units; separate vertical and horizontal offsets
+    make wrong-floor candidates visible. The stable ID breaks distance ties.
+    No game sensor, coordinate transform or physical authority is implied.
+    """
+    query = coordinates(position)
+    require(type(limit) is int and 1 <= limit <= 20, "candidate limit must be 1..20")
+    candidates = []
+    for node in graph.nodes.values():
+        dxz = math.hypot(query[0] - node.xyz[0], query[2] - node.xyz[2])
+        dy = abs(query[1] - node.xyz[1])
+        candidates.append({"node": node.id, "xyz": list(node.xyz),
+                           "distanceXZ": dxz, "distanceY": dy,
+                           "distance3D": math.hypot(dxz, dy),
+                           "exactMatch": query == node.xyz})
+    candidates.sort(key=lambda row: (row["distance3D"], row["node"]))
+    # Unique XYZ is enforced by decode_graph; no approximate match can pass.
+    exact = next((row["node"] for row in candidates if row["exactMatch"]), None)
+    return {"schema": "taxi.local-start-location/1",
+            "classification": "SYNTHETIC_MODEL_ONLY", "mapId": graph.map_id,
+            "graphSHA256": graph.sha256, "queryXYZ": list(query),
+            "status": "exact-node" if exact is not None else "no-exact-node",
+            "startNode": exact, "candidates": candidates[:limit],
+            "connectorVerified": False, "physicalQualification": False,
+            "productionInputAuthorized": False, "gameInputSent": False}
+
+
 def plan_route(graph: Graph, start: str, destination: str, *, blocked_edges=()):
     """Compute shortest available directed path by A* with a Euclidean heuristic.
 
@@ -283,9 +314,15 @@ def main(argv=None):
     parser.add_argument("--map-sha256", help="optional exact external graph byte pin")
     sub = parser.add_subparsers(dest="operation", required=True)
     sub.add_parser("destinations", help="list local destinations and valid start nodes")
+    locate = sub.add_parser("locate", help="review authored nodes near an XYZ; no snapping")
+    locate.add_argument("--xyz", nargs=3, type=float, required=True)
+    locate.add_argument("--limit", type=int, default=5)
     for action in ("plan", "journey"):
         command = sub.add_parser(action, help="compute route" if action == "plan" else "plan and run synthetic model")
-        command.add_argument("--start", required=True)
+        start = command.add_mutually_exclusive_group(required=True)
+        start.add_argument("--start", help="exact authored node ID")
+        start.add_argument("--start-xyz", nargs=3, type=float,
+                           help="exact authored XYZ; use locate for nearby candidates")
         command.add_argument("--destination", required=True)
         command.add_argument("--blocked-edge", action="append", default=[])
         if action == "journey":
@@ -309,6 +346,16 @@ def main(argv=None):
                                                for i, (label, node) in sorted(graph.destinations.items())],
                               "startNodes": sorted(graph.nodes)}, indent=2))
             return 0
+        if args.operation == "locate":
+            location = locate_start(graph, args.xyz, limit=args.limit)
+            print(json.dumps(location, indent=2, allow_nan=False))
+            return 0 if location["startNode"] is not None else 1
+        selection = None
+        if args.start_xyz is not None:
+            selection = locate_start(graph, args.start_xyz)
+            require(selection["startNode"] is not None,
+                    "position is not an exact authored node; use locate to review candidates")
+            args.start = selection["startNode"]
         if args.out is not None:
             require(not args.out.exists() and not args.out.is_symlink(), "output already exists")
         if args.operation == "plan":
@@ -316,6 +363,10 @@ def main(argv=None):
         else:
             result = run_local_journey(graph, args.start, args.destination, blocked_edges=args.blocked_edge,
                                        initial_yaw=args.initial_yaw, delay_steps=args.delay_steps)
+        if selection is not None:
+            # Preserve the original coordinate query in the optional full receipt.
+            # The model still starts exactly at the matched authored node.
+            result["startSelection"] = selection
         if args.out is not None:
             with args.out.open("x", encoding="utf-8", newline="\n") as stream:
                 json.dump(result, stream, indent=2, allow_nan=False)
