@@ -84,6 +84,7 @@ def exercise(launch, graph, *, world_route=None):
                 raise RuntimeError("preview did not report route-found")
             search_checked = False
             map_pick_checked = False
+            position_review_checked = False
             if world_route is not None:
                 entries = [w for w in children if isinstance(w, ttk.Entry)
                            and not isinstance(w, ttk.Combobox)]
@@ -148,8 +149,74 @@ def exercise(launch, graph, *, world_route=None):
                 if errors:
                     raise RuntimeError("Tk callbacks failed: " + "; ".join(errors))
                 map_pick_checked = True
+                # Open the production XYZ dialog and inspect a different
+                # existing vertex. Nothing may select a source implicitly.
+                review_buttons = [w for w in children if isinstance(w,ttk.Button)
+                                  and w.cget("text")=="Review XYZ position"]
+                if len(review_buttons)!=1:
+                    raise RuntimeError("expected one position review button")
+                review_buttons[0].invoke()
+                root.update()
+                dialogs = [w for w in root.winfo_children() if isinstance(w,tk.Toplevel)]
+                if len(dialogs)!=1:
+                    raise RuntimeError("expected one position review dialog")
+                dialog = dialogs[0]
+                widgets = list(descendants(dialog))
+                fields = [w for w in widgets if isinstance(w,ttk.Entry)]
+                lists = [w for w in widgets if isinstance(w,tk.Listbox)]
+                actions = {w.cget("text"):w for w in widgets if isinstance(w,ttk.Button)}
+                if len(fields)!=5 or len(lists)!=2:
+                    raise RuntimeError("unexpected position review controls")
+                def set_fields(values):
+                    for field,value in zip(fields,values,strict=True):
+                        field.delete(0,"end")
+                        field.insert(0,str(value))
+                set_fields([*target["xyz"],0,0])
+                actions["Inspect position"].invoke()
+                root.update()
+                matches = [i for i in range(lists[0].size())
+                           if lists[0].get(i).split(" | ")[0]==target["id"]]
+                if len(matches)!=1 or combos[0].get()!=world_route+":0":
+                    raise RuntimeError("position review missing candidate or changed source")
+                lists[0].selection_set(matches[0])
+                lists[0].event_generate("<<ListboxSelect>>")
+                root.update()
+                if actions["Use selected vertex"].instate(["disabled"]):
+                    raise RuntimeError("explicit vertex selection unavailable")
+                fields[0].insert("end","x")
+                root.update()
+                if not actions["Use selected vertex"].instate(["disabled"]) or lists[0].size():
+                    raise RuntimeError("edited input retained stale review candidates")
+                actions["Inspect position"].invoke()
+                root.update()
+                if lists[0].size() or not actions["Use selected vertex"].instate(["disabled"]):
+                    raise RuntimeError("invalid position was accepted")
+                set_fields([*target["xyz"],0,0])
+                actions["Inspect position"].invoke()
+                root.update()
+                matches = [i for i in range(lists[0].size())
+                           if lists[0].get(i).split(" | ")[0]==target["id"]]
+                if len(matches)!=1:
+                    raise RuntimeError("position review did not recover")
+                lists[0].selection_set(matches[0])
+                lists[0].event_generate("<<ListboxSelect>>")
+                root.update()
+                actions["Use selected vertex"].invoke()
+                root.update()
+                if combos[0].get()!=target["id"] or dialog.winfo_exists() or errors:
+                    raise RuntimeError("explicit reviewed vertex did not apply")
+                if not any("route-found" in str(w.cget("text")) for w in children
+                           if isinstance(w,ttk.Label)):
+                    raise RuntimeError("reviewed vertex did not replan")
+                combos[0].set(world_route+":0")
+                combos[0].event_generate("<<ComboboxSelected>>")
+                root.update()
+                if errors:
+                    raise RuntimeError("Tk callbacks failed: " + "; ".join(errors))
+                position_review_checked = True
             receipt.update(searchAndAutomaticReplanChecked=search_checked,
                            mapSourceSelectionChecked=map_pick_checked,
+                           positionReviewChecked=position_review_checked,
                            title=root.title(), tkVersion=str(root.tk.call("info", "patchlevel")),
                            mapped=True, canvasSize=[canvas.winfo_width(), canvas.winfo_height()],
                            canvasItems=len(canvas.find_all()), highlightedLines=len(selected),
