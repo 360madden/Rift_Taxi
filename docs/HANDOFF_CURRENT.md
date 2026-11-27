@@ -1,5 +1,38 @@
 # Current RIFT Taxi handoff — November 28, 2026
 
+## November 28, 06:18 PHT — bounded probe lease and clock repair
+
+Predecessor 0a00a3b passed exact-head hosted run 46074472457, all four jobs;
+the corrected checkpoint verifier admitted attempt 1 and remote head matched
+before/after. Windows 852 passed; both Linux versions 836 passed plus 16
+declared skips. Original private acceptance receipt SHA256
+e54dc029e2eebb85bd48081c8b5b123af6555f97279261cc8b227ca758987701.
+
+The next source slice repairs actual reproduced timing defects in turn_probe:
+A/D could send DOWN after the independent release lease expired during full
+identity admission; invalid/throwing cleanup clocks could certify bad timing
+or skip explicit UP. Shared A/D/W now renew immediately before DOWN, require
+the exact key and finite deadline with enough hold budget, recheck after the
+sender returns, and attempt UP/STOP despite clock faults. Late sender returns
+skip the requested hold; invalid/expired cleanup refuses a success receipt.
+Public APIs, schemas and candidate-only qualification remain unchanged.
+See [failure reproduction, repair and limits](M1_PROBE_LEASE_TIMING_2026-11-28.md).
+
+25 focused tests passed in 0.752 s, including the complete probe with a real
+Windows release child and real monotonic clock in dry mode. Independent review
+passed six inert helper-disappearance cases around DOWN. Full LEGION Python
+3.14.10 suite passed 860/860 in 112.404 s (job taxi_20261128_probe_timing_full01).
+All source/test checks used fake or dry senders; no game input. New-head hosted
+CI remains required after this commit/push. Preserve non-atomic scheduling and
+unqualified game-consumed-release limitations; this is not completed M1.
+
+Next physical work still needs a fresh clear-ground scene and current control
+bindings/ownership. The last verified scene was beside a drop; located rift.cfg
+contains no movement/binding entries and does not establish current A semantics.
+Do not assume A is translation-free. Use existing native series once an action
+is independently admitted. No further GUI expansion, branch proliferation,
+sibling changes or raw capture publication. Continue consolidated PR #26.
+
 ## November 28, 06:04 PHT — restored scene observation and four-job CI contract
 
 Fixed a reproduced CI admission defect: the verifier still required exactly three
@@ -15,8 +48,9 @@ Read-only diagnosis traced desktop IO_ERROR/TREE_UNSETTLED to the running
 Workbridge dist/server.js installation missing desktop-ui.mjs, desktop-capture.mjs
 and desktop-turn-admission.mjs. No service/source/settings changes. With both
 known turn/admission guards absent, reused the already documented foreground-only
-Windows CopyFromScreen fallback, rechecking exact LEGION PID/start/SHA/HWND before
-and after capture, without input or focus changes. Independently viewed the actual
+Windows CopyFromScreen fallback, checking PID/start/SHA/HWND before capture,
+then foreground and process epoch afterward. No input or focus changes.
+Independently viewed the actual
 Sanctum Watch pavilion scene, with the avatar beside a steep drop and telemetry
 addon panels visible. This is unsuitable for an unqualified forward pulse.
 Original ignored artifacts/m1-foreground-20261127-220017.png: 8055773 bytes,

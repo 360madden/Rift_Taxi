@@ -7,6 +7,10 @@ The production WindowsScanKeyBackend still requires independently qualified
 LivePose. This diagnostic does not fake one. It requires exact OS PID/epoch/
 exe/hash/HWND, source-owned self actor, a current scene-image SHA and a live
 external release-only child before attempting any physical key DOWN.
+
+The probe rechecks a renewed lease around the sender call; these observations
+are not atomic with SendInput or child expiry. A stalled or crashed sender can
+still require independent release recovery; no universal fault proof is granted.
 """
 from __future__ import annotations
 
@@ -26,6 +30,7 @@ from .win32_identity import DesktopCandidate, inspect_desktop
 from .win32_input import Win32ScanSender
 
 _SHA = re.compile(r"[0-9a-fA-F]{64}\Z")
+_PROBE_LEASE_SECONDS = .6
 
 
 class TurnProbeRefused(RuntimeError):
@@ -119,6 +124,43 @@ def _wrap(delta: float) -> float:
     return (delta + 180) % 360 - 180
 
 
+def _probe_clock(clock: Callable[[], float], previous: float | None = None) -> float:
+    """Read a finite same-host monotonic time without letting faults skip UP.
+
+    The release child uses this clock domain too. Reject booleans, invalid
+    numeric values and rollback; cleanup catches this refusal before sending UP.
+    """
+    try:
+        value = clock()
+        if (type(value) not in (int, float) or not 0 <= value <= 1e15
+                or not math.isfinite(value)
+                or (previous is not None and value < previous)):
+            raise ValueError("invalid or backward monotonic sample")
+        return float(value)
+    except Exception as error:
+        raise TurnProbeRefused("diagnostic monotonic clock invalid or moved backward") from error
+
+
+def _probe_deadline(lease: object, key: str, now: float, hold_s: float) -> float:
+    """Admit one live reservation with enough remaining time for this hold.
+
+    ACK arrival can be delayed past child expiry. The deadline must be in the
+    parent's monotonic domain, no further ahead than this diagnostic's fixed
+    TTL, and strictly beyond the requested hold. This is a snapshot, not an
+    atomic handoff between the separate release process and the native sender.
+    """
+    if (not isinstance(lease, dict) or lease.get("stopped") is not False
+            or lease.get("possibleHeld") != [key]):
+        raise TurnProbeRefused("diagnostic release lease was not live for requested key")
+    deadline = lease.get("deadlineMonotonicSeconds")
+    if (type(deadline) not in (int, float) or not 0 <= deadline <= 1e15
+            or not math.isfinite(deadline)
+            or deadline > now + _PROBE_LEASE_SECONDS
+            or now + hold_s >= deadline):
+        raise TurnProbeRefused("diagnostic release deadline invalid or insufficient for hold")
+    return float(deadline)
+
+
 def _run_calibration_probe(
     *, probe_kind: str, pin: ReleaseLeasePin, expected_owner_key: int,
     key: str, hold_ms: int = 100, audit_path: str,
@@ -165,6 +207,7 @@ def _run_calibration_probe(
             release_start, clock, sleeper)):
         raise ValueError("turn probe dependencies must be callable")
 
+    last_clock = _probe_clock(clock)
     _identity(pin, inspect)
     key_reader = key_factory()
     if any(validate_key_snapshot(key_reader.snapshot()).values()):
@@ -179,15 +222,18 @@ def _run_calibration_probe(
     sampled_down = None
     helper_armed = False
     release_state = None
+    cleanup_clock_error = None
+    deadline = None
+    hold_s = hold_ms / 1000.
     with release_start(
-        pin, ttl_s=.6, dry_run=dry_run, audit_path=str(audit),
+        pin, ttl_s=_PROBE_LEASE_SECONDS, dry_run=dry_run, audit_path=str(audit),
         admit=inspect,
     ) as worker:
         if not worker.alive or worker.dry_run != dry_run:
             raise TurnProbeRefused("external release helper unavailable")
         reserved = worker.reserve(key)
         if (not isinstance(reserved, dict) or reserved.get("stopped") is not False
-                or key not in reserved.get("possibleHeld", ())):
+                or reserved.get("possibleHeld") != [key]):
             raise TurnProbeRefused("external key release reservation not acknowledged")
         helper_armed = True
         try:
@@ -196,25 +242,40 @@ def _run_calibration_probe(
             _identity(pin, inspect)
             if any(validate_key_snapshot(key_reader.snapshot()).values()):
                 raise TurnProbeRefused("W/A/D changed before diagnostic DOWN")
-            if probe_kind == "forward":
-                try:
-                    lease = worker.renew()
-                except SupervisorUnavailable as error:
-                    raise TurnProbeRefused("forward release lease expired before DOWN") from error
-                if (not isinstance(lease, dict) or lease.get("stopped") is not False
-                        or key not in lease.get("possibleHeld", ())):
-                    raise TurnProbeRefused("forward release lease was not live at DOWN")
-            down_at = float(clock())
+            # Full identity admission may outlast the original reservation.
+            # A/D needs the same fresh renewal as W; an expired child must not
+            # be followed by a new DOWN based on its earlier reserve ACK.
+            last_clock = _probe_clock(clock, last_clock)
+            try:
+                lease = worker.renew()
+            except SupervisorUnavailable as error:
+                raise TurnProbeRefused("diagnostic release lease expired before DOWN") from error
+            down_at = last_clock = _probe_clock(clock, last_clock)
+            deadline = _probe_deadline(lease, key, down_at, hold_s)
+            if not worker.alive:
+                raise TurnProbeRefused("external release helper unavailable before DOWN")
             physical_down = sender.send(key, True) is True
             if not physical_down:
                 raise TurnProbeRefused("calibration key DOWN not accepted")
-            sleeper(hold_ms / 1000.)
+            # A native sender may return late, after the child has already
+            # released. Compensate immediately via finally rather than adding
+            # another requested hold. Check/send still has a non-atomic race.
+            last_clock = _probe_clock(clock, last_clock)
+            _probe_deadline(lease, key, last_clock, hold_s)
+            if not worker.alive:
+                raise TurnProbeRefused("external release helper unavailable after DOWN")
+            sleeper(hold_s)
             sampled_down = validate_key_snapshot(key_reader.snapshot())
         finally:
             if helper_armed:
-                # Always attempt explicit UP, even if sender DOWN threw.
+                # Timestamp failure must never prevent explicit UP or STOP.
+                # Preserve a refusal for later, but release first; an original
+                # body exception continues propagating after this cleanup.
+                try:
+                    up_at = last_clock = _probe_clock(clock, last_clock)
+                except TurnProbeRefused as error:
+                    cleanup_clock_error = error
                 # The external child also attempts UP on EOF/TTL.
-                up_at = float(clock())
                 try:
                     physical_up = sender.send(key, False) is True
                 except Exception:
@@ -233,6 +294,10 @@ def _run_calibration_probe(
     if not isinstance(release_state, dict) or release_state.get("stopped") is not True \
             or release_state.get("possibleHeld") != []:
         raise TurnProbeRefused("external turn release has not confirmed a clear ledger")
+    if cleanup_clock_error is not None:
+        raise cleanup_clock_error
+    if up_at is None or deadline is None or up_at >= deadline:
+        raise TurnProbeRefused("diagnostic hold outlasted release deadline")
     _identity(pin, inspect)
     post_key_states = validate_key_snapshot(key_reader.snapshot())
     if any(post_key_states.values()):
@@ -312,6 +377,7 @@ def _run_calibration_probe(
             "This diagnostic is not a qualified navigation LivePose or route run.",
             "SendInput OS acceptance and key-state polling are not game-consumption proof.",
             "Separate-process release ledger clear does not prove RIFT consumed key-up.",
+            "Lease checks and input insertion are not atomic; universal late-DOWN/crash release is unverified.",
             "The scene screenshot SHA is supplied by the runner, not inspected by this Python function.",
             "Actual on-screen player orientation must be independently compared.",
             "Native XYZ can be refreshed by installed addon Inspect.Unit.Detail polling.",

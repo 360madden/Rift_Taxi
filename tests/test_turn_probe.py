@@ -13,7 +13,7 @@ import time
 import unittest
 
 from rift_taxi.release_supervisor import (
-    ExternalReleaseSupervisor, ReleaseLeasePin, SupervisorUnavailable,
+    ExternalReleaseSupervisor, ReleaseLeasePin, ReleaseState, SupervisorUnavailable,
 )
 from rift_taxi.turn_probe import TurnProbeRefused, run_turn_probe, run_forward_probe
 from rift_taxi.cli import main
@@ -36,8 +36,9 @@ class FakeClock:
 
 
 class FakeWorker:
-    def __init__(self, *, dry_run):
+    def __init__(self, *, dry_run, clock=time.monotonic):
         self.dry_run = dry_run
+        self.clock = clock
         self.alive = True
         self.keys = set()
         self.events = []
@@ -51,16 +52,19 @@ class FakeWorker:
     def reserve(self, key):
         self.events.append(("reserve", key))
         self.keys.add(key)
-        return {"stopped": False, "possibleHeld": list(self.keys)}
+        return {"stopped": False, "possibleHeld": list(self.keys),
+                "deadlineMonotonicSeconds": self.clock() + .6 if self.keys else None}
 
     def renew(self):
         self.events.append(("renew", None))
-        return {"stopped": False, "possibleHeld": list(self.keys)}
+        return {"stopped": False, "possibleHeld": list(self.keys),
+                "deadlineMonotonicSeconds": self.clock() + .6 if self.keys else None}
 
     def clear(self, key):
         self.events.append(("clear", key))
         self.keys.discard(key)
-        return {"stopped": False, "possibleHeld": list(self.keys)}
+        return {"stopped": False, "possibleHeld": list(self.keys),
+                "deadlineMonotonicSeconds": self.clock() + .6 if self.keys else None}
 
     def stop(self):
         self.events.append(("stop", None))
@@ -145,7 +149,7 @@ class TurnHarness:
 
     def release_start(self, pin, **kwargs):
         assert pin == self.pin
-        self.worker = FakeWorker(dry_run=kwargs["dry_run"])
+        self.worker = FakeWorker(dry_run=kwargs["dry_run"], clock=self.clock)
         return self.worker
 
     def run(self, **args):
@@ -178,7 +182,7 @@ class TurnProbeTests(unittest.TestCase):
         self.assertEqual(result["candidateChanges"]["actorMatrixAngleDeltaDegrees"], 6.)
         self.assertEqual(result["candidateChanges"]["playerSystemYawDeltaDegrees"], -6.)
         self.assertEqual(self.h.worker.events, [
-            ("reserve", "A"), ("clear", "A"), ("stop", None)
+            ("reserve", "A"), ("renew", None), ("clear", "A"), ("stop", None)
         ])
         self.assertEqual(self.h.reads, 2)
         self.assertFalse(result["candidateChanges"]["gameMotionIndependentlyVerified"])
@@ -212,7 +216,7 @@ class TurnProbeTests(unittest.TestCase):
             self.h.run(dry_run=False)
         self.assertEqual(self.h.sender.events, [("A", True), ("A", False)])
         self.assertEqual(self.h.worker.events, [
-            ("reserve", "A"), ("clear", "A"), ("stop", None)
+            ("reserve", "A"), ("renew", None), ("clear", "A"), ("stop", None)
         ])
 
     def test_injected_up_failure_refuses_finished_receipt(self):
@@ -221,7 +225,7 @@ class TurnProbeTests(unittest.TestCase):
             self.h.run(dry_run=False)
         self.assertEqual(self.h.sender.events, [("A", True), ("A", False)])
         self.assertEqual(self.h.worker.events, [
-            ("reserve", "A"), ("stop", None)
+            ("reserve", "A"), ("renew", None), ("stop", None)
         ])
 
     def test_before_probe_all_keys_up_is_mandatory(self):
@@ -266,18 +270,22 @@ class TurnProbeTests(unittest.TestCase):
                 self.assertFalse(probe.call_args.kwargs["dry_run"])
 
     @unittest.skipUnless(__import__("sys").platform == "win32", "Windows child process only")
-    def test_actual_release_child_can_run_in_dry_mode_with_exact_diagnostic_pin(self):
-        with ExternalReleaseSupervisor.start_turn_probe(
-            self.h.pin, dry_run=True, ttl_s=.45,
-            audit_path=self.h.audit,
-        ) as worker:
-            self.assertTrue(worker.alive)
-            self.assertTrue(worker.dry_run)
-            worker.reserve("A")
-            stopped = worker.stop()
-            self.assertTrue(stopped["stopped"])
+    def test_complete_dry_probe_uses_real_child_deadline_and_parent_clock(self):
+        # Exercise deadline interoperability across an actual Windows spawned
+        # child, with real monotonic clocks. Identity/capture stay injected and
+        # the probe and worker both use dry senders, so no OS key is submitted.
+        result = self.h.run(
+            release_start=ExternalReleaseSupervisor.start_turn_probe,
+            clock=time.monotonic, sleeper=time.sleep,
+        )
+        self.assertTrue(result["dryRun"])
+        self.assertFalse(result["action"]["inputInjectedByTaxi"])
+        self.assertFalse(result["action"]["osKeyDownAccepted"])
+        self.assertGreater(result["action"]["keyUpAtMonotonicSeconds"],
+                           result["action"]["keyDownAtMonotonicSeconds"])
         log = [json.loads(line) for line in Path(self.h.audit).read_text().splitlines()]
-        self.assertIn("simulated-key-up", [line["event"] for line in log])
+        actions = [line["action"] for line in log if line["event"] == "command"]
+        self.assertEqual(actions[:4], ["reserve", "renew", "clear", "stop"])
         self.assertNotIn("native-key-up-attempt", [line["event"] for line in log])
 
 
@@ -396,6 +404,254 @@ class ForwardProbeTests(unittest.TestCase):
             self.assertTrue(worker.stop()["stopped"])
         log = [json.loads(line) for line in Path(self.h.audit).read_text().splitlines()]
         self.assertIn("simulated-key-up", [event["event"] for event in log])
+
+
+
+class ProbeLeaseTimingTests(unittest.TestCase):
+    """Clock/lease fault tests use inert senders, never Windows game input.
+
+    The pure ReleaseState case reproduces an independently expired reservation,
+    while other fakes inject corrupt replies or delays at the actual boundary.
+    Passing dry_run=False here selects only the injected FakeSender.
+    """
+
+    def harness(self):
+        h = TurnHarness()
+        self.addCleanup(h.close)
+        return h
+
+    @staticmethod
+    def run_probe(h, key, **overrides):
+        """Exercise the same shared pulse implementation through both public APIs."""
+        if key != "W":
+            return h.run(key=key, dry_run=False, **overrides)
+        options = dict(
+            pin=h.pin, expected_owner_key=OWNER, hold_ms=100, audit_path=h.audit,
+            scene_image_sha256=h.scene_sha, dry_run=False, inspect=h.inspect,
+            capture=h.capture, key_factory=FakeReader,
+            sender_factory=lambda: h.sender, release_start=h.release_start,
+            clock=h.clock, sleeper=h.clock.sleep,
+        )
+        options.update(overrides)
+        return run_forward_probe(**options)
+
+    def test_normal_a_d_w_share_renewed_lease_and_keep_candidate_scope(self):
+        for key in ("A", "D", "W"):
+            with self.subTest(key=key):
+                h = self.harness()
+                report = self.run_probe(h, key)
+                self.assertEqual(h.sender.events, [(key, True), (key, False)])
+                self.assertEqual(h.worker.events, [
+                    ("reserve", key), ("renew", None), ("clear", key), ("stop", None)
+                ])
+                self.assertFalse(report["candidateChanges"]["bodyHeadingQualified"])
+                self.assertFalse(report["candidateChanges"]["passiveXYZFreshnessQualified"])
+
+    def test_lease_expiry_during_final_identity_never_sends_late_down(self):
+        # The old A/D path used the earlier reserve ACK after this identity
+        # check, so DOWN occurred after the independent pure state issued UP.
+        for key in ("A", "D", "W"):
+            with self.subTest(key=key):
+                h = self.harness()
+                released = []
+
+                class StateWorker(FakeWorker):
+                    def __init__(self, *, dry_run):
+                        super().__init__(dry_run=dry_run, clock=h.clock)
+                        self.state = ReleaseState(
+                            ttl_s=.6, clock=h.clock,
+                            release=lambda k: released.append((k, h.clock())) is None,
+                        )
+
+                    def reserve(self, k):
+                        self.events.append(("reserve", k))
+                        return self.state.command("reserve", k)
+
+                    def renew(self):
+                        self.events.append(("renew", None))
+                        return self.state.command("renew")
+
+                    def clear(self, k):
+                        self.events.append(("clear", k))
+                        return self.state.command("clear", k)
+
+                    def stop(self):
+                        self.events.append(("stop", None))
+                        return self.state.stop("test-cleanup")
+
+                def start(pin, **options):
+                    h.worker = StateWorker(dry_run=options["dry_run"])
+                    return h.worker
+
+                def delayed_identity(pid, **options):
+                    candidate = h.inspect(pid, **options)
+                    if h.identity_calls == 3:  # after reserve, immediately before DOWN
+                        h.clock.sleep(.61)
+                        self.assertTrue(h.worker.state.expire())
+                        h.worker.alive = False  # the real expired worker exits
+                    return candidate
+
+                refusal = None
+                try:
+                    self.run_probe(h, key, release_start=start, inspect=delayed_identity)
+                except TurnProbeRefused as error:
+                    refusal = error
+                self.assertEqual(released, [(key, 100.61)])
+                self.assertNotIn((key, True), h.sender.events,
+                                 "DOWN followed an already expired independent release")
+                self.assertIsNotNone(refusal)
+                self.assertIn((key, False), h.sender.events)
+                self.assertIn(("stop", None), h.worker.events)
+
+    def test_bad_or_stale_renewal_never_sends_down(self):
+        # Corrupt shape, wrong reservation, other clock epoch, insufficient
+        # hold budget, and delayed ACKs must all fail before the inert DOWN.
+        cases = (
+            "raises", "stopped", "wrong-key", "missing-deadline", "nan",
+            "infinite", "bool", "string", "past", "short", "foreign-clock",
+            "delayed-ack",
+        )
+        for key in ("A", "D", "W"):
+            for case in cases:
+                with self.subTest(key=key, case=case):
+                    h = self.harness()
+
+                    class BadWorker(FakeWorker):
+                        def renew(self):
+                            reply = super().renew()
+                            if case == "raises":
+                                raise SupervisorUnavailable("injected renewal failure")
+                            if case == "stopped":
+                                reply.update(stopped=True, possibleHeld=[])
+                            elif case == "wrong-key":
+                                reply["possibleHeld"] = ["D" if key != "D" else "A"]
+                            elif case == "missing-deadline":
+                                reply.pop("deadlineMonotonicSeconds")
+                            elif case == "delayed-ack":
+                                h.clock.sleep(.61)
+                            else:
+                                values = {
+                                    "nan": math.nan, "infinite": math.inf, "bool": True,
+                                    "string": "100.6", "past": 99., "short": 100.05,
+                                    "foreign-clock": 1000.,
+                                }
+                                reply["deadlineMonotonicSeconds"] = values[case]
+                            return reply
+
+                    def start(pin, **options):
+                        h.worker = BadWorker(dry_run=options["dry_run"], clock=h.clock)
+                        return h.worker
+
+                    with self.assertRaises(TurnProbeRefused):
+                        self.run_probe(h, key, release_start=start)
+                    self.assertNotIn((key, True), h.sender.events)
+                    self.assertIn((key, False), h.sender.events)
+                    self.assertIn(("stop", None), h.worker.events)
+
+    def test_invalid_or_backward_clock_before_down_cannot_block_cleanup(self):
+        for key in ("A", "D", "W"):
+            for value in (math.nan, math.inf, True, -1., 99., "bad", "raises"):
+                with self.subTest(key=key, value=value):
+                    h = self.harness()
+                    fault = False
+
+                    class ClockFaultWorker(FakeWorker):
+                        def renew(self):
+                            nonlocal fault
+                            reply = super().renew()
+                            fault = True
+                            return reply
+
+                    def start(pin, **options):
+                        h.worker = ClockFaultWorker(
+                            dry_run=options["dry_run"], clock=h.clock)
+                        return h.worker
+
+                    def probe_clock():
+                        if fault:
+                            if value == "raises":
+                                raise RuntimeError("injected clock failure")
+                            return value
+                        return h.clock()
+
+                    with self.assertRaises(TurnProbeRefused):
+                        self.run_probe(h, key, release_start=start, clock=probe_clock)
+                    self.assertEqual(h.sender.events, [(key, False)])
+                    self.assertIn(("stop", None), h.worker.events)
+
+    def test_delayed_down_return_releases_immediately_without_hold(self):
+        # SendInput is not an atomic handoff with the child lease. On a late
+        # return there must be no additional requested hold before compensation.
+        for key in ("A", "D", "W"):
+            for elapsed in (.51, .61):
+                with self.subTest(key=key, elapsed=elapsed):
+                    h = self.harness()
+                    holds = []
+                    original = h.sender.send
+
+                    def delayed_send(k, down):
+                        accepted = original(k, down)
+                        if down:
+                            h.clock.sleep(elapsed)
+                        return accepted
+
+                    h.sender.send = delayed_send
+                    with self.assertRaises(TurnProbeRefused):
+                        self.run_probe(h, key, sleeper=holds.append)
+                    self.assertEqual(holds, [])
+                    self.assertEqual(h.sender.events, [(key, True), (key, False)])
+                    self.assertIn(("stop", None), h.worker.events)
+
+    def test_clock_rollback_after_down_releases_without_hold(self):
+        h = self.harness()
+        holds = []
+        original = h.sender.send
+
+        def rolled_back_send(key, down):
+            accepted = original(key, down)
+            if down:
+                h.clock.time -= .01
+            return accepted
+
+        h.sender.send = rolled_back_send
+        with self.assertRaises(TurnProbeRefused):
+            self.run_probe(h, "A", sleeper=holds.append)
+        self.assertEqual(holds, [])
+        self.assertEqual(h.sender.events, [("A", True), ("A", False)])
+        self.assertIn(("stop", None), h.worker.events)
+
+    def test_cleanup_clock_failure_still_sends_up_and_stop(self):
+        # The earlier finally block called clock() before its UP try-block.
+        # A clock exception there skipped both explicit UP and explicit STOP.
+        for key in ("A", "D", "W"):
+            for value in (math.nan, 99., "raises"):
+                with self.subTest(key=key, value=value):
+                    h = self.harness()
+                    fault = False
+
+                    def held_sleep(seconds):
+                        nonlocal fault
+                        h.clock.sleep(seconds)
+                        fault = True
+
+                    def probe_clock():
+                        if fault:
+                            if value == "raises":
+                                raise RuntimeError("injected cleanup clock failure")
+                            return value
+                        return h.clock()
+
+                    with self.assertRaises(TurnProbeRefused):
+                        self.run_probe(h, key, clock=probe_clock, sleeper=held_sleep)
+                    self.assertEqual(h.sender.events, [(key, True), (key, False)])
+                    self.assertIn(("stop", None), h.worker.events)
+
+    def test_expired_hold_refuses_success_after_attempting_release(self):
+        h = self.harness()
+        with self.assertRaises(TurnProbeRefused):
+            self.run_probe(h, "A", sleeper=lambda _: h.clock.sleep(.61))
+        self.assertEqual(h.sender.events, [("A", True), ("A", False)])
+        self.assertIn(("stop", None), h.worker.events)
 
 
 if __name__ == "__main__":
