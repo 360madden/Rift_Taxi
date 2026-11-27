@@ -1,5 +1,10 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — consolidated product integration checkpoint
+
+This integration branch starts from accepted directed-interior checkpoint `f9c0f11` (CI 45947889610). The two world review graph files are copied byte-for-byte from accepted named-destination checkpoint `3a27946` (CI 45948041613); GitHub blob identities were independently matched after publication. Common base `dc22fe5`. The independent lanes changed distinct code/test files; this handoff retains both histories. Existing synthetic execution and imported-world review remain separate classifications. The desktop preview branch is not included until its own exact-head CI passes. No changes to main or sibling repositories, no source exports or game input. Combined-head CI still required; prior separate passes do not imply integration acceptance. 
+
+
 ## November 27 — directed interior start for authored synthetic maps
 
 Based on coordinate-entry checkpoint `626bc67` (successful hosted run 45947523131). The local Taxi CLI now accepts `--start-edge EDGE --edge-fraction T` for both plan and journey, with strict finite interior fraction (0 < T < 1) and explicit directed edge. A query-local virtual node has exactly one outgoing suffix; the original graph stays unchanged. No guessed reverse edge or intersection link. The selected original edge must not be blocked, and numerical degeneracy or collision with an authored node is refused. A derived graph identity binds the original byte SHA and selection; optional full receipts and compact CLI output retain the start binding. Existing exact XYZ and named starts remain available. Four new regression methods cover identity, directional behavior, blocked and invalid starts, crossing isolation and model execution. Hosted validation pending. This is authored synthetic geometry only, not live position admission or obstacle clearance. Separate world review graph PR #12 remains an independent lane.
@@ -24,6 +29,31 @@ python -m rift_taxi.local_taxi plan --start-xyz 4 0 0 --destination bank
 python -m rift_taxi.local_taxi journey --start-xyz 0 0 0 --destination bank --delay-steps 2
 ```
 Locator returns 0 for exact node, 1 for review-only candidates, 2 for invalid input. A plan/journey off-node request is invalid (exit 2). This exact-only first step is intentionally not arbitrary-world position navigation.
+
+
+## November 27 — named source-world destination selection
+
+Based on world graph checkpoint `e609abf` (hosted run 45947714186 passed). Added local `destinations` discovery and `plan --destination ID` to the offline review graph. Catalog IDs retain exact requested goal coordinates. At least one scoped original package must end exactly at the requested goal to bind a name. Nonzero snapped alternatives stay visible and cannot be silently substituted, even if another unrelated package reaches the requested coordinate. Existing exact XYZ planning remains available. A blocked route cannot be traversed but its original goal binding is retained; another valid directed review chain can reach the same exact goal. Four new regression methods exercise selection, blocked alternatives, snap-only refusal, grouping and CLI. All physical/transform/junction authority flags remain false. Hosted exact-head validation pending; no actual source exports uploaded.
+
+```sh
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD destinations
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD plan --start-xyz 0 0 0 --destination bank
+```
+
+Unknown or unbound destination returns exit 1, with explicit status and no segments. Named destination IDs are user/catalog labels, not authenticated in-game names. Next reconcile with the synthetic position-entry lane after both exact-head checks; then develop a route viewer and privately test retained original packages.
+
+
+## November 27 — source-pinned world review graph
+
+Independent continuation from accepted product checkpoint `dc22fe5` (hosted run 45945997639). New `rift_taxi.world_review_graph` reopens exact catalog/package pins, requires source-world/frame/patch/planner-build scope and consistent complete world metadata, and treats each original complete candidate as a directed edge between its exact snapped source XYZ endpoints. Dijkstra ranks complete chains by full 3D polyline length; an excluded edge can select a detour. Original package/source identity, requested versus snapped coordinates, evidence, endpoint offsets and all waypoint flags remain in each segment. Only exact shared endpoints produce a review junction; no proximity linking, interior split, reverse edge, coordinate conversion or verified connector. The graph cannot execute a journey and is not a live navigation mesh. Six new synthetic fixture test methods cover route selection/detour, exact scope and endpoints, corruption, tie-breaking and CLI. Hosted exact-head validation pending. No real export uploaded; local original-package compatibility and physical qualification remain outstanding. Coordinate entry is independently developed in PR #11; reconcile after both checks pass.
+
+Example (substitute actual locally retained source pins):
+```sh
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD endpoints
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD plan --start-xyz 0 0 0 --goal-xyz 8 0 0 --out new-review.json
+```
+
+CLI exit 0: endpoints or review chain found (including same endpoint); 1: no endpoints/chain or unknown exact endpoint; 2: invalid/corrupt input. A mathematical junction is not a traversable connection. Next: test against privately retained real packages, integrate explicit review endpoint/destination selection, and qualify route geometry separately before any live controller admission.
 
 
 ## November 27, 13:24 PHT — product-first local Taxi prototype
