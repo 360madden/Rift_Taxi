@@ -6,7 +6,7 @@ from contextlib import redirect_stderr
 import io
 import test_world_route_graph as fixtures
 from rift_taxi.contracts import TraceError
-from rift_taxi.world_route_viewer import review_scene, scene_svg, main
+from rift_taxi.world_route_viewer import review_scene, scene_svg, main, search_destinations
 
 
 class WorldViewerTests(unittest.TestCase):
@@ -78,3 +78,16 @@ class WorldViewerTests(unittest.TestCase):
             main(args)
         self.assertEqual(err.exception.code,2)
         self.assertEqual(output.read_bytes(),before)
+
+    def test_destination_search_matches_route_and_label_without_rebinding(self):
+        self.assertEqual(search_destinations(self.world),["detour","direct","first"])
+        self.assertEqual(search_destinations(self.world,"  DIR  "),["direct"])
+        self.assertEqual(search_destinations(self.world,"first FIRST"),["first"])
+        self.assertEqual(search_destinations(self.world,"direct detour"),[])
+        self.assertEqual(search_destinations(self.world,"nonexistent"),[])
+        self.world.routes["direct"]["destinationId"]="Central bank"
+        self.assertEqual(search_destinations(self.world,"CENTRAL bank"),["direct"])
+        self.assertEqual(search_destinations(self.world,"central direct"),["direct"])
+        for invalid in (None, 4, "x"*257):
+            with self.assertRaises(TraceError):
+                search_destinations(self.world,invalid)

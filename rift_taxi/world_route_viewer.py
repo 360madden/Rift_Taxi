@@ -21,6 +21,19 @@ COLORS = {"network": "#65788d", "blocked": "#ed7777", "route": "#54d6a1",
           "start": "#70b4ff", "goal": "#ffd477", "start-goal": "#ffd477"}
 
 
+def search_destinations(world, query=""):
+    """Return stable route IDs matching all case-insensitive search words.
+
+    Match catalog destination labels and route IDs. Do not coalesce aliases
+    or substitute a different snapped endpoint when filtering.
+    """
+    require(isinstance(query, str) and len(query) <= 256, "invalid destination search")
+    terms = query.casefold().split()
+    return [key for key in sorted(world.routes)
+            if all(term in (key + " " + world.routes[key]["destinationId"]).casefold()
+                   for term in terms)]
+
+
 def review_scene(world, *, start, destination, blocked_edges=(), width=900, height=600):
     """Plan locally and build aspect-correct XZ and cumulative-distance/Y scenes.
 
@@ -132,14 +145,23 @@ def launch(world):
     panel=ttk.Frame(root,padding=12)
     panel.grid(row=0,column=0,sticky="ns")
     aliases=sorted(world.aliases)
-    destinations=sorted(world.routes)
+    destinations=search_destinations(world)
     edge_ids=sorted(world.graph.edges)
     start=tk.StringVar(value=aliases[0])
     destination=tk.StringVar(value=destinations[0])
     status=tk.StringVar(value="Choose a route.")
-    for title,var,values in (("Source point",start,aliases),("Route destination ID",destination,destinations)):
-        ttk.Label(panel,text=title).pack(anchor="w")
-        ttk.Combobox(panel,textvariable=var,values=values,state="readonly",width=28).pack(fill="x",pady=(0,8))
+    query=tk.StringVar()
+    search_status=tk.StringVar(value=f"{len(destinations)} destinations")
+    ttk.Label(panel,text="Source point").pack(anchor="w")
+    source_box=ttk.Combobox(panel,textvariable=start,values=aliases,state="readonly",width=28)
+    source_box.pack(fill="x",pady=(0,8))
+    ttk.Label(panel,text="Find destination").pack(anchor="w")
+    search_box=ttk.Entry(panel,textvariable=query,width=28)
+    search_box.pack(fill="x",pady=(0,4))
+    ttk.Label(panel,textvariable=search_status).pack(anchor="w")
+    ttk.Label(panel,text="Route destination ID").pack(anchor="w")
+    destination_box=ttk.Combobox(panel,textvariable=destination,values=destinations,state="readonly",width=28)
+    destination_box.pack(fill="x",pady=(0,8))
     ttk.Label(panel,text="Exclude source edges").pack(anchor="w")
     excluded=tk.Listbox(panel,selectmode="multiple",exportselection=False,height=10,width=30)
     excluded.pack(fill="x")
@@ -152,6 +174,9 @@ def launch(world):
         canvas.delete("all")
         w,h=canvas.winfo_width(),canvas.winfo_height()
         if w<320 or h<280:
+            return
+        if not destination.get():
+            status.set("Select a matching destination.")
             return
         try:
             scene=review_scene(world,start=start.get(),destination=destination.get(),
@@ -180,6 +205,25 @@ def launch(world):
             status.set(str(exc))
     ttk.Button(panel,text="Preview route",command=draw).pack(fill="x",pady=10)
     ttk.Label(panel,textvariable=status,wraplength=230,justify="left").pack(anchor="w")
+    def filter_destinations(*_):
+        # Keep an existing selection only when it survives the filter.
+        # Never silently choose a different destination or display a stale route.
+        try:
+            matches=search_destinations(world,query.get())
+        except TraceError:
+            matches=[]
+        destination_box.configure(values=matches)
+        search_status.set(f"{len(matches)} of {len(destinations)} destinations")
+        if destination.get() not in matches:
+            destination.set("")
+        draw()
+
+    # A new explicit selection or exclusion recomputes the route immediately.
+    # The Preview button remains available as a deliberate repeat operation.
+    query.trace_add("write",filter_destinations)
+    source_box.bind("<<ComboboxSelected>>",draw)
+    destination_box.bind("<<ComboboxSelected>>",draw)
+    excluded.bind("<<ListboxSelect>>",draw)
     canvas.bind("<Configure>",draw)
     root.after_idle(draw)
     root.mainloop()
