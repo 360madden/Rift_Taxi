@@ -1,5 +1,17 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — standalone desktop route preview
+
+Based on directed interior start checkpoint `f9c0f11` (hosted run 45947889610 passed). Added `rift_taxi.local_taxi_gui`, an optional Python Tk desktop preview, with named starts, explicit directed interior start/fraction, destination selection, blocked-edge multi-selection and local A* preview. Pure scene projection fits XZ bounds with a constant scale across reroutes, positive Z upward, route/exclusion/start/goal roles, and the derived graph identity checked against the plan. No game execution, external service, sibling import or dependency beyond optional Tk. Six headless regression methods exercise planner reuse, detours, projection, no-route/same-node, invalid parameters, single-axis geometry and map pins. Hosted exact-head CI pending; actual Windows GUI launch and visual inspection are not yet verified.
+
+```powershell
+python -m rift_taxi.local_taxi_gui
+python -m rift_taxi.local_taxi_gui --map LOCAL_GRAPH.json --map-sha256 SHA256
+```
+
+The map argument accepts only authored synthetic graph schema, not a RiftWorld review package. Choose a start and destination, select optional blocked edges, and click Preview route. This is a route preview, not Go/STOP or physical arrival. Missing Tk or display produces a clear error. Next reconcile with the independently developed world named-destination lane once CI passes; then build a review-only viewer for imported world geometry and perform actual desktop smoke testing.
+
+
 ## November 27 — directed interior start for authored synthetic maps
 
 Based on coordinate-entry checkpoint `626bc67` (successful hosted run 45947523131). The local Taxi CLI now accepts `--start-edge EDGE --edge-fraction T` for both plan and journey, with strict finite interior fraction (0 < T < 1) and explicit directed edge. A query-local virtual node has exactly one outgoing suffix; the original graph stays unchanged. No guessed reverse edge or intersection link. The selected original edge must not be blocked, and numerical degeneracy or collision with an authored node is refused. A derived graph identity binds the original byte SHA and selection; optional full receipts and compact CLI output retain the start binding. Existing exact XYZ and named starts remain available. Four new regression methods cover identity, directional behavior, blocked and invalid starts, crossing isolation and model execution. Hosted validation pending. This is authored synthetic geometry only, not live position admission or obstacle clearance. Separate world review graph PR #12 remains an independent lane.
