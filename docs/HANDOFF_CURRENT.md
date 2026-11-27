@@ -1,5 +1,19 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27, 13:42 PHT — local position entry (isolated continuation)
+
+Base product checkpoint `dc22fe5` passed hosted Offline regression run 45945997639. This branch adds local coordinate entry to the existing synthetic A* prototype, with no dependency on a live client or cloud runtime. `locate --xyz X Y Z` ranks authored nodes by 3D distance (stable ID tie-break), reports separate XZ/Y offsets, and distinguishes exact binding from review suggestions. `plan` and `journey` accept either `--start NODE` or `--start-xyz X Y Z`; only exact authored XYZ is admitted. Optional full receipts retain the original query. Off-node positions, including points on a declared edge, do not create connectors or silently snap. Four new regression methods cover exact and wrong-floor binding, deterministic suggestions, invalid input, CLI refusal and modeled execution. Hosted acceptance pending; do not promote to main or physical authority. No sibling changes, no live input. Next prioritize a provenance-preserving real-map review adapter and explicit directed-edge interior admission with separate geometry evidence.
+
+Examples (from repository root or installed wheel):
+```sh
+python -m rift_taxi.local_taxi locate --xyz 4 0 0
+python -m rift_taxi.local_taxi locate --xyz 4.1 0 0
+python -m rift_taxi.local_taxi plan --start-xyz 4 0 0 --destination bank
+python -m rift_taxi.local_taxi journey --start-xyz 0 0 0 --destination bank --delay-steps 2
+```
+Locator returns 0 for exact node, 1 for review-only candidates, 2 for invalid input. A plan/journey off-node request is invalid (exit 2). This exact-only first step is intentionally not arbitrary-world position navigation.
+
+
 ## November 27, 13:24 PHT — product-first local Taxi prototype
 
 User explicitly prioritized a usable standalone prototype with locally computed routes and pathfinding over further audit/statistics work. Recovered LEGION `35d15f1` to remote `4f0516a` by verifying all three pending files were byte-identical to the remote commit, preserving copies under ignored `artifacts/reconcile-remote-20261127-1320`, and fast-forwarding. Exact-head comprehensive CI run 45937080464 passed all three jobs including installed constrained acceptance (106 s); no duplicate commits needed. New `rift_taxi.local_taxi` implements bounded local directed-graph A*, destination listing, blocked-edge alternate routes and a single call into the existing constrained synthetic journey controller. Named start node, no implicit connectors/reversals, hard stops and explicit passage regions preserved. Built-in demo main route and blocked-edge detour both reached the modeled destination with two delayed steps. Six focused tests initially passed; installed-wheel CI now exercises route choice, detour and no-route. This is actual local pathfinding and model execution, NOT physical RIFT navigation. Next prioritize a local real-map review graph adapter, usable destination/position entry, and independent movement admission when physical prerequisites return. Do not create more research-only instrumentation without a direct product blocker. Local full regression completed: 788/788 on Python 3.14.10 (job taxi_20261127_local_pathfinder_full_01, exit 0); after the final CI/readme/test edits, local pathfinder and CI checkpoint focused suites passed 6/6 and 9/9. Hosted exact-head product acceptance is pending publication.
