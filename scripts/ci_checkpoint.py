@@ -42,6 +42,7 @@ REQUIRED = {
         "Run installed offline journey demonstration",
         "Run installed experimental journey modes",
         "Run installed constrained journey and audit",
+        "Run installed local Taxi prototype",
         "Upload installed synthetic journey",
     ),
 }

@@ -131,6 +131,21 @@ jobs:
           python -I -m rift_taxi.synthetic_constrained_journey "$trace" "$policy" --delay-steps 2 --require-observed --out installed-journey-constrained.json > /dev/null
           python -I -m rift_taxi.synthetic_constrained_audit "$trace" "$policy" installed-journey-constrained.json --out installed-journey-constrained-audit.json
           python -I -c "import json; from pathlib import Path; r=json.loads(Path('installed-journey-constrained-audit.json').read_text(encoding='utf-8')); assert r['allObligationsObserved'] and r['completedLegs']==r['plannedLegs']==2 and r['declaredPolicySHA256Matched'] is True and r['approachControllerReexecuted'] is False and r['physicalQualification'] is False and r['gameInputSent'] is False; print('INSTALLED_CONSTRAINED_JOURNEY',r['journeyStatus'])"
+      # Test the user-facing pathfinder and actual selected-route model execution
+      # from the installed wheel, outside the checkout and without sibling tools.
+      - name: Run installed local Taxi prototype
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -I -m rift_taxi.local_taxi destinations
+          python -I -m rift_taxi.local_taxi journey --start entrance --destination bank --delay-steps 2 --out installed-journey-local-main.json
+          python -I -m rift_taxi.local_taxi journey --start entrance --destination bank --blocked-edge main-west-to-main-east --delay-steps 2 --out installed-journey-local-detour.json
+          python -I -c "import json; from pathlib import Path; a,b=[json.loads(Path('installed-journey-local-'+name+'.json').read_text(encoding='utf-8')) for name in ('main','detour')]; assert a['status']==b['status']=='model-arrived' and a['plan']['edges']!=b['plan']['edges'] and b['plan']['distance']>a['plan']['distance'] and all(r['physicalQualification'] is False and r['gameInputSent'] is False for r in (a,b))"
+          set +e
+          python -I -m rift_taxi.local_taxi plan --start entrance --destination bank --blocked-edge entrance-to-main-west --blocked-edge entrance-to-north-west --out installed-journey-local-no-route.json
+          result=$?
+          set -e
+          test "$result" -eq 1
+          python -I -c "import json; from pathlib import Path; r=json.loads(Path('installed-journey-local-no-route.json').read_text(encoding='utf-8')); assert r['status']=='no-route' and not r['points'] and r['gameInputSent'] is False"
       - name: Upload installed synthetic journey
         uses: actions/upload-artifact@v4
         with:

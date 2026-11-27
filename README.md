@@ -39,6 +39,19 @@ RIFT Taxi is being built to treat the **destination** as the objective—not eac
 
 **Development workflow:** [AI-first autonomous execution](docs/AUTONOMY_POLICY.md) is the default. The AI should carry out coding, investigation, Windows/game inspection, evidence collection, testing and GitHub synchronization with minimal user intervention while preserving accurate live-game qualification.
 
+## Try the standalone local Taxi prototype
+
+From `C:\work\Rift_Taxi` on Windows, with Python 3.11 or later:
+
+```powershell
+python -m rift_taxi.local_taxi destinations
+python -m rift_taxi.local_taxi plan --start entrance --destination bank
+python -m rift_taxi.local_taxi journey --start entrance --destination bank
+python -m rift_taxi.local_taxi journey --start entrance --destination bank --blocked-edge main-west-to-main-east
+```
+
+The prototype chooses a shortest path through explicit directed connections using A*, reroutes when an edge is blocked, and follows the selected path using the existing synthetic journey controller. Add `--map PATH` **before** the command to use a local graph instead of the bundled demo, and optionally `--map-sha256 HASH` for an exact input pin. An installed wheel also provides the `rift-taxi-local` command. No game, internet, AI service or sibling application is needed. This initial graph represents an authored flat synthetic environment; it does not claim real-world geometry clearance or live movement. Exit 1 means no route or a blocked model journey; exit 2 means invalid input.
+
 ## 📍 Current state
 
 **Latest accepted offline baseline (November 24 PST):** PR #7 merged at `4803c92`. [Hosted run 45563551288](https://github.com/360madden/Rift_Taxi/actions/runs/45563551288) passed 556/556 Windows tests, 540 passed plus 16 Windows-specific skips on Python 3.11 Linux; all three hosted jobs succeeded. Installed baseline and all three experimental synthetic journey modes ran successfully. Both original LEGION factorial archives were recovered and independently verified. [Recovery and research handoff](docs/HANDOFF_CURRENT.md). The V4 lookahead candidate remains rejected; no live qualification is implied.

@@ -86,12 +86,14 @@ class CICheckpointTests(unittest.TestCase):
     def test_installed_constrained_acceptance_is_required(self):
         run,jobs=fixture()
         row=next(r for r in jobs["jobs"] if "wheel" in r["name"])
-        step=next(s for s in row["steps"] if s["name"]=="Run installed constrained journey and audit")
-        # A successful job summary cannot hide a skipped mandatory
-        # installed-package acceptance test.
-        step["conclusion"]="skipped"
-        with self.assertRaises(CIGateError):
-            verify(run,jobs,**PIN)
+        # Neither installed product check can be replaced by a green job summary.
+        for name in ("Run installed constrained journey and audit", "Run installed local Taxi prototype"):
+            bad=deepcopy(jobs)
+            row=next(r for r in bad["jobs"] if "wheel" in r["name"])
+            step=next(s for s in row["steps"] if s["name"]==name)
+            step["conclusion"]="skipped"
+            with self.subTest(name=name),self.assertRaises(CIGateError):
+                verify(run,bad,**PIN)
 
     def test_conditional_skipped_nonrequired_step_allowed(self):
         run,jobs=fixture()
