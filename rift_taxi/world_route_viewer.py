@@ -91,6 +91,28 @@ def review_scene(world, *, start, destination, blocked_edges=(), width=900, heig
             "nodes":nodes,"profile":profile,"classification":CLASSIFICATION}
 
 
+def map_pick(scene, x, y, *, radius=7.):
+    """Resolve a map click to a single existing graph node, never a new point.
+
+    Coordinates and radius are canvas pixels, not world units. All distinct
+    nodes inside the click radius are candidates; overlapping floors or
+    nearby vertices remain ambiguous rather than selecting the nearest one.
+    The elevation profile and header are not interactive map areas.
+    """
+    require(scene.get("classification") == CLASSIFICATION, "review scene required")
+    x, y, radius = (_number(v, name) for v, name in
+                    ((x, "click X"), (y, "click Y"), (radius, "pick radius")))
+    require(1 <= radius <= 20, "invalid pick radius")
+    if not (0 <= x <= scene["width"] and 76 <= y <= scene["mapBottom"]):
+        return {"status":"outside-map", "nodeId":None, "candidates":[]}
+    candidates = sorted(n["id"] for n in scene["nodes"]
+                        if math.hypot(x-n["screen"][0],y-n["screen"][1]) <= radius)
+    if len(candidates) == 1:
+        return {"status":"selected", "nodeId":candidates[0], "candidates":candidates}
+    return {"status":"ambiguous" if candidates else "no-node",
+            "nodeId":None, "candidates":candidates}
+
+
 def scene_svg(scene):
     """Render a self-contained SVG. XML serialization escapes all source text.
 
@@ -169,8 +191,14 @@ def launch(world):
         excluded.insert("end",edge_id)
     canvas=tk.Canvas(root,background="#121b27",highlightthickness=0)
     canvas.grid(row=0,column=1,sticky="nsew")
+    current_scene = None
+    pick_status = tk.StringVar(value="Click a map vertex to select the source.")
+    ttk.Label(panel,textvariable=pick_status,wraplength=230).pack(anchor="w")
 
     def draw(*_):
+        nonlocal current_scene
+        # Invalidate the previous hit-test geometry before every redraw.
+        current_scene = None
         canvas.delete("all")
         w,h=canvas.winfo_width(),canvas.winfo_height()
         if w<320 or h<280:
@@ -201,6 +229,7 @@ def launch(world):
             canvas.create_text(16,bottom+6,text="Elevation profile: source Y",fill="#dce5f0",anchor="nw")
             for a,b in zip(scene["profile"],scene["profile"][1:]):
                 canvas.create_line(*a["screen"],*b["screen"],fill=COLORS["route"],width=2)
+            current_scene = scene
         except (TraceError,ValueError,OverflowError) as exc:
             status.set(str(exc))
     ttk.Button(panel,text="Preview route",command=draw).pack(fill="x",pady=10)
@@ -224,6 +253,26 @@ def launch(world):
     source_box.bind("<<ComboboxSelected>>",draw)
     destination_box.bind("<<ComboboxSelected>>",draw)
     excluded.bind("<<ListboxSelect>>",draw)
+    def pick_source(event):
+        # A screen-space click only chooses an authored source vertex.
+        # There is no continuous-position connector or physical admission.
+        if current_scene is None:
+            return
+        result = map_pick(current_scene, event.x, event.y)
+        if result["status"] == "selected":
+            alias = result["nodeId"]
+            if alias not in world.aliases:
+                pick_status.set("Select an explicit source from the list.")
+                return
+            start.set(alias)
+            pick_status.set("Selected source: " + alias)
+            draw()
+        elif result["status"] == "ambiguous":
+            pick_status.set("Overlapping vertices; choose the exact source from the list.")
+        else:
+            pick_status.set("No source vertex selected.")
+
+    canvas.bind("<Button-1>",pick_source)
     canvas.bind("<Configure>",draw)
     root.after_idle(draw)
     root.mainloop()

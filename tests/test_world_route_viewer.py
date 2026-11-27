@@ -6,7 +6,7 @@ from contextlib import redirect_stderr
 import io
 import test_world_route_graph as fixtures
 from rift_taxi.contracts import TraceError
-from rift_taxi.world_route_viewer import review_scene, scene_svg, main, search_destinations
+from rift_taxi.world_route_viewer import review_scene, scene_svg, main, search_destinations, map_pick
 
 
 class WorldViewerTests(unittest.TestCase):
@@ -91,3 +91,29 @@ class WorldViewerTests(unittest.TestCase):
         for invalid in (None, 4, "x"*257):
             with self.assertRaises(TraceError):
                 search_destinations(self.world,invalid)
+
+    def test_map_pick_selects_exact_vertex_not_arbitrary_connector(self):
+        scene = review_scene(self.world,start="first:0",destination="direct")
+        node = next(n for n in scene["nodes"] if n["id"]=="first:0")
+        x,y = node["screen"]
+        self.assertEqual(map_pick(scene,x,y)["nodeId"],"first:0")
+        self.assertEqual(map_pick(scene,x,y+8)["status"],"no-node")
+        self.assertEqual(map_pick(scene,x,scene["mapBottom"]+1)["status"],"outside-map")
+        for radius in (0,21,True,float("nan")):
+            with self.assertRaises(TraceError):
+                map_pick(scene,x,y,radius=radius)
+
+    def test_map_pick_refuses_projected_overlaps_and_nearby_nodes(self):
+        # Vertical source paths project distinct Y coordinates onto the same
+        # XZ screen point; neither is a safe default selection.
+        self.fixture.rows.clear()
+        self.fixture.add("vertical",[[1,0,1],[1,3,1]])
+        world = self.fixture.load("vertical")
+        scene = review_scene(world,start="vertical:0",destination="vertical")
+        x,y = scene["nodes"][0]["screen"]
+        result = map_pick(scene,x,y)
+        self.assertEqual(result["status"],"ambiguous")
+        self.assertIsNone(result["nodeId"])
+        self.assertEqual(result["candidates"],["vertical:0","vertical:1"])
+        scene["nodes"][1]["screen"] = [x+5,y]
+        self.assertEqual(map_pick(scene,x,y)["status"],"ambiguous")
