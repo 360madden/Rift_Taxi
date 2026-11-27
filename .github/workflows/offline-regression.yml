@@ -153,3 +153,49 @@ jobs:
           path: ${{ runner.temp }}/installed-journey*.json
           if-no-files-found: error
           retention-days: 90
+
+  installed-desktop:
+    name: Windows / installed desktop smoke
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      # An isolated installed wheel, not an editable/source-tree import.
+      # No private catalog, game installation, credentials or local PC.
+      - name: Build wheel and install into a fresh environment
+        shell: pwsh
+        run: |
+          $base = Join-Path $env:RUNNER_TEMP 'taxi-desktop-build'
+          New-Item -ItemType Directory -Path $base | Out-Null
+          python -m pip wheel --no-deps --wheel-dir $base .
+          if ($LASTEXITCODE -ne 0) { throw 'Wheel build failed' }
+          $wheel = @(Get-ChildItem -LiteralPath $base -Filter '*.whl' -File)
+          if ($wheel.Count -ne 1) { throw 'Expected one wheel' }
+          python -m venv (Join-Path $base 'venv')
+          if ($LASTEXITCODE -ne 0) { throw 'venv failed' }
+          & (Join-Path $base 'venv/Scripts/python.exe') -m pip install --no-index --no-deps $wheel[0].FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Offline install failed' }
+      - name: Exercise installed launcher and both desktop viewers
+        shell: pwsh
+        run: |
+          $base = Join-Path $env:RUNNER_TEMP 'taxi-desktop-build'
+          $wheel = @(Get-ChildItem -LiteralPath $base -Filter '*.whl' -File)
+          $sha = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Checkout identity unavailable' }
+          & (Join-Path $base 'venv/Scripts/python.exe') -I -B scripts/ci_desktop_smoke.py --wheel $wheel[0].FullName --source-commit $sha --out-dir (Join-Path $env:RUNNER_TEMP 'taxi-desktop-receipts')
+          if ($LASTEXITCODE -ne 0) { throw 'Installed desktop smoke failed' }
+      - name: Retain synthetic desktop receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: installed-desktop-smoke-windows
+          path: |
+            ${{ runner.temp }}/taxi-desktop-receipts/summary.json
+            ${{ runner.temp }}/taxi-desktop-receipts/widget-smoke.json
+          if-no-files-found: warn
+          retention-days: 30
