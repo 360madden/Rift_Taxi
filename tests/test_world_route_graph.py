@@ -26,8 +26,10 @@ class WorldGraphTests(unittest.TestCase):
         self.catalog = self.root / "catalog.json"
         self.rows = []
 
-    def add(self, name, points, *, patch="a", build="b", flags=None):
+    def add(self, name, points, *, patch="a", build="b", flags=None, authority=None):
         doc = fixture()
+        if authority is not None:
+            doc["world"]["authority"] = authority
         doc["patchId"] = patch * 64
         doc["planner"]["buildId"] = build * 64
         doc["plannerResult"]["cacheKey"] = build * 64
@@ -119,4 +121,10 @@ class WorldGraphTests(unittest.TestCase):
         self.assertEqual(package.read_bytes(),before)
         package.write_text("{}",encoding="utf-8")
         with self.assertRaises(TraceError):
+            self.load("first")
+
+    def test_same_world_name_with_conflicting_metadata_cannot_join(self):
+        self.add("first", [[0,0,0],[4,1,0]])
+        self.add("second", [[4,1,0],[8,2,0]], authority="different-source")
+        with self.assertRaisesRegex(TraceError, "conflicting source world metadata"):
             self.load("first")

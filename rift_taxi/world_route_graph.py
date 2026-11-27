@@ -68,6 +68,9 @@ def load_world_graph(catalog, *, catalog_sha256, anchor_route):
     first = _open_review(root, anchor)
     scope = {k: anchor[k] for k in ("sourceWorld", "frameSHA256", "patchId")}
     scope["buildId"] = first["buildId"]
+    # Same source-world name is insufficient: retain and compare the full
+    # source world metadata before joining any independently exported paths.
+    scope["worldMetadataSHA256"] = content_id(first["world"])
     scope["coordinates"] = first["coordinates"]
     scope["catalogSHA256"] = catalog_sha256
     nodes, edges, destinations, aliases, routes, sources = {}, {}, {}, {}, {}, {}
@@ -81,6 +84,8 @@ def load_world_graph(catalog, *, catalog_sha256, anchor_route):
         review = first if row["routeId"] == anchor_route else _open_review(root, row)
         if review["buildId"] != scope["buildId"]:
             continue
+        require(content_id(review["world"]) == scope["worldMetadataSHA256"],
+                "conflicting source world metadata")
         points = review["points"]
         route = row["routeId"]
         require(len(edges) + len(points) - 1 <= MAX_EDGES, "review graph edge bound exceeded")
