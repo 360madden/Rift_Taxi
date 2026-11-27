@@ -320,11 +320,17 @@ def _verify(result,trace):
             if (not isinstance(row,dict) or type(row["vertexIndex"]) is not int
                     or row["vertexIndex"] != vertex):
                 raise TraceError("synthetic ordered corner witness vertex disagrees")
-            _same(row["vertexArc"],arc,"corner witness arc")
-            _same(row["t"],t,"corner witness timestamp")
-            _same(row["progress"],progress_at_pass,"corner witness progress")
-            for actual,expected in zip(_xyz(row["xyz"]),xyz):
-                _same(actual,expected,"corner witness XYZ")
+            # Keep the established ordered-passage diagnostic contract.
+            # The stronger upstream check can reject before the older
+            # ordered comparison's witness validator is reached.
+            try:
+                _same(row["vertexArc"],arc,"corner witness arc")
+                _same(row["t"],t,"corner witness timestamp")
+                _same(row["progress"],progress_at_pass,"corner witness progress")
+                for actual,expected in zip(_xyz(row["xyz"]),xyz):
+                    _same(actual,expected,"corner witness XYZ")
+            except TraceError as exc:
+                raise TraceError(f"invalid ordered corner passage witness: {exc}") from exc
     elif isinstance(result.get("syntheticRecovery"),dict) and any(
             key.startswith("orderedSharp") for key in result["syntheticRecovery"]):
         raise TraceError("unexpected synthetic ordered corner evidence")

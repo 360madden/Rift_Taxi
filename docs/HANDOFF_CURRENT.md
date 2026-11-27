@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — ordered audit diagnostic compatibility repair
+
+The first projection-audit checkpoint a6ab933 failed Linux 3.14 CI run 45929450044 on an existing corner-witness diagnostic regex: the forged XYZ was correctly refused but the newer message lacked the established `invalid ordered corner passage` prefix. Preserve that prefix while retaining the precise underlying failure and the stricter independent projection check. Existing and new corruption tests must still reject. No reduction in checks or simulator changes. New comprehensive CI required.
+
 ## November 27 — independent synthetic route projection audit
 
 Indexed lookahead head 3178560 passed comprehensive run 45929131072 (68 s; Windows 714/714 in 44.611 s). Strengthen existing synthetic trajectory verifier using an independent full-scan bounded XZ projection, reconstructed prior applied-displacement budget, ordered sharp-corner gates, per-frame counts and passage witness checks. Reject internally plausible forged progress or coordinated cross-track/summary changes. Three focused tests added, including an ordered reversal fixture. No simulator or runtime steering change. The verifier still checks model consistency, not controller optimality, physical geometry or arrival. Full hosted validation pending.

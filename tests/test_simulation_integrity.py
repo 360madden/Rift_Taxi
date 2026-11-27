@@ -123,7 +123,7 @@ class SyntheticIntegrityTests(unittest.TestCase):
                             ("xyz",[9.,0.,0.]),("progress",.1)):
             changed = copy.deepcopy(report)
             changed["syntheticRecovery"]["orderedSharpCornerPassages"][0][field] = value
-            with self.subTest(field=field),self.assertRaises(TraceError):
+            with self.subTest(field=field),self.assertRaisesRegex(TraceError,"ordered corner"):
                 verify_synthetic_trajectory(changed,trace)
         changed = copy.deepcopy(report)
         changed["frames"][0]["orderedSharpCornersPassed"] = 0
