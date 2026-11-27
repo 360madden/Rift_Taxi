@@ -1,5 +1,9 @@
 # Current RIFT Taxi handoff — November 27, 2026
 
+## November 27 — explicit synthetic route-obligation evidence
+
+56ac154 installed-wheel journey-audit checkpoint passed all three jobs, PR 45930812586 (100 s; Windows 729/729). Added `rift_taxi.synthetic_route_constraints` offline sampled-evidence checker: explicit XYZ passage regions pinned to trace SHA/ordered point indices, distinct ordered witnesses, exact repeated synthetic XYZ plus bounded sample gaps and no supplied key activity for stop dwell, destination must remain settled through final sample. Ordinary guide/optional points are not obligations. Eight focused tests pass on LEGION, including wrong floor, missing/interpolated-only passage, between-sample key pulse, drift, gap, late departure, malformed policy and retained failed receipt. No claim of continuous stationarity, swept-volume clearance, physical arrival or constraint-execution controller. Full hosted regression pending. M1 physical gates remain unchanged.
+
 ## November 27 — installed saved-journey audit acceptance
 
 753b236 passed 728/728 Windows tests and 712 passes +16 platform skips on each Linux lane (PR 45930463887, 68 s); local audit tests 6/6. Existing frozen staggered-finish case verified on LEGION: delay 3, dt .12, speed 3.6, yaw rate 125, initial yaw -50, passive error .3608799296 -> .1500000000 after 1.56 s correction, .2108799296 modeled travel; .01 s budget leaves the journey terminal-unsettled. Added exact budget mismatch/active correction regression and isolated installed-wheel audit checks for all existing journey modes. Documented CLI invocation and v1 budget limitation. No physical input, source promotion or runtime dependencies. New hosted validation pending.
