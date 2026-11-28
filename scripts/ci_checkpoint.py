@@ -4,7 +4,9 @@ Development only. Accept saved GitHub REST run and attempt-specific job JSON,
 or fetch those two public-repository metadata objects through an authenticated
 gh CLI. Never starts a run, edits workflows, accesses credentials directly,
 or grants physical game qualification. Explicit expected head and attempt
-prevent an older successful PR run from approving a newer commit.
+prevent an older successful PR run from approving a newer commit. The stdlib-only
+verifier reads metadata, prints a receipt and optionally creates one new output;
+it never imports game readers or controls input.
 """
 from __future__ import annotations
 
@@ -19,6 +21,9 @@ import subprocess
 REPO = "360madden/Rift_Taxi"
 WORKFLOW = ".github/workflows/offline-regression.yml"
 MAX_BYTES = 2 * 1024 * 1024
+# Keep this explicit admission contract aligned with the checked-in workflow.
+# An added job must be reviewed here; accepting arbitrary extra green summaries
+# would omit its required stages and could silently weaken checkpoint evidence.
 REQUIRED = {
     "Python 3.14 / windows-latest": (
         "Rehearse patch recovery with synthetic manifests",
@@ -44,6 +49,11 @@ REQUIRED = {
         "Run installed constrained journey and audit",
         "Run installed local Taxi prototype",
         "Upload installed synthetic journey",
+    ),
+    "Windows / installed desktop smoke": (
+        "Build wheel and install into a fresh environment",
+        "Exercise installed launcher and both desktop viewers",
+        "Retain synthetic desktop receipts",
     ),
 }
 SHA = re.compile(r"[0-9a-f]{40}\Z")

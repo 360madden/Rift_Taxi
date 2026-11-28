@@ -69,6 +69,7 @@ class Graph:
     nodes: dict[str, Node]
     edges: dict[str, Edge]
     destinations: dict[str, tuple[str, str]]  # destination ID -> (label, node ID)
+    classification: str = "SYNTHETIC_MODEL_ONLY"
 
 
 def decode_graph(raw: bytes) -> Graph:
@@ -174,6 +175,96 @@ def demo_graph() -> Graph:
     return decode_graph(json.dumps(doc, sort_keys=True, separators=(",", ":")).encode())
 
 
+def locate_start(graph: Graph, position, *, limit=5):
+    """Rank authored start nodes for an explicitly supplied synthetic XYZ.
+
+    Exact XYZ equality is the only admitted start binding. A nearby node is
+    merely a review suggestion, never a snapped position or new connector.
+    Distances are in graph units; separate vertical and horizontal offsets
+    make wrong-floor candidates visible. The stable ID breaks distance ties.
+    No game sensor, coordinate transform or physical authority is implied.
+    """
+    # Imported review graphs can contain coincident source vertices. This
+    # synthetic locator assumes unique authored nodes and cannot admit them.
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "locator requires a synthetic graph")
+    query = coordinates(position)
+    require(type(limit) is int and 1 <= limit <= 20, "candidate limit must be 1..20")
+    candidates = []
+    for node in graph.nodes.values():
+        dxz = math.hypot(query[0] - node.xyz[0], query[2] - node.xyz[2])
+        dy = abs(query[1] - node.xyz[1])
+        candidates.append({"node": node.id, "xyz": list(node.xyz),
+                           "distanceXZ": dxz, "distanceY": dy,
+                           "distance3D": math.hypot(dxz, dy),
+                           "exactMatch": query == node.xyz})
+    candidates.sort(key=lambda row: (row["distance3D"], row["node"]))
+    # Unique XYZ is enforced by decode_graph; no approximate match can pass.
+    exact = next((row["node"] for row in candidates if row["exactMatch"]), None)
+    return {"schema": "taxi.local-start-location/1",
+            "classification": "SYNTHETIC_MODEL_ONLY", "mapId": graph.map_id,
+            "graphSHA256": graph.sha256, "queryXYZ": list(query),
+            "status": "exact-node" if exact is not None else "no-exact-node",
+            "startNode": exact, "candidates": candidates[:limit],
+            "connectorVerified": False, "physicalQualification": False,
+            "productionInputAuthorized": False, "gameInputSent": False}
+
+
+def bind_edge_start(graph: Graph, edge_id: str, fraction, *, blocked_edges=()):
+    """Derive a query-local synthetic start on one explicitly directed edge.
+
+    Fraction is distance along the authored straight segment, in (0, 1).
+    Only its forward suffix becomes accessible from the virtual start. No
+    reverse, nearby crossing, or arbitrary XYZ connector is inferred. The
+    original graph stays unchanged, including its full directed edge, so a
+    later traversal from the original source remains possible. The temporary
+    graph identity binds the original byte pin and exact selection. This is
+    model geometry, not source-to-live position or traversal evidence.
+    """
+    # Never turn a review-only source graph into a synthetic execution graph.
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "edge start requires a synthetic graph")
+    require(isinstance(edge_id, str) and edge_id in graph.edges, "unknown start edge")
+    require(isinstance(blocked_edges, (list, tuple)) and len(blocked_edges) <= MAX_EDGES
+            and all(isinstance(e, str) and e in graph.edges for e in blocked_edges),
+            "unknown or invalid blocked edge")
+    require(edge_id not in blocked_edges, "selected start edge is blocked")
+    t = _number(fraction, "edge fraction")
+    require(0. < t < 1., "edge fraction must be strictly between 0 and 1")
+    edge = graph.edges[edge_id]
+    a, b = graph.nodes[edge.source].xyz, graph.nodes[edge.target].xyz
+    pos = tuple(x + (y-x)*t for x, y in zip(a, b))
+    # Refuse numerically degenerate starts or coincidence with an authored
+    # node: such positions require explicit node selection, not a new alias.
+    prefix, suffix = math.dist(a, pos), math.dist(pos, b)
+    require(prefix > 1e-9 and suffix > 1e-9, "edge start too close to endpoint")
+    require(all(pos != node.xyz for node in graph.nodes.values()),
+            "edge start coincides with an authored node")
+    selection = {"schema": "taxi.local-edge-start/1",
+                 "classification": "SYNTHETIC_MODEL_ONLY",
+                 "sourceGraphSHA256": graph.sha256, "edgeId": edge_id,
+                 "fraction": t, "startXYZ": list(pos), "sourceNode": edge.source,
+                 "targetNode": edge.target, "remainingDistance": suffix,
+                 "physicalQualification": False, "productionInputAuthorized": False,
+                 "gameInputSent": False}
+    digest = hashlib.sha256(json.dumps(selection, sort_keys=True, separators=(",", ":"),
+                                       allow_nan=False).encode()).hexdigest()
+    # Allocate bounded deterministic identifiers without shadowing user IDs.
+    def unused(prefix, existing):
+        i = 0
+        while f"{prefix}-{i}" in existing:
+            i += 1
+        return f"{prefix}-{i}"
+    node_id = unused("query-start", graph.nodes)
+    suffix_id = unused("query-suffix", graph.edges)
+    nodes = dict(graph.nodes)
+    edges = dict(graph.edges)
+    nodes[node_id] = Node(node_id, pos, "guide", None)
+    edges[suffix_id] = Edge(suffix_id, node_id, edge.target, suffix)
+    derived = Graph(graph.map_id, digest, nodes, edges, dict(graph.destinations),
+                    graph.classification)
+    return derived, node_id, {**selection, "derivedGraphSHA256": digest,
+                              "startNode": node_id, "suffixEdgeId": suffix_id}
+
+
 def plan_route(graph: Graph, start: str, destination: str, *, blocked_edges=()):
     """Compute shortest available directed path by A* with a Euclidean heuristic.
 
@@ -188,7 +279,7 @@ def plan_route(graph: Graph, start: str, destination: str, *, blocked_edges=()):
             "unknown or invalid blocked edge")
     blocked = set(blocked_edges)
     label, goal = graph.destinations[destination]
-    base = {"schema": "taxi.local-route-plan/1", "classification": "SYNTHETIC_MODEL_ONLY",
+    base = {"schema": "taxi.local-route-plan/1", "classification": graph.classification,
             "mapId": graph.map_id, "graphSHA256": graph.sha256, "startNode": start,
             "destinationId": destination, "destinationLabel": label, "destinationNode": goal,
             "blockedEdges": sorted(blocked), "physicalQualification": False,
@@ -240,6 +331,8 @@ def run_local_journey(graph: Graph, start: str, destination: str, *, blocked_edg
     start is an exact named graph node (no unverified position connector).
     A failed controller leg is retained, never relabeled as arrival.
     """
+    # Source-world candidate routes must not enter the ideal synthetic plant.
+    require(graph.classification == "SYNTHETIC_MODEL_ONLY", "only synthetic graphs can execute the model")
     plan = plan_route(graph, start, destination, blocked_edges=blocked_edges)
     result = {"schema": "taxi.local-journey/1", "classification": "SYNTHETIC_MODEL_ONLY",
               "plan": plan, "status": plan["status"], "journey": None,
@@ -283,9 +376,18 @@ def main(argv=None):
     parser.add_argument("--map-sha256", help="optional exact external graph byte pin")
     sub = parser.add_subparsers(dest="operation", required=True)
     sub.add_parser("destinations", help="list local destinations and valid start nodes")
+    locate = sub.add_parser("locate", help="review authored nodes near an XYZ; no snapping")
+    locate.add_argument("--xyz", nargs=3, type=float, required=True)
+    locate.add_argument("--limit", type=int, default=5)
     for action in ("plan", "journey"):
         command = sub.add_parser(action, help="compute route" if action == "plan" else "plan and run synthetic model")
-        command.add_argument("--start", required=True)
+        start = command.add_mutually_exclusive_group(required=True)
+        start.add_argument("--start", help="exact authored node ID")
+        start.add_argument("--start-xyz", nargs=3, type=float,
+                           help="exact authored XYZ; use locate for nearby candidates")
+        start.add_argument("--start-edge", help="explicit directed synthetic edge ID")
+        command.add_argument("--edge-fraction", type=float,
+                             help="strict interior fraction along --start-edge (0 to 1)")
         command.add_argument("--destination", required=True)
         command.add_argument("--blocked-edge", action="append", default=[])
         if action == "journey":
@@ -309,6 +411,21 @@ def main(argv=None):
                                                for i, (label, node) in sorted(graph.destinations.items())],
                               "startNodes": sorted(graph.nodes)}, indent=2))
             return 0
+        if args.operation == "locate":
+            location = locate_start(graph, args.xyz, limit=args.limit)
+            print(json.dumps(location, indent=2, allow_nan=False))
+            return 0 if location["startNode"] is not None else 1
+        selection = None
+        require((args.start_edge is None) == (args.edge_fraction is None),
+                "--start-edge and --edge-fraction must be supplied together")
+        if args.start_edge is not None:
+            graph, args.start, selection = bind_edge_start(
+                graph, args.start_edge, args.edge_fraction, blocked_edges=args.blocked_edge)
+        if args.start_xyz is not None:
+            selection = locate_start(graph, args.start_xyz)
+            require(selection["startNode"] is not None,
+                    "position is not an exact authored node; use locate to review candidates")
+            args.start = selection["startNode"]
         if args.out is not None:
             require(not args.out.exists() and not args.out.is_symlink(), "output already exists")
         if args.operation == "plan":
@@ -316,6 +433,10 @@ def main(argv=None):
         else:
             result = run_local_journey(graph, args.start, args.destination, blocked_edges=args.blocked_edge,
                                        initial_yaw=args.initial_yaw, delay_steps=args.delay_steps)
+        if selection is not None:
+            # Preserve the original node/edge query and its source binding.
+            # A virtual start is confined to its selected directed suffix.
+            result["startSelection"] = selection
         if args.out is not None:
             with args.out.open("x", encoding="utf-8", newline="\n") as stream:
                 json.dump(result, stream, indent=2, allow_nan=False)
@@ -325,7 +446,9 @@ def main(argv=None):
         print(json.dumps({"status": result["status"], "mapId": graph.map_id,
                           "destination": plan["destinationLabel"], "nodes": plan["nodes"],
                           "edges": plan["edges"], "distance": plan["distance"],
-                          "classification": "SYNTHETIC_MODEL_ONLY"}, indent=2, allow_nan=False))
+                          "classification": "SYNTHETIC_MODEL_ONLY",
+                          **({"startSelection": selection} if selection is not None else {})},
+                         indent=2, allow_nan=False))
         return 1 if result["status"] in ("no-route", "model-blocked") else 0
     except (TraceError, OSError, ValueError, OverflowError, RecursionError) as exc:
         parser.exit(2, f"Local Taxi refused: {exc}\n")

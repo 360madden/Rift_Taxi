@@ -11,7 +11,12 @@ dependencies = []
 
 [project.scripts]
 rift-taxi = "rift_taxi.cli:main"
+rift-taxi-app = "rift_taxi.app:main"
 rift-taxi-local = "rift_taxi.local_taxi:main"
+rift-taxi-local-viewer = "rift_taxi.local_taxi_gui:main"
+rift-taxi-world = "rift_taxi.world_route_graph:main"
+rift-taxi-world-catalog = "rift_taxi.world_catalog_build:main"
+rift-taxi-world-viewer = "rift_taxi.world_route_viewer:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -1,4 +1,293 @@
-# Current RIFT Taxi handoff — November 27, 2026
+# Current RIFT Taxi handoff — November 28, 2026
+
+## November 28, 23:19 PHT — offline destination availability
+
+Predecessor e019fbb passed all four required jobs in run 46082091519; local 871 tests passed in the prior turn. User reports RIFT unavailable, and the LEGION connector returned HTTP 429. No game, addon or local settings changed. This cloud checkpoint adds one directed connectivity pass to the existing imported-world graph, using the same exact source resolution and edge exclusions as A*. The reachable-only picker refreshes on source/search/exclusion changes; it never selects another destination automatically. Existing A* remains the sole route planner. New reachable CLI inventory includes graph identity and false physical-authority flags. Regression compares inventory with A* for every fixture alias under several edge exclusions, checks exact/ambiguous source and CLI exclusive output; installed Windows smoke tests filter invalidation and restoration. Local validation unavailable in this turn; exact-head hosted CI is required before acceptance. Continue PR #26, do not merge main or publish raw private captures. Physical freshness remains unqualified.
+
+
+## November 28, 07:20 PHT — crash-worker lease and compensation repair
+
+Fixed the separately reproduced stale-lease path in crash_release_probe.
+The A-only crash worker now renews after final identity/launcher/key checks,
+validates the finite same-clock 0.55-second deadline, and rechecks remaining
+budget/liveness after DOWN, marker fsync and the hold. Ordinary failures after
+possible DOWN attempt local UP and child STOP without clock/disk dependencies.
+The actual os._exit(37) branch retains abrupt exit and independent recovery.
+A durable marker alone cannot prove that branch; marker intent stays distinct
+from the launcher's actual-exit and ordered-child-UP qualification.
+
+The old source reproduced 28 failing inert subcases. Final focused regression
+passed 22 tests in 0.844 s, including actual exit 37 with entirely fake input,
+and refusal to qualify a retained marker/child-UP with a non-37 worker exit.
+Independent source/test review passed. Full LEGION Python 3.14.10 regression
+passed 871/871 in 116.960 s; job taxi_20261128_crash_lease_full01, exit 0.
+See [repair details and source hashes](M1_PROBE_LEASE_TIMING_2026-11-28.md).
+No physical A/focus/crash experiment was performed for this repair, and the
+non-atomic check/send/exit limitation remains explicit. Post-push exact-head
+hosted CI remains the acceptance gate for the new source.
+
+The prior section preserves the real moving observation, original wrapper
+failure and derived recovery without repeating W. Read-only source review
+also confirmed both installed Telemetry files still match the prior audit:
+each has a 0.10-second Unit.Detail polling path, neither checks HUD visibility,
+and no implemented pause command was found. Hiding a panel or stopping the
+external companion cannot establish an API-quiet window. Next freshness work
+needs a verified loaded-producer inventory and an explicitly planned/restored
+quiet configuration, or an independently fresh native producer. Do not gather
+another equivalent pulse merely for more statistics. Addons/settings and
+read-only siblings remain unchanged; continue the consolidated PR #26.
+
+## November 28, 07:01 PHT — current-session motion observed during one W pulse
+
+Joey moved Atank onto open grass and explicitly indicated readiness. Fresh
+foreground-only client captures verified clear ground and released movement,
+modifier and mouse buttons. Executed exactly one existing W-only 100 ms probe
+from accepted source a97bac9, concurrently with the unchanged native reader.
+The repaired probe recorded 102.5337 ms between DOWN/UP; both OS sends were
+accepted. The independent release child acknowledged clear/stop with no held
+keys. It did not perform an emergency UP in this run.
+
+All 96 requested native observations were saved: 24 before DOWN, two during
+the hold and 70 after UP. Median observed spacing was 50.4701 ms. The first
+changed candidate appeared 33.9042 ms after DOWN; XZ displacement was
+0.60854307 source units, with unchanged Y. Final position first appeared
+34.6202 ms after UP and stayed identical through the remaining 3.47454 seconds.
+All 96 actor/position matrices matched bit-for-bit, with one owner and raw
+zone key. Later screenshot/key and native readbacks agreed with the stopped
+position. The source remains candidate-only while addon API polling is active.
+See [complete action, observation and recovery evidence](M1_MOVING_NATIVE_SERIES_LEGION_2026-11-28.md).
+
+The temporary orchestrator exited 1 after both original reports were saved:
+Windows rx.poll raised BrokenPipeError 109 during final cleanup. Preserve that
+failed runner status. Original manifest.json remains absent; recovery.json
+was derived afterward without reconstructing lost IPC/readiness timestamps.
+The exact executed script is retained separately. Its narrow poll/receive
+closure fix passed an inert Windows regression reproducing the original
+failure, plus independent review. No second physical pulse was issued.
+
+Predecessor a97bac9 passed exact-head hosted run 46075963311, attempt 1, all
+four jobs; the corrected verifier accepted it with matching remote heads
+before/after. Windows 860 passed; both Linux versions 844 passed plus 16 skips.
+The next concrete source repair is the separate crash-release worker: it still
+renews before a full identity check and lacks a fresh deadline check before
+DOWN. Correct that measured code path before another physical failure test.
+Passive XYZ freshness, absolute body yaw, public zone/world-instance identity
+and live journeys remain unqualified. Continue PR #26; preserve private raw
+captures, the original dirty checkout and main.
+
+## November 28, 06:18 PHT — bounded probe lease and clock repair
+
+Predecessor 0a00a3b passed exact-head hosted run 46074472457, all four jobs;
+the corrected checkpoint verifier admitted attempt 1 and remote head matched
+before/after. Windows 852 passed; both Linux versions 836 passed plus 16
+declared skips. Original private acceptance receipt SHA256
+e54dc029e2eebb85bd48081c8b5b123af6555f97279261cc8b227ca758987701.
+
+The next source slice repairs actual reproduced timing defects in turn_probe:
+A/D could send DOWN after the independent release lease expired during full
+identity admission; invalid/throwing cleanup clocks could certify bad timing
+or skip explicit UP. Shared A/D/W now renew immediately before DOWN, require
+the exact key and finite deadline with enough hold budget, recheck after the
+sender returns, and attempt UP/STOP despite clock faults. Late sender returns
+skip the requested hold; invalid/expired cleanup refuses a success receipt.
+Public APIs, schemas and candidate-only qualification remain unchanged.
+See [failure reproduction, repair and limits](M1_PROBE_LEASE_TIMING_2026-11-28.md).
+
+25 focused tests passed in 0.752 s, including the complete probe with a real
+Windows release child and real monotonic clock in dry mode. Independent review
+passed six inert helper-disappearance cases around DOWN. Full LEGION Python
+3.14.10 suite passed 860/860 in 112.404 s (job taxi_20261128_probe_timing_full01).
+All source/test checks used fake or dry senders; no game input. New-head hosted
+CI remains required after this commit/push. Preserve non-atomic scheduling and
+unqualified game-consumed-release limitations; this is not completed M1.
+
+Next physical work still needs a fresh clear-ground scene and current control
+bindings/ownership. The last verified scene was beside a drop; located rift.cfg
+contains no movement/binding entries and does not establish current A semantics.
+Do not assume A is translation-free. Use existing native series once an action
+is independently admitted. No further GUI expansion, branch proliferation,
+sibling changes or raw capture publication. Continue consolidated PR #26.
+
+## November 28, 06:04 PHT — restored scene observation and four-job CI contract
+
+Fixed a reproduced CI admission defect: the verifier still required exactly three
+jobs after the installed-desktop workflow added a fourth. It now requires all four
+jobs and each desktop build/exercise/retention stage. Workflow-inventory and
+missing/skipped/failed/duplicate-stage regressions passed: 11 focused tests.
+LEGION Python 3.14.10 full suite passed 852 tests in 117.687 s. Replaying actual
+prior-head 6f21fcc run 46070059874 now passes the verifier; new-head hosted CI
+remains required after publication. Current contract documentation and its example
+were corrected; historical three-job measurements remain historical.
+
+Read-only diagnosis traced desktop IO_ERROR/TREE_UNSETTLED to the running
+Workbridge dist/server.js installation missing desktop-ui.mjs, desktop-capture.mjs
+and desktop-turn-admission.mjs. No service/source/settings changes. With both
+known turn/admission guards absent, reused the already documented foreground-only
+Windows CopyFromScreen fallback, checking PID/start/SHA/HWND before capture,
+then foreground and process epoch afterward. No input or focus changes.
+Independently viewed the actual
+Sanctum Watch pavilion scene, with the avatar beside a steep drop and telemetry
+addon panels visible. This is unsuitable for an unqualified forward pulse.
+Original ignored artifacts/m1-foreground-20261127-220017.png: 8055773 bytes,
+SHA256 49e3c3262eb419ec81375d4457cbff4da05eb2e6917f94d0af01b1b43e1c7d6b;
+capture UTC 2026-11-27T22:00:17.3989293Z, 2560x1511 client pixels.
+
+Source review found A/D calibration reserves its release lease before a full
+identity check but, unlike W, never renews before DOWN. A delayed check can leave
+the child expired before a later DOWN. Next fix and reproduce that refusal offline
+before another live turn. Existing actor-translation series support already exists
+and is downstream of the same XYZ cache; do not add an unsupported uncached-pose
+claim. No game input or M1 promotion occurred; use the existing consolidated PR #26.
+
+## November 28, 05:23 PHT — fresh foreground M1 stationary observation
+
+User restored RIFT foreground. LEGION fresh OS pin: PID 12092, HWND 133394, start UTC ticks 639313885727379680, supported executable SHA df954b798331e18359be62a31cc74b49fc3f50b87385ebb080a5448256322c01. Existing bounded read-only observe-native-series succeeded with all 24 requested samples at 100 ms spacing, matrix/refresh-guard/zone-key evidence and sampled W/A/D high bits; no injected input. Original ignored artifact m1-native-series-20261128-0522.json, 58052 bytes, SHA256 397772f4368c9ec6efc8f9d3e66a3e5f7c0c7328dcc00dbaf86a9383b5312df5. Independently reopened exact bytes and checked count, one owner, 24/24 actor/position matrix raw-bit agreement, one raw zone key, unchanged XYZ and bearing, 48 polls per key with zero DOWN observations. Actual sample gaps min/median/max 98.764/100.177/103.100 ms; capture-start gaps 100.083/100.384/100.662 ms; elapsed including admissions 2.597 s. Candidate-only stationary baseline; no passive freshness, authoritative body heading, actor/zone identity, world instance, game-consumed release or live movement qualification. Screenshot tool still refused IO_ERROR after foreground admission; independent UI tree refused DESKTOP_TREE_UNSETTLED. Do not bypass the scene admission or claim a visible character. Next practical evidence: independently observed manual action with a fresh bounded no-input series and current scene/actor/zone corroboration; preserve raw receipts locally. No further GUI expansion. Canonical consolidated branch / PR #26.
+
+
+## November 28, 05:15 PHT — practical milestone prioritization
+
+All four exact-head hosted jobs passed for a6398ef, run 46068771693, including installed Windows desktop job 140740395775. A bounded real Tk benchmark on LEGION used an invented 16x16 grid (256 nodes, 1860 directed edges), 213 actual synthetic model samples, 80 deterministic scrub selections: model-arrived; model computation 18.145 ms, initial render 39.402 ms, scrub median 5.188 ms, nearest-rank p95 6.616 ms, worst 7.756 ms, 2116 static canvas items retained. Single local measurement, not a general performance guarantee. Rendering is comfortably below the 100 ms model interval; defer further GUI optimization. Practical next milestone is M1, not more demo features. Fresh read-only Windows process/build/epoch/HWND inspection on LEGION passed for responding RIFT PID 12092, supported executable SHA df954b798331e18359be62a31cc74b49fc3f50b87385ebb080a5448256322c01. Exact pinned OS identity returned foreground=false; game-window screenshot adapter returned IO_ERROR. Do not infer actor presence or attempt native observation by bypassing foreground, and do not send input. Once RIFT is foreground, use the existing bounded read-only observation path with freshly rechecked identity; qualification requires independent evidence beyond a stationary capture. No physical milestone promoted. No more GUI expansion or new branches absent a measured product blocker. Continue consolidated PR #26; preserve original dirty checkout, private packages and main.
+
+
+## November 28, 05:12 PHT — installed desktop CI gate
+
+Canonical branch research/product-consolidated-20261128 / PR #26. Predecessor 269484a passed exact-head hosted CI 46067886899. Added an independent Windows installed-desktop job to the existing Offline regression workflow; it runs in parallel with the three established jobs, builds a wheel, installs it into a fresh venv with no dependencies or index, and uses isolated Python to require installed product modules. scripts/ci_desktop_smoke.py creates two fictional pinned packages in a new directory, runs the installed catalog builder, exercises the actual launcher and both Tk viewers with existing desktop smoke, and rejects incomplete or skipped widget evidence. Upload scope is restricted to synthetic summary and widget receipts, not fixture directories or original private data. Two new headless tests verify deterministic plannable catalog bytes and exclusive source creation. Both passed on LEGION in 0.160s. Local preflight built a wheel of the unchanged 269484a runtime sources while the new CI script/workflow were uncommitted; 330859 bytes, SHA256 43aa49edfa7479625b1dea2b6abf522d2a49f196e7df27209a9ba2b140d4ff5b. Fresh isolated install and seven installed module locations verified; complete invented-world and synthetic desktop smoke passed with zero callbacks. Fixture catalog SHA256 679e22075fe035ba37a1cecc695697ef96fbfeb80380e03037ec43136ea10342, widget receipt e4f4211cbdb58f02a265a3f07b008d2aa6a4dae2ef8b898aac3719c475407443. Local receipts retained under ignored artifacts/ci-desktop-preflight-20261128-0511. Hosted Windows desktop availability is not yet demonstrated; new exact-head CI must pass, and no failure should be silently skipped. No game access, physical qualification or private capture publication. Next: inspect all four hosted jobs, address any Windows runner limitations, and benchmark larger synthetic replay maps.
+
+
+## November 28, 05:04 PHT — replay lifecycle and render caching
+
+Canonical branch research/product-consolidated-20261128 / PR #26. Predecessor 69bf6bc passed exact-head hosted CI 46066335098. Hardened synthetic replay by comparing the current plan against a fresh A* plan before running the model, checking the actual runner plan again, and keeping one replay window per main viewer. A newly computed receipt replaces the previous window and cancels its scheduled work. Static graph canvas items and projected sample coordinates are cached until a viewport-size change; only the trail and pose items are updated for a new sample. Separate idle-draw and playback callbacks are cancelled and the variable trace removed on teardown. Paused/replaying states are explicitly distinguished. Expanded tests verify altered plans are rejected before the runner is called, 24/24 local planner/viewer tests passed in 0.294s. Actual LEGION Tk 9.0.4 smoke passed cached static item identity on scrubbing, restart from terminal sample, replacing a running dialog without duplicates, closing while playing, immediate destruction before first idle draw, disabled playback for no-route/already-at-destination, both launcher modes and the imported-world workflow. Zero Tk callback errors. No physical game input, live qualification, or screenshot inspection. New exact-head CI pending. Next priority: strengthen CI with repeatable installed desktop smoke on a suitable Windows environment, measure replay rendering with larger synthetic maps, and keep current-session read-only qualification separate.
+
+
+## November 28, 04:50 PHT — graphical synthetic journey playback
+
+Canonical branch research/product-consolidated-20261128 / PR #26. Predecessor e8022df passed 844/844 local regressions in 125.245s and exact-head hosted CI 46065255213. Its clean exact-commit wheel (326301 bytes, SHA256 b46effa0864ab3cbf61875a193770aaf7b30c77957b3a4f8657b56bdbf58c930) installed offline and passed launcher/viewer smoke; installed catalog builder reproduced the original pinned catalog SHA. New local_journey_viewer.journey_samples reuses run_local_journey and compares the computed route against the current preview before replay. Actual approach, passive drain, terminal correction and dwell samples are retained, with leg-local timestamps composed before absolute offsets; duplicate boundaries removed without interpolating or snapping. Synthetic viewer button refreshes current selections before execution and opens an isolated replay dialog with play/pause/scrub, observed position trail, model time, leg, phase and terminal receipt outcome. Timers cancel on pause/close/destruction. No game process/input access. Four additional regressions; 24 local planner/viewer tests passed in 0.152s. Initial exact-clock comparison exposed a floating-point association discrepancy; corrected to match the existing evidence builder exactly. Actual LEGION Windows Tk smoke passed timer advance, pause, scrub to model-arrived, observed marker displacement, dialog close, both launcher modes and previous world-viewer workflows; zero callbacks. No screenshot inspection or new physical qualification. Next: exact-head integrated CI, replay resource/lifecycle hardening, independent current-session qualification and packaging.
+
+
+## November 28, 04:40 PHT — unified desktop application launcher
+
+Consolidated checkpoint 7538ab0 passed hosted CI 46064907589. Retained the same canonical research/product-consolidated-20261128 branch and PR #26, avoiding another disconnected branch. New rift_taxi.app and installed rift-taxi-app entry point provide a local desktop chooser for the synthetic demo or a pinned imported-world catalog. Explicit expected catalog SHA, validated inventory, explicit anchor selection and fresh package validation on open; path/pin edits invalidate stale inventory. Direct demo/world command modes also available. No network, game access or movement. Three new launcher tests passed and all 66 world tests passed (2.018s). Actual LEGION Tk 9.0.4 widget smoke verified both launcher modes, wrong-pin refusal, stale-selection clearing, explicit anchor selection, and both existing viewers against the retained accepted route with zero callback errors. README documents the launcher. RIFT PID 12092 responding in current process check; in-world actor not verified. Original dirty checkout preserved. New exact-head hosted CI and installed-wheel verification pending. Next: exact-commit package, improve local journey-state workflow using synthetic-only execution, and keep physical qualification separate.
+
+
+## November 28, 04:37 PHT — consolidated product and catalog construction
+
+Prior desktop XYZ checkpoint 84fa2d5 passed hosted CI 46031663761; it was 19 commits ahead of the journey development base dc22fe5. Reused its clean LEGION worktree and cherry-picked the three independently tested catalog-builder commits 7ac7490, 6e5bcaf, dd1acc5 without conflict. All 66 world tests passed on LEGION in 4.184s. Built a new catalog from both privately retained packages using their previously pinned original catalog metadata; the generated catalog was byte-identical by SHA256 7902202b3ccf80a2c1961279873e8b7896a55f0023c7f43e942e8308fd323efa. Both routes planned successfully (26.105297766896133 and 15.293361390774125 source units). Added installed rift-taxi-world-catalog entry point. This is the consolidated product branch research/product-consolidated-20261128, targeting research/journey-automation-reporting for review; no main merge. Original dirty checkout and private assets preserved. RIFT PID 12092 responding, in-world state not independently verified. Exact-head hosted integration CI pending; physical qualification and new installed-package test remain outstanding.
+
+
+## November 28, 00:12 PHT — desktop XYZ position review
+
+Prior position review checkpoint a4c3dce passed hosted CI 46031270304. LEGION checkout clean at start; RIFT PID 12092 responding, in-world state still not qualified. New branch research/product-position-desktop-20261128 adds the imported-world viewer's Review XYZ position dialog. Reuses existing review_position, separate XYZ/XZ/Y tolerance inputs, bounded vertex and segment lists, explicit existing-vertex selection and route recalculation. Segment projections remain informational; no automatic binding. Every input edit clears old candidates and disables apply; invalid numeric inputs refused. Actual Windows Tk 9.0.4 smoke against the retained accepted route exercised dialog opening, a different existing vertex, no implicit source change, stale/invalid input refusal, explicit confirmation and route recalculation, and restoration of the original source. All 59 world tests passed in 2.351s; both viewer widget smokes passed with zero callback errors. No physical qualification, game input or screenshot-based inspection. Original checkout/private packages untouched. Exact-head hosted CI pending. Next: consolidate validated development heads, improve position and destination workflow, and separately qualify the current RIFT session through read-only evidence.
+
+
+## November 28, 00:09 PHT — source-position review and exact-commit package
+
+Map selection checkpoint 427e5df passed hosted CI 46030421044. A clean exact-HEAD wheel was built and installed offline into isolated artifacts/release-wheel-427e5df-20261128/venv. Wheel 318720 bytes, SHA256 739399781269649d689ec060dfbe46223ca428d6040fbd336557bb87d0648831; installed Tk smoke SHA256 ccc4ee135cc6fb4ded82bea1387d0a1339dfd2e610efcc1dc905a1df9ca6d3a7; release-receipt.json retains identity. Installed search, automatic recalculation, map click and both viewers passed with zero callback errors. Not a public release or reproducible-build claim. New isolated position-review worktree adds world_route_graph.review_position and locate CLI: full 3D clamped segment projection, separate XZ/Y limits, bounded deterministic candidate lists, original source identity and distinct overlapping candidates. No snapping, automatic start binding, coordinate transform or movement authority. Four new tests; all 59 world tests passed on LEGION in 2.308s. Both original retained catalog routes returned one exact source vertex and one nearby segment at their original start with .5 XZ/Y limits. RIFT PID 12092 responding, actual in-world state not verified. No live input. New hosted CI pending. Next: improve destination/position review integration, retain independent physical qualification gate and test current session read-only when appropriate.
+
+
+## November 28, 00:03 PHT — interactive imported-world source selection
+
+Previous destination UX checkpoint c8be8fb passed hosted CI 46021567142. LEGION reachable; RIFT PID 12092 responding, in-world actor state not verified. Added map_pick and actual Tk canvas source selection to the offline world viewer. Pixel hit testing admits exactly one existing graph vertex; overlapping/nearby vertices remain ambiguous, profile/header clicks are excluded, stale scene invalidated on redraw. No arbitrary XYZ connector or execution authority. Two new headless tests; all 55 world tests passed on LEGION (2.182s). Actual Tk 9.0.4 desktop smoke against retained accepted route clicked a unique interior vertex, verified source control and route recalculation, restored original source; search and exclusions also passed, zero callback errors. Synthetic viewer still passed. No screenshot-based visual inspection, physical qualification or live input. Original dirty checkout untouched. New hosted CI pending. Next: exact-commit packaging and offline position-to-route review, and separately verify live session via read-only means before physical qualification.
+
+
+## November 27, 23:03 PHT — destination search and immediate route preview recalculation
+
+Prior desktop checkpoint 40b506f passed hosted CI 45950282005. LEGION reachable; fresh process query found no RIFT process, so physical qualification was not attempted. Isolated worktree artifacts/product-destination-ux-20261127-2302. Added case-insensitive multi-word destination filtering by route ID and catalog label; never silently substitute a destination. Unmatched search clears selection and stale route. Explicit source/destination selection and edge exclusions now immediately recalculate the offline preview. One additional headless regression; all 53 world tests passed in 3.344s. Actual Tk 9.0.4 smoke on LEGION verified unmatched-search clearing, case-insensitive search, explicit selection, all-edge exclusion producing no-route, and clearing exclusions restoring route-found (26.105297766896133 source units). Synthetic viewer also passed; zero callback errors. No screenshots, live game input, physical qualification or raw asset uploads. New hosted CI pending. Original dirty checkout preserved. Next: improve interactive map selection, package exact-commit release artifact, and independently qualify current game session when available.
+
+
+## November 27, 14:10 PHT — actual Windows desktop and wheel smoke
+
+Imported-world viewer checkpoint 62779a6 passed hosted CI 45949873149. Added bounded scripts/desktop_viewer_smoke.py to invoke actual production Tk launch functions, select source/destination, invoke preview, verify mapped canvas and highlighted route, collect callback errors and close deterministically. LEGION Python 3.14.10/Tk 9.0.4: synthetic entrance-to-bank 16.000 units, 34 canvas objects and four highlighted lines; original accepted route 26.105297766896133 source units, 112 objects and 70 highlighted map/profile lines; original leg-2 route 15.293361390774125 source units, 52 objects and 30 highlighted map/profile lines. All passed with zero callback errors. This is actual widget/render-object verification in the executing Windows session, NOT screenshot or human visual inspection, and no game input.
+
+Added installed rift-taxi-local-viewer entry point. Built wheel with isolated build dependencies, then installed offline without dependencies into a fresh venv under ignored artifacts/desktop-wheel-20261127-1410. Wheel rift_taxi-0.1.0-py3-none-any.whl, 317348 bytes, SHA256 a75d3e69b613d675cf884cd8d4d859fb305cf9757153dfcb347bfeeb67f5e73b. Both installed viewer executables passed --help; isolated Python -I imported actual site-packages modules and ran the desktop smoke script against installed synthetic and original accepted route viewers, same counts and zero errors. Private receipts desktop-widget-smoke-leg2-20261127-1410.json and desktop-widget-smoke-installed-20261127-1410.json under original ignored artifacts. Wheel was built from this checkpoint's runtime sources before commit/handoff, not a published exact-commit release artifact. No global installs or raw source uploads. New hosted CI pending. Next priorities: current-session read-only status, improve route/destination usability, and exact-commit release build; visual inspection remains outstanding.
+
+
+## November 27, 14:07 PHT — imported-world graphical preview
+
+Shared intake checkpoint fd8cd23 passed hosted run 45949569103. New isolated worktree artifacts/product-world-viewer-20261127-1405 adds world_route_viewer, with local vertex A* planning, explicit source alias and route-destination selection, blocked-edge alternatives, XZ projection, full source XYZ scene data, cumulative-distance/Y elevation profile, optional Tk desktop and standard-library SVG export. Review-only classification remains explicit; no game process access, movement, clearance or transform authority. SVG serialization escapes source strings and contains no active content or external resources; exports refuse overwrite. Five headless regression methods added, all 52 world tests passed on LEGION. Two private original-package SVGs generated and XML-checked in artifacts/m4-world-review-20261127-1108: viewer-accepted-20261127-1406.svg SHA256 267db4eadcb8fd8e2e0f0d7f9382df88d5703215b337404e1e6c53a9dfbe852c; viewer-leg-2-20261127-1406.svg SHA256 f8e7bf994fc52872a9e37798376834325e2d8f4375bf940678a34057f49620ff. Neither original geometry nor generated previews uploaded. Actual desktop launch and visual inspection remain outstanding; the headless tests do not certify them. New exact-head CI pending.
+
+Commands: python -m rift_taxi.world_route_viewer CATALOG --catalog-sha256 SHA --anchor-route ROUTE desktop ; or replace desktop with svg --start ROUTE:0 --destination ROUTE --out NEW.svg. Installed console entry: rift-taxi-world-viewer. Next prioritize a real desktop smoke, named-destination UX, package release checks, and current-session read-only qualification.
+
+
+## November 27, 14:04 PHT — shared world-package intake
+
+Unified product checkpoint d507f3e passed comprehensive hosted run 45949263999. Isolated worktree artifacts/product-intake-20261127-1403. Consolidated the catalog package identity and scope checks into world_route_catalog.open_catalog_package and scoped_packages, reused by both graph planners and the single-route selector. Deterministic scope selection validates matching packages even when excluded by planner build, refuses conflicting full world metadata, and never opens unrelated scopes. Graph topology contracts remain distinct: complete package chains versus vertex-level A* with ordinary Detour flags. Three cross-entry regression methods added; all 47 world tests passed on LEGION. Both original retained catalog paths reopened through both graph planners and agreed on total 3D distances within 1e-9 source units: accepted 26.105297766896133 (35 vertex edges / 1 package), leg-2 15.293361390774125 (15 vertex edges / 1 package). Physical flags remain false. Raw assets remain private, original dirty checkout untouched. New exact-head hosted CI pending. Next build imported-world review viewer using the shared verified intake and preserve classification boundaries; current-session physical qualification remains separate.
+
+
+## November 27, 14:01 PHT — unified local product checkpoint
+
+Isolated LEGION worktree artifacts/product-unified-20261127-1400, based on 7d9b69d (desktop source/test copies) and independently validated integration 6e36bd7 / desktop 8d4ed7c. Cherry-picked recovered local world adapter 7c428c5 without conflicts and imported the metadata fix from ff90ba6. Found and fixed a cross-lane classification defect: synthetic edge binding could otherwise recreate a review-only graph with the default synthetic class. Synthetic locator, edge binding, preview, scene and desktop entry now reject review-only graphs; derived graph retains its original classification. The existing model runner also refuses imported graphs. All 37 focused tests passed locally (20 synthetic planner/viewer, 17 world graph tests), including a new cross-lane regression. Imported vertex-level A* and complete-package chain review remain separate contracts for now; neither implies physical traversal. Full local/hosted validation pending. Original dirty checkout and private geometry packages not changed. No game input or main merge. Next consolidate shared review graph intake, test full integrated wheel and add a dedicated imported-world review viewer rather than relabeling the synthetic viewer.
+
+## November 27, 13:58 PHT — recovered local source-world A* adapter
+
+LEGION returned online and RIFT PID 24896 was responding; game-world/actor qualification remains unverified. The original checkout at dc22fe5 had four pending source/test/package files. All four were copied with SHA-256 equality checks into an isolated worktree under ignored artifacts/recovery-local-world-20261127-1357, leaving the original checkout untouched. Recovery commit 7c428c5 was pushed to research/recovered-local-world-20261127. The existing local world_route_graph adapter uses A* over route-local interior vertices and exact shared endpoints, preserving source elevation and ordinary Detour flags. The reviewed graph and synthetic execution stay separately classified. Added complete source-world metadata identity comparison; conflicting metadata now refuses graph construction. Six focused regression tests passed on LEGION. Reopened the privately retained review-catalog-02.json with its known SHA-256 7902202b3ccf80a2c1961279873e8b7896a55f0023c7f43e942e8308fd323efa: accepted route 35 edges, 26.105297766896133 source units; leg-2 15 edges, 15.293361390774125 source units. Both succeeded before and after the metadata fix, physicalQualification=false. No original geometry uploaded or edited. Hosted exact-head CI pending. The independently developed product-integration branch (6e36bd7) and desktop preview (8d4ed7c) have successful hosted CI; preserve both while reconciling their overlapping planning contracts with this recovered adapter. Production navigation remains unqualified; do not treat review geometry as physical clearance.
+
+## November 27 — standalone desktop route preview
+
+Based on directed interior start checkpoint `f9c0f11` (hosted run 45947889610 passed). Added `rift_taxi.local_taxi_gui`, an optional Python Tk desktop preview, with named starts, explicit directed interior start/fraction, destination selection, blocked-edge multi-selection and local A* preview. Pure scene projection fits XZ bounds with a constant scale across reroutes, positive Z upward, route/exclusion/start/goal roles, and the derived graph identity checked against the plan. No game execution, external service, sibling import or dependency beyond optional Tk. Six headless regression methods exercise planner reuse, detours, projection, no-route/same-node, invalid parameters, single-axis geometry and map pins. Hosted exact-head CI pending; actual Windows GUI launch and visual inspection are not yet verified.
+
+```powershell
+python -m rift_taxi.local_taxi_gui
+python -m rift_taxi.local_taxi_gui --map LOCAL_GRAPH.json --map-sha256 SHA256
+```
+
+The map argument accepts only authored synthetic graph schema, not a RiftWorld review package. Choose a start and destination, select optional blocked edges, and click Preview route. This is a route preview, not Go/STOP or physical arrival. Missing Tk or display produces a clear error. Next reconcile with the independently developed world named-destination lane once CI passes; then build a review-only viewer for imported world geometry and perform actual desktop smoke testing.
+
+
+## November 27 — consolidated product integration checkpoint
+
+This integration branch starts from accepted directed-interior checkpoint `f9c0f11` (CI 45947889610). The two world review graph files are copied byte-for-byte from accepted named-destination checkpoint `3a27946` (CI 45948041613); GitHub blob identities were independently matched after publication. Common base `dc22fe5`. The independent lanes changed distinct code/test files; this handoff retains both histories. Existing synthetic execution and imported-world review remain separate classifications. The desktop preview branch is not included until its own exact-head CI passes. No changes to main or sibling repositories, no source exports or game input. Combined-head CI still required; prior separate passes do not imply integration acceptance. 
+
+
+## November 27 — directed interior start for authored synthetic maps
+
+Based on coordinate-entry checkpoint `626bc67` (successful hosted run 45947523131). The local Taxi CLI now accepts `--start-edge EDGE --edge-fraction T` for both plan and journey, with strict finite interior fraction (0 < T < 1) and explicit directed edge. A query-local virtual node has exactly one outgoing suffix; the original graph stays unchanged. No guessed reverse edge or intersection link. The selected original edge must not be blocked, and numerical degeneracy or collision with an authored node is refused. A derived graph identity binds the original byte SHA and selection; optional full receipts and compact CLI output retain the start binding. Existing exact XYZ and named starts remain available. Four new regression methods cover identity, directional behavior, blocked and invalid starts, crossing isolation and model execution. Hosted validation pending. This is authored synthetic geometry only, not live position admission or obstacle clearance. Separate world review graph PR #12 remains an independent lane.
+
+```sh
+python -m rift_taxi.local_taxi plan --start-edge main-west-to-main-east --edge-fraction .5 --destination bank
+python -m rift_taxi.local_taxi journey --start-edge main-west-to-main-east --edge-fraction .5 --destination bank
+```
+
+Expected planned distance is 10 synthetic units from XYZ (6,0,0). No original-route history or previously passed obligations are asserted. Next: reconcile tested branches, test original world packages privately and develop route viewer/destination selection.
+
+
+## November 27, 13:42 PHT — local position entry (isolated continuation)
+
+Base product checkpoint `dc22fe5` passed hosted Offline regression run 45945997639. This branch adds local coordinate entry to the existing synthetic A* prototype, with no dependency on a live client or cloud runtime. `locate --xyz X Y Z` ranks authored nodes by 3D distance (stable ID tie-break), reports separate XZ/Y offsets, and distinguishes exact binding from review suggestions. `plan` and `journey` accept either `--start NODE` or `--start-xyz X Y Z`; only exact authored XYZ is admitted. Optional full receipts retain the original query. Off-node positions, including points on a declared edge, do not create connectors or silently snap. Four new regression methods cover exact and wrong-floor binding, deterministic suggestions, invalid input, CLI refusal and modeled execution. Hosted acceptance pending; do not promote to main or physical authority. No sibling changes, no live input. Next prioritize a provenance-preserving real-map review adapter and explicit directed-edge interior admission with separate geometry evidence.
+
+Examples (from repository root or installed wheel):
+```sh
+python -m rift_taxi.local_taxi locate --xyz 4 0 0
+python -m rift_taxi.local_taxi locate --xyz 4.1 0 0
+python -m rift_taxi.local_taxi plan --start-xyz 4 0 0 --destination bank
+python -m rift_taxi.local_taxi journey --start-xyz 0 0 0 --destination bank --delay-steps 2
+```
+Locator returns 0 for exact node, 1 for review-only candidates, 2 for invalid input. A plan/journey off-node request is invalid (exit 2). This exact-only first step is intentionally not arbitrary-world position navigation.
+
+
+## November 27 — named source-world destination selection
+
+Based on world graph checkpoint `e609abf` (hosted run 45947714186 passed). Added local `destinations` discovery and `plan --destination ID` to the offline review graph. Catalog IDs retain exact requested goal coordinates. At least one scoped original package must end exactly at the requested goal to bind a name. Nonzero snapped alternatives stay visible and cannot be silently substituted, even if another unrelated package reaches the requested coordinate. Existing exact XYZ planning remains available. A blocked route cannot be traversed but its original goal binding is retained; another valid directed review chain can reach the same exact goal. Four new regression methods exercise selection, blocked alternatives, snap-only refusal, grouping and CLI. All physical/transform/junction authority flags remain false. Hosted exact-head validation pending; no actual source exports uploaded.
+
+```sh
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD destinations
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD plan --start-xyz 0 0 0 --destination bank
+```
+
+Unknown or unbound destination returns exit 1, with explicit status and no segments. Named destination IDs are user/catalog labels, not authenticated in-game names. Next reconcile with the synthetic position-entry lane after both exact-head checks; then develop a route viewer and privately test retained original packages.
+
+
+## November 27 — source-pinned world review graph
+
+Independent continuation from accepted product checkpoint `dc22fe5` (hosted run 45945997639). New `rift_taxi.world_review_graph` reopens exact catalog/package pins, requires source-world/frame/patch/planner-build scope and consistent complete world metadata, and treats each original complete candidate as a directed edge between its exact snapped source XYZ endpoints. Dijkstra ranks complete chains by full 3D polyline length; an excluded edge can select a detour. Original package/source identity, requested versus snapped coordinates, evidence, endpoint offsets and all waypoint flags remain in each segment. Only exact shared endpoints produce a review junction; no proximity linking, interior split, reverse edge, coordinate conversion or verified connector. The graph cannot execute a journey and is not a live navigation mesh. Six new synthetic fixture test methods cover route selection/detour, exact scope and endpoints, corruption, tie-breaking and CLI. Hosted exact-head validation pending. No real export uploaded; local original-package compatibility and physical qualification remain outstanding. Coordinate entry is independently developed in PR #11; reconcile after both checks pass.
+
+Example (substitute actual locally retained source pins):
+```sh
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD endpoints
+python -m rift_taxi.world_review_graph catalog.json --catalog-sha256 HASH --source-world WORLD --frame-sha256 FRAME --patch-id PATCH --build-id BUILD plan --start-xyz 0 0 0 --goal-xyz 8 0 0 --out new-review.json
+```
+
+CLI exit 0: endpoints or review chain found (including same endpoint); 1: no endpoints/chain or unknown exact endpoint; 2: invalid/corrupt input. A mathematical junction is not a traversable connection. Next: test against privately retained real packages, integrate explicit review endpoint/destination selection, and qualify route geometry separately before any live controller admission.
+
 
 ## November 27, 13:24 PHT — product-first local Taxi prototype
 
