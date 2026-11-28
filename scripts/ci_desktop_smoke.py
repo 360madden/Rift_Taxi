@@ -119,6 +119,7 @@ def run(output, *, wheel, source_commit):
             and result["launcherWorld"]["explicitAnchorChecked"]
             and result["synthetic"]["modelJourneyReplayChecked"]
             and result["importedWorld"]["searchAndAutomaticReplanChecked"]
+            and result["importedWorld"]["destinationReachabilityChecked"]
             and result["importedWorld"]["mapSourceSelectionChecked"]
             and result["importedWorld"]["positionReviewChecked"]
             and not any(result[key]["callbackErrors"] for key in

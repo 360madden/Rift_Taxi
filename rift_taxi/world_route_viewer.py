@@ -15,7 +15,8 @@ import xml.etree.ElementTree as ET
 
 from .contracts import TraceError, _number
 from .world_candidate_review import require
-from .world_route_graph import CLASSIFICATION, load_world_graph, plan_world_route, review_position
+from .world_route_graph import (CLASSIFICATION, load_world_graph, plan_world_route,
+                                review_position, destination_availability)
 
 COLORS = {"network": "#65788d", "blocked": "#ed7777", "route": "#54d6a1",
           "start": "#70b4ff", "goal": "#ffd477", "start-goal": "#ffd477"}
@@ -266,6 +267,7 @@ def launch(world):
     destination=tk.StringVar(value=destinations[0])
     status=tk.StringVar(value="Choose a route.")
     query=tk.StringVar()
+    reachable_only=tk.BooleanVar(value=False)
     search_status=tk.StringVar(value=f"{len(destinations)} destinations")
     ttk.Label(panel,text="Source point").pack(anchor="w")
     source_box=ttk.Combobox(panel,textvariable=start,values=aliases,state="readonly",width=28)
@@ -273,7 +275,9 @@ def launch(world):
     ttk.Label(panel,text="Find destination").pack(anchor="w")
     search_box=ttk.Entry(panel,textvariable=query,width=28)
     search_box.pack(fill="x",pady=(0,4))
-    ttk.Label(panel,textvariable=search_status).pack(anchor="w")
+    ttk.Checkbutton(panel,text="Reachable destinations only",variable=reachable_only,
+                    command=lambda:filter_destinations()).pack(anchor="w")
+    ttk.Label(panel,textvariable=search_status,wraplength=230).pack(anchor="w")
     ttk.Label(panel,text="Route destination ID").pack(anchor="w")
     destination_box=ttk.Combobox(panel,textvariable=destination,values=destinations,state="readonly",width=28)
     destination_box.pack(fill="x",pady=(0,8))
@@ -328,7 +332,7 @@ def launch(world):
     def select_reviewed_vertex(alias):
         start.set(alias)
         pick_status.set("Explicit review source: " + alias)
-        draw()
+        filter_destinations()
 
     ttk.Button(panel,text="Review XYZ position",command=lambda: position_review_dialog(
         root,world,start.get(),select_reviewed_vertex)).pack(fill="x",pady=(8,0))
@@ -339,10 +343,19 @@ def launch(world):
         # Never silently choose a different destination or display a stale route.
         try:
             matches=search_destinations(world,query.get())
+            inventory=destination_availability(
+                world,start=start.get(),blocked_edges=[edge_ids[i] for i in excluded.curselection()])
+            reachable={row["routeId"] for row in inventory["destinations"]
+                       if row["status"]!="no-route"}
         except TraceError:
             matches=[]
+            reachable=set()
+        reachable_matches=[route for route in matches if route in reachable]
+        if reachable_only.get():
+            matches=reachable_matches
         destination_box.configure(values=matches)
-        search_status.set(f"{len(matches)} of {len(destinations)} destinations")
+        search_status.set(f"{len(matches)} of {len(destinations)} destinations; "
+                          f"{len(reachable_matches)} graph-reachable")
         if destination.get() not in matches:
             destination.set("")
         draw()
@@ -350,9 +363,9 @@ def launch(world):
     # A new explicit selection or exclusion recomputes the route immediately.
     # The Preview button remains available as a deliberate repeat operation.
     query.trace_add("write",filter_destinations)
-    source_box.bind("<<ComboboxSelected>>",draw)
+    source_box.bind("<<ComboboxSelected>>",filter_destinations)
     destination_box.bind("<<ComboboxSelected>>",draw)
-    excluded.bind("<<ListboxSelect>>",draw)
+    excluded.bind("<<ListboxSelect>>",filter_destinations)
     def pick_source(event):
         # A screen-space click only chooses an authored source vertex.
         # There is no continuous-position connector or physical admission.
@@ -366,7 +379,7 @@ def launch(world):
                 return
             start.set(alias)
             pick_status.set("Selected source: " + alias)
-            draw()
+            filter_destinations()
         elif result["status"] == "ambiguous":
             pick_status.set("Overlapping vertices; choose the exact source from the list.")
         else:
@@ -374,7 +387,7 @@ def launch(world):
 
     canvas.bind("<Button-1>",pick_source)
     canvas.bind("<Configure>",draw)
-    root.after_idle(draw)
+    root.after_idle(filter_destinations)
     root.mainloop()
 
 

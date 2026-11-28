@@ -16,7 +16,8 @@ from rift_taxi.world_candidate_review import IDENTITY_FIELDS, content_id
 from rift_taxi.world_review_package import create_package
 from rift_taxi.world_route_catalog import SCHEMA, select_route
 from rift_taxi.world_review_graph import load_graph
-from rift_taxi.world_route_graph import load_world_graph, plan_world_route, review_position, main
+from rift_taxi.world_route_graph import (load_world_graph, plan_world_route,
+                                         review_position, destination_availability, main)
 from test_world_candidate_review import fixture
 
 
@@ -272,6 +273,66 @@ class WorldGraphTests(unittest.TestCase):
         original=out.read_bytes()
         self.assertEqual(json.loads(original)["segmentCount"],1)
         with redirect_stderr(io.StringIO()),self.assertRaises(SystemExit) as err:
+            main(args)
+        self.assertEqual(err.exception.code,2)
+        self.assertEqual(out.read_bytes(),original)
+
+    def test_destination_availability_matches_directed_a_star(self):
+        # Shared exact endpoints, a directed cycle, a longer alternative,
+        # a disconnected island and coincident interiors without a junction.
+        self.add("first", [[0,0,0],[4,1,0]])
+        self.add("direct", [[4,1,0],[8,2,0]])
+        self.add("detour", [[4,1,0],[6,2,3],[8,2,0]])
+        self.add("cycle", [[8,2,0],[0,0,0]])
+        self.add("island", [[20,0,0],[24,0,0]])
+        self.add("crossing", [[6,2,-3],[6,2,3],[6,2,6]])
+        world = self.load("first")
+        for alias in sorted(world.aliases):
+            for blocked in ([], ["direct:edge:0"], ["first:edge:0"], sorted(world.graph.edges)):
+                with self.subTest(alias=alias, blocked=blocked):
+                    r=destination_availability(world,start=alias,blocked_edges=blocked)
+                    self.assertEqual([row["routeId"] for row in r["destinations"]],sorted(world.routes))
+                    for row in r["destinations"]:
+                        plan=plan_world_route(world,start=alias,destination=row["routeId"],blocked_edges=blocked)
+                        expected="reachable" if plan["status"]=="route-found" else plan["status"]
+                        self.assertEqual(row["status"],expected)
+                    self.assertEqual(r["reachableCount"],sum(row["status"]!="no-route" for row in r["destinations"]))
+                    for key in ("physicalQualification","productionInputAuthorized","gameInputSent",
+                                "transformQualified","endpointConnectorsVerified","corridorClearanceVerified"):
+                        self.assertIs(r[key],False)
+
+    def test_destination_availability_exact_source_and_refusals(self):
+        self.add("first", [[0,0,0],[4,1,0],[8,2,0]])
+        self.add("cross", [[4,1,-4],[4,1,0],[4,1,4]])
+        world=self.load("first")
+        a=destination_availability(world,start="first:0")
+        b=destination_availability(world,start_xyz=[0,0,0])
+        self.assertEqual(a["destinations"],b["destinations"])
+        self.assertEqual(a["graphSHA256"],world.graph.sha256)
+        self.assertEqual(a["reachableCount"],1)
+        for kwargs in ({}, {"start":"missing"}, {"start":"first:0","start_xyz":[0,0,0]},
+                       {"start_xyz":[4,1,0]}, {"start_xyz":[.1,0,0]},
+                       {"start":"first:0","blocked_edges":["missing"]},
+                       {"start":"first:0","blocked_edges":"first:edge:0"}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(TraceError):
+                destination_availability(world,**kwargs)
+
+    def test_destination_availability_cli_preserves_output(self):
+        from contextlib import redirect_stdout, redirect_stderr
+        import io
+        self.add("first", [[0,0,0],[4,1,0]])
+        self.load("first")
+        out=self.root/"availability.json"
+        args=[str(self.catalog),"--catalog-sha256",hashlib.sha256(self.catalog.read_bytes()).hexdigest(),
+              "--anchor-route","first","reachable","--start","first:0",
+              "--blocked-edge","first:edge:0","--out",str(out)]
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(main(args),0)
+        original=out.read_bytes()
+        report=json.loads(original)
+        self.assertEqual(report["reachableCount"],0)
+        self.assertEqual(report["destinations"][0]["status"],"no-route")
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as err:
             main(args)
         self.assertEqual(err.exception.code,2)
         self.assertEqual(out.read_bytes(),original)

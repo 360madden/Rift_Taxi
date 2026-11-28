@@ -1,5 +1,10 @@
 # Current RIFT Taxi handoff — November 28, 2026
 
+## November 28, 23:19 PHT — offline destination availability
+
+Predecessor e019fbb passed all four required jobs in run 46082091519; local 871 tests passed in the prior turn. User reports RIFT unavailable, and the LEGION connector returned HTTP 429. No game, addon or local settings changed. This cloud checkpoint adds one directed connectivity pass to the existing imported-world graph, using the same exact source resolution and edge exclusions as A*. The reachable-only picker refreshes on source/search/exclusion changes; it never selects another destination automatically. Existing A* remains the sole route planner. New reachable CLI inventory includes graph identity and false physical-authority flags. Regression compares inventory with A* for every fixture alias under several edge exclusions, checks exact/ambiguous source and CLI exclusive output; installed Windows smoke tests filter invalidation and restoration. Local validation unavailable in this turn; exact-head hosted CI is required before acceptance. Continue PR #26, do not merge main or publish raw private captures. Physical freshness remains unqualified.
+
+
 ## November 28, 07:20 PHT — crash-worker lease and compensation repair
 
 Fixed the separately reproduced stale-lease path in crash_release_probe.

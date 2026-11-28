@@ -131,6 +131,63 @@ def describe_world_graph(world):
             "gameInputSent": False}
 
 
+def _resolve_start(world, start, start_xyz):
+    """Share the exact source-selection boundary between preview and inventory."""
+    require(world.graph.classification == CLASSIFICATION, "review graph required")
+    require((start is None) != (start_xyz is None), "choose one start node or exact XYZ")
+    if start is not None:
+        require(isinstance(start, str) and start in world.aliases, "unknown start alias")
+        return world.aliases[start]
+    position = coordinates(start_xyz)
+    matches = [key for key, row in world.graph.nodes.items() if row.xyz == position]
+    require(len(matches) == 1, "start XYZ absent or ambiguous; select an explicit node")
+    return matches[0]
+
+
+def destination_availability(world, *, start=None, start_xyz=None, blocked_edges=()):
+    """Inventory reachable *snapped* goals from one explicit review source.
+
+    A single directed connectivity walk is O(V+E); unlike repeated A* calls
+    it need not compute paths or costs for every destination in the picker.
+    Only existing edges contribute. Blocked links, disconnected components,
+    and coincident but distinct nodes retain their existing topology. Actual
+    route selection remains the shared A* planner's responsibility.
+    """
+    node = _resolve_start(world, start, start_xyz)
+    graph = world.graph
+    require(isinstance(blocked_edges, (list, tuple)) and len(blocked_edges) <= MAX_EDGES
+            and all(isinstance(e, str) and e in graph.edges for e in blocked_edges),
+            "unknown or invalid blocked edge")
+    blocked = set(blocked_edges)
+    neighbors = {key: [] for key in graph.nodes}
+    for edge in graph.edges.values():
+        if edge.id not in blocked:
+            neighbors[edge.source].append(edge.target)
+    # Mark on discovery so cycles and parallel directed edges cannot
+    # repeatedly enqueue the same vertex.
+    reached = {node}
+    pending = [node]
+    while pending:
+        for target in neighbors[pending.pop()]:
+            if target not in reached:
+                reached.add(target)
+                pending.append(target)
+    rows = []
+    for route, (label, goal) in sorted(graph.destinations.items()):
+        status = ("already-at-destination" if goal == node else
+                  "reachable" if goal in reached else "no-route")
+        rows.append({"routeId": route, "destinationId": label,
+                     "destinationNode": goal, "status": status})
+    return {"schema": "taxi.world-destination-availability/1",
+            "classification": CLASSIFICATION, "graphSHA256": graph.sha256,
+            "scope": world.scope, "startNode": node, "requestedStartAlias": start,
+            "blockedEdges": sorted(blocked), "destinations": rows,
+            "reachableCount": sum(row["status"] != "no-route" for row in rows),
+            "endpointConnectorsVerified": False, "transformQualified": False,
+            "corridorClearanceVerified": False, "physicalQualification": False,
+            "productionInputAuthorized": False, "gameInputSent": False}
+
+
 def plan_world_route(world, *, destination, start=None, start_xyz=None, blocked_edges=()):
     """Find a route from an explicit graph point, not a guessed start snap.
 
@@ -139,15 +196,7 @@ def plan_world_route(world, *, destination, start=None, start_xyz=None, blocked_
     the intended node. Return exact requested/snapped goal differences and
     source edge bindings along with the local A* result.
     """
-    require((start is None) != (start_xyz is None), "choose one start node or exact XYZ")
-    if start is not None:
-        require(isinstance(start, str) and start in world.aliases, "unknown start alias")
-        node = world.aliases[start]
-    else:
-        position = coordinates(start_xyz)
-        matches = [key for key, row in world.graph.nodes.items() if row.xyz == position]
-        require(len(matches) == 1, "start XYZ absent or ambiguous; select an explicit node")
-        node = matches[0]
+    node = _resolve_start(world, start, start_xyz)
     result = plan_route(world.graph, node, destination, blocked_edges=blocked_edges)
     return {**result, "scope": world.scope, "requestedStartAlias": start,
             "destinationSource": world.routes[destination],
@@ -227,6 +276,12 @@ def main(argv=None):
     p.add_argument("--anchor-route", required=True, help="catalog route selecting one map/build scope")
     sub = p.add_subparsers(dest="operation", required=True)
     sub.add_parser("destinations")
+    available = sub.add_parser("reachable", help="list graph-reachable review destinations")
+    available_start = available.add_mutually_exclusive_group(required=True)
+    available_start.add_argument("--start", help="exact source point alias")
+    available_start.add_argument("--start-xyz", nargs=3, type=float)
+    available.add_argument("--blocked-edge", action="append", default=[])
+    available.add_argument("--out", type=Path)
     locate = sub.add_parser("locate", help="review nearby source geometry without snapping")
     locate.add_argument("--xyz", nargs=3, type=float, required=True)
     locate.add_argument("--max-xz", type=float, required=True)
@@ -246,6 +301,9 @@ def main(argv=None):
                                  anchor_route=args.anchor_route)
         if args.operation == "destinations":
             result = describe_world_graph(world)
+        elif args.operation == "reachable":
+            result = destination_availability(world, start=args.start, start_xyz=args.start_xyz,
+                                              blocked_edges=args.blocked_edge)
         elif args.operation == "locate":
             result = review_position(world, position=args.xyz, max_xz=args.max_xz,
                                      max_y=args.max_y, limit=args.limit)

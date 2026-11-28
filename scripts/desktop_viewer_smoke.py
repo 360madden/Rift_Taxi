@@ -195,6 +195,7 @@ def exercise(launch, graph, *, world_route=None):
                     raise RuntimeError("replay lifecycle callbacks failed: "+"; ".join(errors))
                 model_replay_checked=True
             search_checked = False
+            reachability_checked = False
             map_pick_checked = False
             position_review_checked = False
             if world_route is not None:
@@ -227,12 +228,30 @@ def exercise(launch, graph, *, world_route=None):
                 if not any("no-route" in str(w.cget("text")) for w in children
                            if isinstance(w, ttk.Label)):
                     raise RuntimeError("edge exclusion did not replan")
+                # Reachable-only must clear the blocked destination, then
+                # restore the option without silently changing the selection.
+                filters=[w for w in children if isinstance(w,ttk.Checkbutton)
+                         and w.cget("text")=="Reachable destinations only"]
+                if len(filters)!=1:
+                    raise RuntimeError("missing reachable destination filter")
+                filters[0].invoke()
+                root.update()
+                if combos[1].get() or world_route in combos[1].cget("values") or canvas.find_all():
+                    raise RuntimeError("reachable filter retained blocked destination")
                 exclusions[0].selection_clear(0, "end")
                 exclusions[0].event_generate("<<ListboxSelect>>")
+                root.update()
+                if world_route not in combos[1].cget("values") or combos[1].get():
+                    raise RuntimeError("reachability did not refresh or silently selected a destination")
+                combos[1].set(world_route)
+                combos[1].event_generate("<<ComboboxSelected>>")
                 root.update()
                 if not any("route-found" in str(w.cget("text")) for w in children
                            if isinstance(w, ttk.Label)):
                     raise RuntimeError("clearing exclusions did not restore route")
+                filters[0].invoke()
+                root.update()
+                reachability_checked = True
                 if errors:
                     raise RuntimeError("Tk callbacks failed: " + "; ".join(errors))
                 search_checked = True
@@ -328,6 +347,7 @@ def exercise(launch, graph, *, world_route=None):
                 position_review_checked = True
             receipt.update(modelJourneyReplayChecked=model_replay_checked,
                            searchAndAutomaticReplanChecked=search_checked,
+                           destinationReachabilityChecked=reachability_checked,
                            mapSourceSelectionChecked=map_pick_checked,
                            positionReviewChecked=position_review_checked,
                            title=root.title(), tkVersion=str(root.tk.call("info", "patchlevel")),
